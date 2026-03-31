@@ -37,20 +37,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Sélection → panneau propriétés ──────────────────────────────────────────
 
-  canvasEl.addEventListener("mouseup", () => {
+  // Panneau toujours visible, placeholder quand rien n'est sélectionné
+  showProperties(null);
+
+  lgCanvas.onNodeSelected = function(node) {
+    showProperties(node);
+  };
+
+  lgCanvas.onNodeDeselected = function() {
+    // Vérifier s'il reste exactement 1 nœud sélectionné
     setTimeout(() => {
       const sel = Object.values(lgCanvas.selected_nodes || {});
       if (sel.length === 1) showProperties(sel[0]);
-      else hideProperties();
+      else showProperties(null);
+    }, 30);
+  };
+
+  // Clic sur le canvas vide → désélection
+  canvasEl.addEventListener("mousedown", (e) => {
+    if (e.target !== canvasEl) return;
+    setTimeout(() => {
+      const sel = Object.values(lgCanvas.selected_nodes || {});
+      if (sel.length === 0) showProperties(null);
+      else if (sel.length === 1) showProperties(sel[0]);
+      else showProperties(null); // multi-sélection
     }, 60);
   });
 
-  // Nœud supprimé depuis LiteGraph (touche Delete native)
+  // Nœud supprimé (touche Delete native LiteGraph)
   graph.onNodeRemoved = function() {
     setTimeout(() => {
       const sel = Object.values(lgCanvas.selected_nodes || {});
-      if (sel.length === 0) hideProperties();
-    }, 60);
+      if (sel.length === 1) showProperties(sel[0]);
+      else showProperties(null);
+    }, 30);
   };
 
   // ── Toolbar ─────────────────────────────────────────────────────────────────
@@ -122,10 +142,14 @@ function getCanvasCenter() {
 function showProperties(node) {
   const panel = document.getElementById("properties-panel");
   const content = document.getElementById("properties-content");
+  // Le panneau est toujours affiché
   panel.style.display = "flex";
   content.innerHTML = "";
 
-  if (!node) return;
+  if (!node) {
+    content.innerHTML = '<p class="prop-empty">Sélectionnez un nœud<br>pour éditer ses propriétés.</p>';
+    return;
+  }
 
   if (node.type === "pert/activity") {
     buildField(content, "Libellé", "text", node.properties.label, v => {
@@ -185,7 +209,7 @@ function showProperties(node) {
 }
 
 function hideProperties() {
-  document.getElementById("properties-panel").style.display = "none";
+  showProperties(null);
 }
 
 function buildField(parent, labelText, type, value, onChange, attrs) {

@@ -109,17 +109,13 @@ body {
   color: #7eb8f7;
 }
 
-#btn-close-panel {
-  background: none;
-  border: none;
-  color: #666;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 2px 4px;
+.prop-empty {
+  color: #445;
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+  margin-top: 24px;
 }
-
-#btn-close-panel:hover { color: #bbb; }
 
 #properties-content {
   display: flex;
