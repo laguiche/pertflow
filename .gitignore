@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node (si serveur de dev)
+node_modules/
+
+# Fichiers de projet sauvegardés
+*.pert
