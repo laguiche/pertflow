@@ -1,14 +1,322 @@
-/* PertFlow — styles globaux */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ─── Reset & base ──────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
   background: #1a1a2e;
-  color: #e0e0e0;
+  color: #dde3ec;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+
+/* ─── Toolbar ───────────────────────────────────────────────────────────────── */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px;
+  background: #12122a;
+  border-bottom: 1px solid #2a2a5a;
+  height: 42px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+#project-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #7eb8f7;
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.tb-sep {
+  width: 1px;
+  height: 22px;
+  background: #2a2a5a;
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+#toolbar button {
+  padding: 4px 10px;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  background: #1a2a4a;
+  color: #ccd6f0;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#toolbar button:hover {
+  background: #243a6a;
+  border-color: #6a9fd8;
+  color: #fff;
+}
+
+#toolbar button:active {
+  background: #1a3060;
+}
+
+/* ─── Main area ─────────────────────────────────────────────────────────────── */
+#main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+#canvas-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+#pertCanvas {
+  display: block;
+  background: #1e1e3a;
+}
+
+/* ─── Properties panel ──────────────────────────────────────────────────────── */
+#properties-panel {
+  width: 250px;
+  flex-shrink: 0;
+  background: #12122a;
+  border-left: 1px solid #2a2a5a;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+#properties-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+#properties-header h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #7eb8f7;
+}
+
+#btn-close-panel {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+#btn-close-panel:hover { color: #bbb; }
+
+#properties-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#properties-content label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: #8899bb;
+}
+
+#properties-content input,
+#properties-content textarea,
+#properties-content select {
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 3px;
+  color: #dde3ec;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+#properties-content input[type="color"] {
+  padding: 2px 4px;
+  height: 28px;
+  cursor: pointer;
+}
+
+#properties-content input:focus,
+#properties-content textarea:focus {
+  outline: none;
+  border-color: #5a8fd8;
+}
+
+#properties-content textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.readonly-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid #1e2a40;
+  font-size: 11px;
+}
+
+.ro-label { color: #8899bb; }
+.ro-value { color: #aaccff; font-weight: 600; }
+
+#btn-delete-node {
+  margin-top: 10px;
+  padding: 7px;
+  background: #5c1515;
+  border: 1px solid #8b2222;
+  border-radius: 4px;
+  color: #ffaaaa;
+  cursor: pointer;
+  font-size: 12px;
+  width: 100%;
+  transition: background 0.15s;
+}
+
+#btn-delete-node:hover {
+  background: #8b2222;
+  color: #fff;
+}
+
+/* ─── Status bar ────────────────────────────────────────────────────────────── */
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: #0e0e24;
+  border-top: 1px solid #1e1e44;
+  height: 22px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #6677aa;
+}
+
+.st-sep { color: #2a2a5a; }
+
+#status-hint { margin-left: auto; color: #444; font-size: 10px; }
+
+/* ─── Settings dialog ───────────────────────────────────────────────────────── */
+#settings-dialog {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+#settings-box {
+  background: #16183a;
+  border: 1px solid #2a3a7a;
+  border-radius: 8px;
+  padding: 24px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+#settings-box h2 {
+  font-size: 14px;
+  color: #7eb8f7;
+  margin-bottom: 4px;
+}
+
+#settings-box label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: #8899bb;
+}
+
+#settings-box input,
+#settings-box select {
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  color: #dde3ec;
+  padding: 6px 9px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+#settings-box input:focus,
+#settings-box select:focus {
+  outline: none;
+  border-color: #5a8fd8;
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.dialog-buttons button {
+  padding: 7px 18px;
+  border-radius: 4px;
+  border: 1px solid #2a3a6a;
+  background: #1a2240;
+  color: #ccd6f0;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+
+.dialog-buttons button.primary {
+  background: #1a4a9a;
+  border-color: #4a8ad8;
+  color: #fff;
+}
+
+.dialog-buttons button:hover { opacity: 0.85; }
+
+/* ─── Toast ─────────────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: #1a3060;
+  border: 1px solid #4a7ad8;
+  color: #cde;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 999;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ─── LiteGraph overrides ────────────────────────────────────────────────────── */
+.lgraphcanvas {
+  outline: none;
 }
