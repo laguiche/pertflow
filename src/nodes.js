@@ -1,3 +1,14 @@
+// ─── Mesure de texte (canvas offscreen partagé) ───────────────────────────────
+
+let _offscreenCtx = null;
+function measureText(text, font) {
+  if (!_offscreenCtx) {
+    _offscreenCtx = document.createElement("canvas").getContext("2d");
+  }
+  _offscreenCtx.font = font;
+  return _offscreenCtx.measureText(String(text || "")).width;
+}
+
 // ─── Nœud Activité ────────────────────────────────────────────────────────────
 
 function ActivityNode() {
@@ -21,6 +32,7 @@ function ActivityNode() {
   this.color = this.properties.color;
   this.bgcolor = "#f0f4f8";
   this.size = [240, 108];
+  this.updateSize();
 }
 
 ActivityNode.title = "Activité";
@@ -28,7 +40,19 @@ ActivityNode.title = "Activité";
 ActivityNode.prototype.onPropertyChanged = function(name, value) {
   if (name === "label") this.title = value;
   if (name === "color") this.color = value;
+  this.updateSize();
   this.setDirtyCanvas(true, true);
+};
+
+ActivityNode.prototype.updateSize = function() {
+  const unit = (window.pertMeta && window.pertMeta.unit) || "j";
+  const labelW  = measureText(this.properties.label,    "bold 13px sans-serif");
+  const durW    = measureText("Durée : " + this.properties.duration + " " + unit, "12px sans-serif");
+  const respW   = this.properties.responsible
+    ? measureText("Resp. : " + this.properties.responsible, "11px sans-serif") : 0;
+  this.size[0] = Math.max(labelW + 56, durW + 20, respW + 20, 180);
+  // hauteur fixe : 108 de base + 20px par slot d'entrée supplémentaire
+  this.size[1] = 108 + Math.max(0, (this.inputs ? this.inputs.length - 1 : 0)) * 20;
 };
 
 ActivityNode.prototype.onConnectionsChange = function(type) {
@@ -113,13 +137,25 @@ function MilestoneNode() {
   this.size = [140, 140];
   this.flags = { no_title: true };
   this.color = "#f5a623";
-  this.bgcolor = "#1a1a2e"; // fond canvas pour masquer les coins
+  this.bgcolor = "#1a1a2e";
+  this.updateSize();
 }
 
 MilestoneNode.title = "Jalon";
 
 MilestoneNode.prototype.onPropertyChanged = function() {
+  this.updateSize();
   this.setDirtyCanvas(true, true);
+};
+
+MilestoneNode.prototype.updateSize = function() {
+  const labelW = measureText(this.properties.label,    "bold 12px sans-serif");
+  const dateW  = measureText(this.properties.due_date, "10px sans-serif");
+  // Le losange expose toute sa largeur au centre ; on ajoute 80px de marge
+  // pour que le texte reste bien à l'intérieur des diagonales
+  const size = Math.max(140, Math.max(labelW, dateW) + 80);
+  this.size[0] = size;
+  this.size[1] = size;
 };
 
 MilestoneNode.prototype.onConnectionsChange = function(type) {
@@ -170,12 +206,21 @@ function LabelNode() {
   this.size = [200, 80];
   this.flags = { no_title: true };
   this.bgcolor = "#1a1a2e";
+  this.updateSize();
 }
 
 LabelNode.title = "Label";
 
 LabelNode.prototype.onPropertyChanged = function() {
+  this.updateSize();
   this.setDirtyCanvas(true, true);
+};
+
+LabelNode.prototype.updateSize = function() {
+  const lines = (this.properties.text || "").split("\n");
+  const maxW = Math.max(...lines.map(l => measureText(l, "12px sans-serif")));
+  this.size[0] = Math.max(160, maxW + 20);
+  this.size[1] = Math.max(50, lines.length * 16 + 20);
 };
 
 LabelNode.prototype.onDrawBackground = function(ctx) {

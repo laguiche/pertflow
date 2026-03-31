@@ -258,7 +258,11 @@ function saveSettings() {
   window.pertMeta.unit = document.getElementById("settings-unit").value;
   document.getElementById("settings-dialog").style.display = "none";
   document.getElementById("project-title").textContent = window.pertMeta.title || "PertFlow";
-  if (window.pertGraph) window.pertGraph.setDirtyCanvas(true, true);
+  // Recalculer les tailles (l'unité affectée dans les nœuds Activité)
+  if (window.pertGraph) {
+    window.pertGraph._nodes.forEach(n => { if (n.updateSize) n.updateSize(); });
+    window.pertGraph.setDirtyCanvas(true, true);
+  }
 }
 
 // ─── Barre de statut ──────────────────────────────────────────────────────────
