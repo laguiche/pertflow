@@ -8,9 +8,75 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div id="app">
-    <p>PertFlow — en cours de construction</p>
+
+  <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
+  <div id="settings-dialog">
+    <div id="settings-box">
+      <h2>Paramètres du projet</h2>
+      <label>Titre du projet
+        <input type="text" id="settings-title" placeholder="Mon projet PERT">
+      </label>
+      <label>Date de début (T0)
+        <input type="date" id="settings-t0">
+      </label>
+      <label>Unité de durée
+        <select id="settings-unit">
+          <option value="j">Jours</option>
+          <option value="sem">Semaines</option>
+        </select>
+      </label>
+      <div class="dialog-buttons">
+        <button id="settings-cancel">Annuler</button>
+        <button id="settings-ok" class="primary">Valider</button>
+      </div>
+    </div>
   </div>
+
+  <!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+  <div id="toolbar">
+    <span id="project-title">PertFlow</span>
+    <div class="tb-sep"></div>
+    <button id="btn-add-activity" title="Ajouter un nœud Activité">+ Activité</button>
+    <button id="btn-add-milestone" title="Ajouter un nœud Jalon">+ Jalon</button>
+    <button id="btn-add-label" title="Ajouter un nœud Label">+ Label</button>
+    <div class="tb-sep"></div>
+    <button id="btn-settings" title="Paramètres du projet">⚙ Paramètres</button>
+    <div class="tb-sep"></div>
+    <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
+    <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
+    <button id="btn-export-png" title="Exporter en PNG">🖼 PNG</button>
+    <button id="btn-export-pdf" title="Exporter en PDF">📄 PDF</button>
+  </div>
+
+  <!-- ── Zone principale ──────────────────────────────────────────────────── -->
+  <div id="main">
+    <div id="canvas-container">
+      <canvas id="pertCanvas"></canvas>
+    </div>
+
+    <!-- ── Panneau propriétés ───────────────────────────────────────────── -->
+    <div id="properties-panel" style="display:none">
+      <div id="properties-header">
+        <h3>Propriétés</h3>
+        <button id="btn-close-panel" title="Fermer" onclick="hideProperties()">✕</button>
+      </div>
+      <div id="properties-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Barre de statut ──────────────────────────────────────────────────── -->
+  <div id="statusbar">
+    <span id="status-t0">T0 non défini</span>
+    <span class="st-sep">|</span>
+    <span id="status-unit">Unité : jours</span>
+    <span class="st-sep">|</span>
+    <span id="status-nodes">0 nœud(s)</span>
+    <span class="st-sep">|</span>
+    <span id="status-hint">Clic droit sur le canvas pour ajouter un nœud · Suppr pour effacer · Ctrl+A pour tout sélectionner</span>
+  </div>
+
+  <!-- Fichier open (Session 3) -->
+  <input type="file" id="file-input" accept=".pert,.json" style="display:none">
 
   <script src="lib/litegraph.js"></script>
   <script src="lib/jspdf.umd.min.js"></script>
