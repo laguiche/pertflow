@@ -1,7 +1,7 @@
 // ─── Nœud Activité ────────────────────────────────────────────────────────────
 
 function ActivityNode() {
-  this.addInput("", "pert_flow");
+  this.addInput("", "pert_flow");  // slot initial — d'autres s'ajoutent dynamiquement
   this.addOutput("", "pert_flow");
 
   this.properties = {
@@ -29,6 +29,11 @@ ActivityNode.prototype.onPropertyChanged = function(name, value) {
   if (name === "label") this.title = value;
   if (name === "color") this.color = value;
   this.setDirtyCanvas(true, true);
+};
+
+ActivityNode.prototype.onConnectionsChange = function(type) {
+  if (type !== LiteGraph.INPUT) return;
+  manageDynamicInputs(this, "pert_flow");
 };
 
 ActivityNode.prototype.onDrawBackground = function(ctx) {
@@ -93,11 +98,7 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
 // ─── Nœud Jalon ───────────────────────────────────────────────────────────────
 
 function MilestoneNode() {
-  // 4 entrées pour permettre la convergence de plusieurs activités
-  this.addInput("", "pert_flow");
-  this.addInput("", "pert_flow");
-  this.addInput("", "pert_flow");
-  this.addInput("", "pert_flow");
+  this.addInput("", "pert_flow");  // slot initial — d'autres s'ajoutent dynamiquement
   this.addOutput("", "pert_flow");
 
   this.properties = {
@@ -119,6 +120,11 @@ MilestoneNode.title = "Jalon";
 
 MilestoneNode.prototype.onPropertyChanged = function() {
   this.setDirtyCanvas(true, true);
+};
+
+MilestoneNode.prototype.onConnectionsChange = function(type) {
+  if (type !== LiteGraph.INPUT) return;
+  manageDynamicInputs(this, "pert_flow");
 };
 
 MilestoneNode.prototype.onDrawBackground = function(ctx) {
@@ -198,6 +204,31 @@ LabelNode.prototype.onDrawForeground = function(ctx) {
     ctx.fillText(line, 10, 18 + i * 16, w - 20);
   });
 };
+
+// ─── Slots d'entrée dynamiques ────────────────────────────────────────────────
+//
+// Règle : le dernier slot est toujours vide (disponible pour une nouvelle
+// connexion). Quand il est connecté on en ajoute un nouveau. Quand une
+// connexion est retirée on supprime les slots vides en trop (on en garde
+// toujours au moins un).
+
+function manageDynamicInputs(node, slotType) {
+  const inputs = node.inputs;
+
+  // Ajouter un slot vide si le dernier est occupé
+  if (inputs[inputs.length - 1].link !== null) {
+    node.addInput("", slotType);
+  }
+
+  // Supprimer les slots vides en excès (garder au moins 1)
+  while (inputs.length > 1
+      && inputs[inputs.length - 1].link === null
+      && inputs[inputs.length - 2].link === null) {
+    node.removeInput(inputs.length - 1);
+  }
+
+  node.setDirtyCanvas(true, true);
+}
 
 // ─── Enregistrement ───────────────────────────────────────────────────────────
 
