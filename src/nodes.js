@@ -76,8 +76,10 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
   ctx.moveTo(0, 52); ctx.lineTo(w, 52);
   ctx.stroke();
 
-  // Section calculs
-  const calcBg = this.slack === 0
+  // Section calculs : rouge clair si critique (marge nulle) ou marge négative
+  // (délai/cible infaisable en aval), vert clair si marge positive
+  const alert = this.is_critical || (this.slack !== null && this.slack < 0);
+  const calcBg = alert
     ? "#ffe5e5"
     : (this.slack !== null ? "#e5f5e5" : "#f8f8f8");
   ctx.fillStyle = calcBg;
@@ -102,20 +104,23 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
     ctx.fillText("Resp. : " + this.properties.responsible, 10, 38);
   }
 
-  // Texte section calculs
+  // Texte section calculs : EF converti en date calendaire
   ctx.font = "11px sans-serif";
   if (this.ef !== null) {
     ctx.fillStyle = "#2c3e50";
-    ctx.fillText("Fin t.tôt : " + pertFormatDate(this.ef), 10, 70);
+    const efDate = pertOffsetToDate(this.ef);
+    const efTxt = efDate ? pertFormatDate(efDate) : ("+" + this.ef + " " + unit);
+    ctx.fillText("Fin t.tôt : " + efTxt, 10, 70);
   } else {
     ctx.fillStyle = "#aaa";
     ctx.fillText("Non calculé", 10, 70);
   }
 
   if (this.slack !== null) {
-    ctx.fillStyle = this.slack === 0 ? "#cc0000" : "#1a7a1a";
+    ctx.fillStyle = (this.is_critical || this.slack < 0) ? "#cc0000" : "#1a7a1a";
     ctx.font = "bold 11px sans-serif";
-    ctx.fillText("Marge : " + (this.slack >= 0 ? "+" : "") + this.slack + " " + unit, 10, 90);
+    const slackTxt = pertFormatSlack(this.slack);
+    ctx.fillText("Marge : " + slackTxt + " " + unit, 10, 90);
   }
 };
 
@@ -180,22 +185,38 @@ MilestoneNode.prototype.onDrawForeground = function(ctx) {
   ctx.lineTo(pad, h / 2);
   ctx.closePath();
 
-  ctx.fillStyle = this.is_critical ? "#ffcccc" : "#fffbe6";
+  // Mise en exergue : rouge si critique OU si la date-cible n'est pas tenue
+  const alert = this.is_critical || this.target_missed;
+  ctx.fillStyle = alert ? "#ffcccc" : "#fffbe6";
   ctx.fill();
-  ctx.strokeStyle = this.is_critical ? "#cc0000" : "#aaa";
-  ctx.lineWidth = this.is_critical ? 3 : 1.5;
+  ctx.strokeStyle = alert ? "#cc0000" : "#aaa";
+  ctx.lineWidth = alert ? 3 : 1.5;
   ctx.stroke();
 
+  // Libellé (remonté pour laisser la place aux lignes de date)
   ctx.fillStyle = "#333";
   ctx.font = "bold 12px sans-serif";
   ctx.textAlign = "center";
-  const labelY = this.properties.due_date ? h / 2 - 6 : h / 2 + 4;
-  ctx.fillText(this.properties.label, w / 2, labelY);
+  const nbLines = (this.properties.due_date ? 1 : 0) + (this.ef !== null ? 1 : 0);
+  ctx.fillText(this.properties.label, w / 2, h / 2 - nbLines * 7);
 
-  if (this.properties.due_date) {
+  let lineY = h / 2 - nbLines * 7 + 14;
+
+  // Fin calculée (date au plus tôt d'atteinte du jalon)
+  if (this.ef !== null) {
+    const efDate = pertOffsetToDate(this.ef);
     ctx.font = "10px sans-serif";
-    ctx.fillStyle = "#666";
-    ctx.fillText(this.properties.due_date, w / 2, h / 2 + 12);
+    ctx.fillStyle = this.target_missed ? "#cc0000" : "#1a7a1a";
+    ctx.fillText("Fin : " + (efDate ? pertFormatDate(efDate) : "+" + this.ef), w / 2, lineY);
+    lineY += 13;
+  }
+
+  // Date-cible « à tenir »
+  if (this.properties.due_date) {
+    const dueDate = pertOffsetToDate(pertDateToOffset(this.properties.due_date));
+    ctx.font = "10px sans-serif";
+    ctx.fillStyle = this.target_missed ? "#cc0000" : "#666";
+    ctx.fillText("Cible : " + (dueDate ? pertFormatDate(dueDate) : this.properties.due_date), w / 2, lineY);
   }
 };
 
@@ -289,4 +310,12 @@ function pertFormatDate(val) {
     return val.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" });
   }
   return String(val);
+}
+
+// Marge signée, arrondie à 2 décimales et sans zéros inutiles (+2, -1.5, 0)
+function pertFormatSlack(slack) {
+  if (slack === null || slack === undefined) return "—";
+  const rounded = Math.round(slack * 100) / 100;
+  const sign = rounded > 0 ? "+" : "";
+  return sign + rounded;
 }

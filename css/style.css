@@ -173,6 +173,20 @@ body {
 .ro-label { color: #8899bb; }
 .ro-value { color: #aaccff; font-weight: 600; }
 
+/* Section des valeurs calculées (PERT) */
+#calc-section { margin-top: 8px; }
+.calc-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8899bb;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 6px 0 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid #1e2a40;
+}
+.readonly-row.ro-critical .ro-value { color: #ff7777; }
+
 #btn-delete-node {
   margin-top: 10px;
   padding: 7px;
@@ -206,6 +220,9 @@ body {
 }
 
 .st-sep { color: #2a2a5a; }
+
+#status-pert { color: #8899bb; }
+#status-pert.pert-error { color: #ff7777; font-weight: 700; }
 
 #status-hint { margin-left: auto; color: #444; font-size: 10px; }
 

@@ -66,12 +66,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Nœud supprimé (touche Delete native LiteGraph)
   graph.onNodeRemoved = function() {
+    pertRecalc();
     setTimeout(() => {
       const sel = Object.values(lgCanvas.selected_nodes || {});
       if (sel.length === 1) showProperties(sel[0]);
       else showProperties(null);
     }, 30);
   };
+
+  // ── Recalcul PERT automatique (ajout / connexion) ───────────────────────────
+  graph.onNodeAdded = function() { pertRecalc(); };
+  graph.onConnectionChange = function() {
+    pertRecalc();
+    // Rafraîchir le panneau si un nœud unique est sélectionné (valeurs calculées)
+    const sel = Object.values(lgCanvas.selected_nodes || {});
+    if (sel.length === 1) showProperties(sel[0]);
+  };
+
+  // Premier calcul (graphe éventuellement déjà peuplé)
+  pertRecalc();
 
   // ── Toolbar ─────────────────────────────────────────────────────────────────
 
@@ -159,7 +172,10 @@ function showProperties(node) {
     });
     buildField(content, "Durée", "number", node.properties.duration, v => {
       node.properties.duration = parseFloat(v) || 0;
+      node.updateSize();
       node.setDirtyCanvas(true);
+      pertRecalc();
+      fillCalcSection(node);
     }, { min: 0, step: 0.5 });
     buildField(content, "Responsable", "text", node.properties.responsible, v => {
       node.properties.responsible = v;
@@ -171,24 +187,21 @@ function showProperties(node) {
       node.setDirtyCanvas(true);
     });
 
-    // Affichage des valeurs calculées (lecture seule)
-    if (node.es !== null) {
-      buildReadonly(content, "ES", node.es);
-      buildReadonly(content, "EF", node.ef);
-      buildReadonly(content, "LS", node.ls);
-      buildReadonly(content, "LF", node.lf);
-      buildReadonly(content, "Marge", node.slack);
-    }
+    buildCalcSection(content, node);
 
   } else if (node.type === "pert/milestone") {
     buildField(content, "Libellé", "text", node.properties.label, v => {
       node.properties.label = v;
       node.setDirtyCanvas(true);
     });
-    buildField(content, "Date butée", "date", node.properties.due_date, v => {
+    buildField(content, "Date-cible (à tenir)", "date", node.properties.due_date, v => {
       node.properties.due_date = v;
       node.setDirtyCanvas(true);
+      pertRecalc();
+      fillCalcSection(node);
     });
+
+    buildCalcSection(content, node);
 
   } else if (node.type === "pert/label") {
     buildTextarea(content, "Texte", node.properties.text, v => {
@@ -236,11 +249,68 @@ function buildTextarea(parent, labelText, value, onChange) {
   parent.appendChild(label);
 }
 
-function buildReadonly(parent, labelText, value) {
+function buildReadonly(parent, labelText, value, cls) {
   const row = document.createElement("div");
-  row.className = "readonly-row";
-  row.innerHTML = `<span class="ro-label">${labelText}</span><span class="ro-value">${value !== null ? value : "—"}</span>`;
+  row.className = "readonly-row" + (cls ? " " + cls : "");
+  row.innerHTML = `<span class="ro-label">${labelText}</span><span class="ro-value">${value !== null && value !== undefined ? value : "—"}</span>`;
   parent.appendChild(row);
+}
+
+// Conteneur dédié aux valeurs calculées (rafraîchi sans reconstruire les champs)
+function buildCalcSection(parent, node) {
+  const sec = document.createElement("div");
+  sec.id = "calc-section";
+  parent.appendChild(sec);
+  fillCalcSection(node);
+}
+
+// (Re)remplit la section calculs pour le nœud donné — sans toucher aux champs éditables
+function fillCalcSection(node) {
+  const sec = document.getElementById("calc-section");
+  if (!sec || !node) return;
+  sec.innerHTML = "";
+
+  const unit = (window.pertMeta && window.pertMeta.unit) || "j";
+  const asDate = off => {
+    const d = pertOffsetToDate(off);
+    return d ? pertFormatDate(d) : (off !== null && off !== undefined ? "+" + off + " " + unit : "—");
+  };
+
+  if (node.type === "pert/activity") {
+    if (node.es === null) {
+      sec.innerHTML = '<p class="prop-empty">Non calculé (cycle ou T0 absent ?)</p>';
+      return;
+    }
+    const title = document.createElement("div");
+    title.className = "calc-title";
+    title.textContent = node.is_critical ? "⛔ Chemin critique" : "Valeurs calculées";
+    sec.appendChild(title);
+    buildReadonly(sec, "Début t.tôt (ES)", asDate(node.es));
+    buildReadonly(sec, "Fin t.tôt (EF)", asDate(node.ef));
+    buildReadonly(sec, "Début t.tard (LS)", asDate(node.ls));
+    buildReadonly(sec, "Fin t.tard (LF)", asDate(node.lf));
+    buildReadonly(sec, "Marge", pertFormatSlack(node.slack) + " " + unit,
+      node.is_critical ? "ro-critical" : "");
+
+  } else if (node.type === "pert/milestone") {
+    if (node.ef === null) {
+      sec.innerHTML = '<p class="prop-empty">Non calculé (cycle ou T0 absent ?)</p>';
+      return;
+    }
+    const title = document.createElement("div");
+    title.className = "calc-title";
+    title.textContent = node.is_critical ? "⛔ Chemin critique" : "Valeurs calculées";
+    sec.appendChild(title);
+    buildReadonly(sec, "Atteint t.tôt (EF)", asDate(node.ef));
+    buildReadonly(sec, "Au plus tard (LF)", asDate(node.lf));
+    buildReadonly(sec, "Marge", pertFormatSlack(node.slack) + " " + unit,
+      node.is_critical ? "ro-critical" : "");
+    if (node.target_missed) {
+      buildReadonly(sec, "Cible", "⛔ non tenue", "ro-critical");
+    } else if (node.properties.due_date) {
+      buildReadonly(sec, "Cible", "✓ tenue");
+    }
+  }
 }
 
 // ─── Paramètres ───────────────────────────────────────────────────────────────
@@ -263,6 +333,11 @@ function saveSettings() {
     window.pertGraph._nodes.forEach(n => { if (n.updateSize) n.updateSize(); });
     window.pertGraph.setDirtyCanvas(true, true);
   }
+  // T0 / unité affectent les dates calculées et les offsets des dates-cibles
+  pertRecalc();
+  const sel = Object.values(window.pertCanvas.selected_nodes || {});
+  if (sel.length === 1) fillCalcSection(sel[0]);
+  updateStatus();
 }
 
 // ─── Barre de statut ──────────────────────────────────────────────────────────
@@ -270,7 +345,8 @@ function saveSettings() {
 function updateStatus() {
   const g = window.pertGraph;
   const nodes = g ? g._nodes.length : 0;
-  const unit = window.pertMeta.unit === "sem" ? "semaines" : "jours";
+  const unit = window.pertMeta.unit === "sem" ? "semaines"
+    : (window.pertMeta.unit === "mois" ? "mois" : "jours");
   document.getElementById("status-nodes").textContent = nodes + " nœud(s)";
   document.getElementById("status-unit").textContent = "Unité : " + unit;
   document.getElementById("status-t0").textContent =
