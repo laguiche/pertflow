@@ -1,4 +1,16 @@
-// ─── Mesure de texte (canvas offscreen partagé) ───────────────────────────────
+// ─── Constantes de rendu — Session 2.5 ─────────────────────────────────────────
+//
+// Echelle horizontale partagee : sert a la fois a la largeur proportionnelle a la
+// duree (#2) et au placement chronologique du layout automatique (#1, pert_engine).
+// Avec une echelle commune, une chaine de taches se "carrele" comme un Gantt :
+// le successeur demarre la ou le predecesseur finit.
+const PERT_PX_PER_UNIT = 60;   // pixels par unite de duree (jour/semaine/mois)
+const ACT_MIN_W = 140;         // largeur mini d'une activite : doit loger la ligne
+                               // calculee la plus large ("Fin t.tot : 28/11/26")
+const ACT_MAX_W = 480;         // largeur maxi : au-dela le libelle passe en multi-lignes (#4)
+const ACT_LABEL_LH = 18;       // hauteur de ligne du libelle (police bold 13px)
+
+// ─── Mesure de texte (canvas offscreen partage) ───────────────────────────────
 
 let _offscreenCtx = null;
 function measureText(text, font) {
@@ -7,6 +19,27 @@ function measureText(text, font) {
   }
   _offscreenCtx.font = font;
   return _offscreenCtx.measureText(String(text || "")).width;
+}
+
+// Decoupe un texte en lignes qui tiennent dans maxWidth (retour a la ligne sur
+// les espaces). Un mot plus large que maxWidth est laisse tel quel (debordement
+// accepte plutot que coupure au milieu d'un mot). Renvoie au moins une ligne.
+function wrapText(text, font, maxWidth) {
+  const words = String(text || "").split(/\s+/).filter(w => w.length);
+  if (!words.length) return [""];
+  const lines = [];
+  let current = words[0];
+  for (let i = 1; i < words.length; i++) {
+    const candidate = current + " " + words[i];
+    if (measureText(candidate, font) <= maxWidth) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = words[i];
+    }
+  }
+  lines.push(current);
+  return lines;
 }
 
 // ─── Nœud Activité ────────────────────────────────────────────────────────────
@@ -28,53 +61,94 @@ function ActivityNode() {
   this.slack = null;
   this.is_critical = false;
 
-  this.title = this.properties.label;
+  // Rendu custom : pas de barre de titre LiteGraph (cf. ActivityNode.title_mode),
+  // on dessine notre propre en-tete (permet le libelle multi-lignes #4).
   this.color = this.properties.color;
-  this.bgcolor = "#f0f4f8";
-  this.size = [240, 108];
+  this.bgcolor = "#ffffff";
+  this._labelLines = [this.properties.label];
+  this._headerH = ACT_LABEL_LH + 12;
+  this._calcTop = 0;
+  this.size = [ACT_MIN_W, 120];
   this.updateSize();
 }
 
 ActivityNode.title = "Activité";
+// Masque la barre de titre LiteGraph : le titre est pilote par title_mode du
+// constructeur, PAS par flags.no_title (qui n'a aucun effet sur le rendu).
+ActivityNode.title_mode = LiteGraph.NO_TITLE;
 
 ActivityNode.prototype.onPropertyChanged = function(name, value) {
-  if (name === "label") this.title = value;
   if (name === "color") this.color = value;
   this.updateSize();
   this.setDirtyCanvas(true, true);
 };
 
+// Recalcule largeur (∝ duree, bornee), libelle multi-lignes, hauteur et slots.
 ActivityNode.prototype.updateSize = function() {
-  const unit = (window.pertMeta && window.pertMeta.unit) || "j";
-  const labelW  = measureText(this.properties.label,    "bold 13px sans-serif");
-  const durW    = measureText("Durée : " + this.properties.duration + " " + unit, "12px sans-serif");
-  const respW   = this.properties.responsible
-    ? measureText("Resp. : " + this.properties.responsible, "11px sans-serif") : 0;
-  this.size[0] = Math.max(labelW + 56, durW + 20, respW + 20, 180);
-  // hauteur fixe : 108 de base + 20px par slot d'entrée supplémentaire
-  this.size[1] = 108 + Math.max(0, (this.inputs ? this.inputs.length - 1 : 0)) * 20;
+  // #2 largeur proportionnelle a la duree, bornee [MIN, MAX]
+  const dur = parseFloat(this.properties.duration) || 0;
+  const width = Math.max(ACT_MIN_W, Math.min(ACT_MAX_W, dur * PERT_PX_PER_UNIT));
+
+  // #4 libelle multi-lignes si trop long pour la largeur
+  this._labelLines = wrapText(this.properties.label, "bold 13px sans-serif", width - 20);
+  const headerH = this._labelLines.length * ACT_LABEL_LH + 12;
+
+  // Section info : ligne duree (toujours) + ligne responsable (optionnelle)
+  const infoH = this.properties.responsible ? 44 : 28;
+  // Section calculs : EF + marge
+  const calcH = 48;
+
+  this._headerH = headerH;
+  this._calcTop = headerH + infoH;
+
+  const nbInputs = this.inputs ? this.inputs.length : 1;
+  const slotsH = headerH + 12 + nbInputs * 20 + 8;
+
+  this.size[0] = width;
+  this.size[1] = Math.max(headerH + infoH + calcH, slotsH);
+  this.positionSlots();
+};
+
+// Positions explicites des slots : entrees empilees sur le bord gauche sous
+// l'en-tete, sortie sur le bord droit a hauteur de la premiere entree.
+ActivityNode.prototype.positionSlots = function() {
+  const baseY = this._headerH + 12;
+  if (this.inputs) {
+    for (let i = 0; i < this.inputs.length; i++) {
+      this.inputs[i].pos = [0, baseY + i * 20];
+    }
+  }
+  if (this.outputs && this.outputs[0]) {
+    this.outputs[0].pos = [this.size[0], baseY];
+  }
 };
 
 ActivityNode.prototype.onConnectionsChange = function(type) {
   if (type !== LiteGraph.INPUT) return;
   manageDynamicInputs(this, "pert_flow");
+  this.updateSize();
 };
 
 ActivityNode.prototype.onDrawBackground = function(ctx) {
   const w = this.size[0];
   const h = this.size[1];
+  const headerH = this._headerH;
+  const calcTop = this._calcTop;
   const unit = (window.pertMeta && window.pertMeta.unit) ? window.pertMeta.unit : "j";
+
+  // En-tete colore + libelle multi-lignes (blanc)
+  ctx.fillStyle = this.properties.color;
+  ctx.fillRect(0, 0, w, headerH);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 13px sans-serif";
+  ctx.textAlign = "left";
+  this._labelLines.forEach((ln, i) => {
+    ctx.fillText(ln, 10, 16 + i * ACT_LABEL_LH);
+  });
 
   // Section info : durée + responsable
   ctx.fillStyle = "#f0f4f8";
-  ctx.fillRect(0, 0, w, 52);
-
-  // Separator
-  ctx.strokeStyle = "#cdd5df";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0, 52); ctx.lineTo(w, 52);
-  ctx.stroke();
+  ctx.fillRect(0, headerH, w, calcTop - headerH);
 
   // Section calculs : rouge clair si critique (marge nulle) ou marge négative
   // (délai/cible infaisable en aval), vert clair si marge positive
@@ -83,7 +157,14 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
     ? "#ffe5e5"
     : (this.slack !== null ? "#e5f5e5" : "#f8f8f8");
   ctx.fillStyle = calcBg;
-  ctx.fillRect(0, 52, w, h - 52);
+  ctx.fillRect(0, calcTop, w, h - calcTop);
+
+  // Separateur en-tete / info / calculs
+  ctx.strokeStyle = "#cdd5df";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, calcTop); ctx.lineTo(w, calcTop);
+  ctx.stroke();
 
   // Bordure critique
   if (this.is_critical) {
@@ -95,13 +176,12 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
   // Texte section info
   ctx.fillStyle = "#2c3e50";
   ctx.font = "12px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText("Durée : " + this.properties.duration + " " + unit, 10, 20);
+  ctx.fillText("Durée : " + this.properties.duration + " " + unit, 10, headerH + 18);
 
   if (this.properties.responsible) {
     ctx.fillStyle = "#555";
     ctx.font = "11px sans-serif";
-    ctx.fillText("Resp. : " + this.properties.responsible, 10, 38);
+    ctx.fillText("Resp. : " + this.properties.responsible, 10, headerH + 34);
   }
 
   // Texte section calculs : EF converti en date calendaire
@@ -110,21 +190,25 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
     ctx.fillStyle = "#2c3e50";
     const efDate = pertOffsetToDate(this.ef);
     const efTxt = efDate ? pertFormatDate(efDate) : ("+" + this.ef + " " + unit);
-    ctx.fillText("Fin t.tôt : " + efTxt, 10, 70);
+    ctx.fillText("Fin t.tôt : " + efTxt, 10, calcTop + 18);
   } else {
     ctx.fillStyle = "#aaa";
-    ctx.fillText("Non calculé", 10, 70);
+    ctx.fillText("Non calculé", 10, calcTop + 18);
   }
 
   if (this.slack !== null) {
     ctx.fillStyle = (this.is_critical || this.slack < 0) ? "#cc0000" : "#1a7a1a";
     ctx.font = "bold 11px sans-serif";
     const slackTxt = pertFormatSlack(this.slack);
-    ctx.fillText("Marge : " + slackTxt + " " + unit, 10, 90);
+    ctx.fillText("Marge : " + slackTxt + " " + unit, 10, calcTop + 36);
   }
 };
 
 // ─── Nœud Jalon ───────────────────────────────────────────────────────────────
+//
+// Session 2.5 (#5) : refonte de la forme. Le losange etait trop exigu pour le
+// texte → rectangle arrondi avec un coin "drapeau" (marqueur de jalon) en haut
+// a droite et un losange glyphe devant le libelle.
 
 function MilestoneNode() {
   this.addInput("", "pert_flow");  // slot initial — d'autres s'ajoutent dynamiquement
@@ -138,15 +222,16 @@ function MilestoneNode() {
   this.ef = null; this.lf = null;
   this.slack = null;
   this.is_critical = false;
+  this.target_missed = false;
 
-  this.size = [140, 140];
-  this.flags = { no_title: true };
-  this.color = "#f5a623";
-  this.bgcolor = "#1a1a2e";
+  this.bgcolor = "#ffffff";
+  this._labelLines = [this.properties.label];
+  this.size = [180, 70];
   this.updateSize();
 }
 
 MilestoneNode.title = "Jalon";
+MilestoneNode.title_mode = LiteGraph.NO_TITLE;
 
 MilestoneNode.prototype.onPropertyChanged = function() {
   this.updateSize();
@@ -154,61 +239,78 @@ MilestoneNode.prototype.onPropertyChanged = function() {
 };
 
 MilestoneNode.prototype.updateSize = function() {
-  const labelW = measureText(this.properties.label,    "bold 12px sans-serif");
-  const dateW  = measureText(this.properties.due_date, "10px sans-serif");
-  // Le losange expose toute sa largeur au centre ; on ajoute 80px de marge
-  // pour que le texte reste bien à l'intérieur des diagonales
-  const size = Math.max(140, Math.max(labelW, dateW) + 80);
-  this.size[0] = size;
-  this.size[1] = size;
+  const efTxt  = this.ef !== null ? "Fin : 00/00/00" : "";
+  const dueTxt = this.properties.due_date ? "Cible : 00/00/00" : "";
+  const labelW = measureText("◆ " + this.properties.label, "bold 12px sans-serif");
+  const lineW  = Math.max(labelW, measureText(efTxt, "10px sans-serif"),
+                          measureText(dueTxt, "10px sans-serif"));
+  // bord gauche reserve au slot d'entree (~24px) + marge droite
+  const width = Math.max(160, Math.min(300, lineW + 44));
+
+  this._labelLines = wrapText("◆ " + this.properties.label, "bold 12px sans-serif", width - 32);
+  const nbExtra = (this.ef !== null ? 1 : 0) + (this.properties.due_date ? 1 : 0);
+  this.size[0] = width;
+  this.size[1] = 14 + this._labelLines.length * 16 + nbExtra * 15 + 10;
 };
 
 MilestoneNode.prototype.onConnectionsChange = function(type) {
   if (type !== LiteGraph.INPUT) return;
   manageDynamicInputs(this, "pert_flow");
+  this.updateSize();
 };
 
+// Rectangle arrondi dessine en fond → les slots (rendus ensuite) restent visibles.
 MilestoneNode.prototype.onDrawBackground = function(ctx) {
-  // Masquer le fond rectangulaire par défaut
-  ctx.fillStyle = "#1a1a2e";
-  ctx.fillRect(0, 0, this.size[0], this.size[1]);
-};
-
-MilestoneNode.prototype.onDrawForeground = function(ctx) {
   const w = this.size[0], h = this.size[1];
-  const pad = 4;
-
-  ctx.beginPath();
-  ctx.moveTo(w / 2, pad);
-  ctx.lineTo(w - pad, h / 2);
-  ctx.lineTo(w / 2, h - pad);
-  ctx.lineTo(pad, h / 2);
-  ctx.closePath();
+  const r = 8;
 
   // Mise en exergue : rouge si critique OU si la date-cible n'est pas tenue
   const alert = this.is_critical || this.target_missed;
-  ctx.fillStyle = alert ? "#ffcccc" : "#fffbe6";
+
+  // Corps arrondi
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(w - r, 0);
+  ctx.arcTo(w, 0, w, r, r);
+  ctx.lineTo(w, h - r);
+  ctx.arcTo(w, h, w - r, h, r);
+  ctx.lineTo(r, h);
+  ctx.arcTo(0, h, 0, h - r, r);
+  ctx.lineTo(0, r);
+  ctx.arcTo(0, 0, r, 0, r);
+  ctx.closePath();
+  ctx.fillStyle = alert ? "#ffe5e5" : "#fff8e1";
   ctx.fill();
-  ctx.strokeStyle = alert ? "#cc0000" : "#aaa";
+  ctx.strokeStyle = alert ? "#cc0000" : "#d0a000";
   ctx.lineWidth = alert ? 3 : 1.5;
   ctx.stroke();
 
-  // Libellé (remonté pour laisser la place aux lignes de date)
+  // Coin "drapeau" en haut a droite : marqueur visuel du type Jalon
+  ctx.beginPath();
+  ctx.moveTo(w - 18, 0);
+  ctx.lineTo(w, 0);
+  ctx.lineTo(w, 18);
+  ctx.closePath();
+  ctx.fillStyle = alert ? "#cc0000" : "#f5a623";
+  ctx.fill();
+
+  // Libellé (losange glyphe prepende sur la 1re ligne, multi-lignes #4/#5)
   ctx.fillStyle = "#333";
   ctx.font = "bold 12px sans-serif";
-  ctx.textAlign = "center";
-  const nbLines = (this.properties.due_date ? 1 : 0) + (this.ef !== null ? 1 : 0);
-  ctx.fillText(this.properties.label, w / 2, h / 2 - nbLines * 7);
-
-  let lineY = h / 2 - nbLines * 7 + 14;
+  ctx.textAlign = "left";
+  let y = 18;
+  this._labelLines.forEach(ln => {
+    ctx.fillText(ln, 12, y);
+    y += 16;
+  });
 
   // Fin calculée (date au plus tôt d'atteinte du jalon)
   if (this.ef !== null) {
     const efDate = pertOffsetToDate(this.ef);
     ctx.font = "10px sans-serif";
     ctx.fillStyle = this.target_missed ? "#cc0000" : "#1a7a1a";
-    ctx.fillText("Fin : " + (efDate ? pertFormatDate(efDate) : "+" + this.ef), w / 2, lineY);
-    lineY += 13;
+    ctx.fillText("Fin : " + (efDate ? pertFormatDate(efDate) : "+" + this.ef), 12, y + 2);
+    y += 15;
   }
 
   // Date-cible « à tenir »
@@ -216,7 +318,7 @@ MilestoneNode.prototype.onDrawForeground = function(ctx) {
     const dueDate = pertOffsetToDate(pertDateToOffset(this.properties.due_date));
     ctx.font = "10px sans-serif";
     ctx.fillStyle = this.target_missed ? "#cc0000" : "#666";
-    ctx.fillText("Cible : " + (dueDate ? pertFormatDate(dueDate) : this.properties.due_date), w / 2, lineY);
+    ctx.fillText("Cible : " + (dueDate ? pertFormatDate(dueDate) : this.properties.due_date), 12, y + 2);
   }
 };
 
@@ -225,12 +327,12 @@ MilestoneNode.prototype.onDrawForeground = function(ctx) {
 function LabelNode() {
   this.properties = { text: "Note libre..." };
   this.size = [200, 80];
-  this.flags = { no_title: true };
   this.bgcolor = "#1a1a2e";
   this.updateSize();
 }
 
 LabelNode.title = "Label";
+LabelNode.title_mode = LiteGraph.NO_TITLE;
 
 LabelNode.prototype.onPropertyChanged = function() {
   this.updateSize();

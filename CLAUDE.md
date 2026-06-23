@@ -19,6 +19,13 @@ Application web locale (fichier HTML standalone) permettant de créer et gérer 
 - **Fichier unique** : `index.html` + libs dans un dossier `lib/`
 - **Navigateur cible** : Chrome/Edge récents (pas de support IE)
 - **Licence** : MIT uniquement
+- **Ouverture en `file://` par double-clic — PRIMORDIAL** : l'app tourne sur un PC
+  d'entreprise fortement verrouillé par la DSI. Aucun serveur, aucun build, aucune
+  architecture client-serveur. Interdits car ils forceraient un serveur local (CORS
+  en `file://`) : **modules ES6** (`<script type="module">` + `import`/`export`) et
+  **`fetch()`/XHR de fichiers locaux**. → charger le code par `<script src>` classiques,
+  lire les fichiers utilisateur via `<input type="file">` + `FileReader` (jamais `fetch`).
+  Vigilance particulière à l'**import Excel (Session 3)**.
 
 ### Stack technique
 - **Canvas/graphe** : LiteGraph.js (MIT) — fichiers : `lib/litegraph.js` + `lib/litegraph.css`
@@ -154,10 +161,13 @@ Recalculer automatiquement à chaque événement LiteGraph :
 - Bordure rouge épaisse si `is_critical == true`
 - Fond de la section calculs : vert clair si marge > 0, rouge clair si marge = 0
 
-### Nœud Jalon (losange)
-- Forme losange dessinée via `onDrawForeground()` en Canvas2D
-- Affiche : libellé + date butée si renseignée
-- Bordure rouge si critique
+### Nœud Jalon (rectangle arrondi + coin drapeau — refonte S2.5)
+- Forme rectangle arrondi dessinée via `onDrawBackground()` en Canvas2D (le losange
+  de S1, trop exigu pour le texte, a été abandonné en S2.5/#5)
+- Coin « drapeau » (petit triangle haut-droit) = marqueur visuel du type Jalon ;
+  losange glyphe ◆ devant le libellé pour conserver l'identité PERT
+- Libellé multi-lignes (`wrapText`), + ligne « Fin » calculée + ligne « Cible » si renseignée
+- Fond/bordure rouge si critique OU date-cible non tenue (`target_missed`)
 
 ### Nœud Label (rectangle en pointillés)
 - Pas de ports d'entrée/sortie
@@ -225,6 +235,13 @@ Bouton **Supprimer** en bas du panneau (rouge).
 - Utiliser `node.onDrawBackground(ctx, canvas)` pour le fond
 - Les dimensions du nœud : `node.size = [largeur, hauteur]`
 - Pour forcer le redessin : `node.setDirtyCanvas(true, true)`
+- **PIÈGE** : pour masquer la barre de titre, `node.flags.no_title` **ne fonctionne pas**
+  (jamais lu au rendu). Le rendu du titre est piloté par `Constructor.title_mode`
+  (`LiteGraph.NO_TITLE` = 1, cf. `litegraph.js` l.9052). Définir donc
+  `MonNoeud.title_mode = LiteGraph.NO_TITLE;` sur le constructeur, pas un flag d'instance.
+- Si on masque le titre **et** qu'on veut des slots ailleurs qu'à leur position par
+  défaut, fixer explicitement `input.pos = [x, y]` / `output.pos = [x, y]` (relatifs au
+  coin haut-gauche) ; `getConnectionPos` les respecte (dessin ET interaction).
 
 ### Sérialisation
 - `graph.serialize()` retourne un objet JS (pas une string)
@@ -345,18 +362,45 @@ au PERT Excel de référence à refaire une fois l'import Excel disponible (Sess
 
 ---
 
-### Session 2.5 — Visualisation & lisibilité du PERT ⏳ À VENIR (demandes utilisateurs)
+### Session 2.5 — Visualisation & lisibilité du PERT ✅ TERMINÉE (validée navigateur 24/06/2026)
 **Objectifs** (issus de la réorientation du 22/06/2026) :
-- [ ] #1 Ré-arrangement chronologique automatique des nœuds (selon dates au plus tôt), **sans superposition**
-- [ ] #2 Largeur des tâches proportionnelle à la durée
-- [ ] #3 Unités semaines / mois (fait côté moteur en S2 ; affiner l'UI au besoin)
-- [ ] #4 Intitulé multi-lignes quand le texte ne tient pas dans la boîte
-- [ ] #5 Refonte de la forme du Jalon (le losange est trop exigu pour le texte)
-- [ ] #6 Jalon date-cible « à tenir » + exergue rouge si non tenue (flag `target_missed` déjà calculé en S2)
-- [ ] #7 Tracé visuel du chemin critique (en rouge) depuis la tâche sélectionnée ou, par défaut, la plus éloignée de T0
+- [x] #1 Ré-arrangement chronologique automatique des nœuds (selon dates au plus tôt), **sans superposition** — bouton « Réorganiser » (déclenchement manuel)
+- [x] #2 Largeur des tâches proportionnelle à la durée (échelle `PERT_PX_PER_UNIT`, bornée [160, 320]px)
+- [x] #3 Unités semaines / mois (moteur S2 ; l'unité pilote désormais aussi la largeur des nœuds via l'échelle commune)
+- [x] #4 Intitulé multi-lignes quand le texte ne tient pas dans la boîte (`wrapText`, Activité + Jalon)
+- [x] #5 Refonte de la forme du Jalon : rectangle arrondi + coin « drapeau » (abandon du losange exigu)
+- [x] #6 Jalon date-cible « à tenir » + exergue rouge si non tenue (flag `target_missed` calculé en S2, rendu rouge en S2.5)
+- [x] #7 Tracé visuel du chemin critique (en rouge) depuis la tâche sélectionnée ou, par défaut, la plus éloignée de T0
 
 **Critère de validation** :
 Un PERT de 10+ nœuds reste lisible après ré-arrangement automatique ; le chemin critique est identifiable d'un coup d'œil.
+**État** : validée en navigateur (Chrome) le 24/06/2026 après une passe de corrections sur retour
+visuel utilisateur (cf. ci-dessous). Logique également couverte par test headless Node.
+
+**Implémentation — décisions notables** :
+- **Masquage de la barre de titre = `Constructor.title_mode = LiteGraph.NO_TITLE`**, PAS
+  `flags.no_title` (qui n'a AUCUN effet sur le rendu — piège LiteGraph, cf. POINTS DE VIGILANCE).
+  Appliqué à Activité, Jalon et Label.
+- **Échelle horizontale commune** `PERT_PX_PER_UNIT` (60 px/unité) partagée entre la largeur
+  ∝ durée (#2) et l'abscisse du layout (#1) → une chaîne de tâches se « carrèle » comme un Gantt.
+- **Largeur Activité bornée [140, 480] px** : le plancher 140 loge la ligne calculée la plus large
+  (« Fin t.tôt : 28/11/26 ») → les très courtes durées (1-2 u.) restent au plancher, la
+  proportionnalité n'est nette qu'au-delà. Compromis assumé (texte vs proportionnalité stricte).
+- **Layout = packing par couloirs** (lanes) : abscisse ∝ ES, tâches se chevauchant dans le temps
+  posées sur des couloirs distincts ; **jalons de sortie (terminaux) regroupés en bande haute** ;
+  déclenché **manuellement** (bouton), jamais pendant l'édition pour ne pas casser un placement manuel.
+- **Espacement horizontal entre tâches consécutives** ajouté par `rang × gap` (rang = profondeur
+  dans la chaîne) : l'abscisse stricte colle les tâches bord à bord et masque les liens. `gap`
+  **paramétrable à chaud** via le dialogue Paramètres (`meta.layout_gap`, défaut 30 px) — décision
+  revisable après consultation utilisateurs.
+- **Activité dessinée 100% custom** (en-tête coloré + positions de slots explicites via `input.pos`/
+  `output.pos`) : nécessaire pour l'en-tête multi-lignes (LiteGraph ne fait pas de titre multi-lignes).
+- **Chemin critique tracé** par remontée des prédécesseurs contraignants (EF cale le ES) depuis la
+  cible ; coloration via `link.color` (mécanisme natif LiteGraph). Recalculé à chaque sélection.
+  Cible par défaut = nœud d'EF max, **tie-break vers le nœud terminal** (le jalon de fin plutôt
+  que la dernière activité).
+- `updateSize()` doit être rappelé **à chaque frappe du libellé** (pas seulement sur la durée),
+  sinon le retour à la ligne ne se rafraîchit qu'au prochain événement de graphe.
 
 ---
 
@@ -392,13 +436,15 @@ Test utilisateur métier sans assistance.
 ## COMMANDES DE DÉVELOPPEMENT
 
 ```bash
-# Pas de build nécessaire pour le prototype
-# Ouvrir directement dans le navigateur :
-# - Chrome : ouvrir index.html (attention CORS pour les modules ES6)
-# - Si besoin d'un serveur local minimal :
-npx serve .
+# Pas de build nécessaire. Mode d'ouverture cible (et seul garanti en production
+# sur PC verrouillé DSI) : double-clic sur index.html → s'ouvre en file:// dans Chrome.
+# Tant qu'il n'y a NI module ES6 NI fetch() local (cf. contraintes absolues), file://
+# suffit. N'introduire ni l'un ni l'autre : un serveur peut être indisponible/interdit.
+#
+# Un serveur local n'est qu'un confort de DEV ponctuel (jamais requis en prod) :
+# npx serve .
 # ou
-python -m http.server 8080
+# python -m http.server 8080
 ```
 
 ---
@@ -420,3 +466,13 @@ python -m http.server 8080
 - Validé par test headless (Node) sur PERT de référence
 - **Réorientation** intégrée (voir bloc en tête de la section avancement)
 - Journal de restitution créé : `docs/journal-developpement.md`
+
+### Session 2.5 (24/06/2026)
+- Visualisation & lisibilité : 7 demandes utilisateurs traitées (#1 à #7)
+- `nodes.js` : Activité custom (en-tête coloré multi-lignes, largeur ∝ durée, slots
+  positionnés explicitement) ; Jalon refondu (rectangle arrondi + coin drapeau,
+  multi-lignes, exergue rouge si cible non tenue) ; helper `wrapText`
+- `pert_engine.js` : `pertAutoLayout` (packing chronologique par couloirs) et
+  `pertHighlightCriticalPath` (coloration des liens du chemin critique)
+- `ui.js` / `index.html` : bouton « Réorganiser » ; chemin critique re-tracé à la sélection
+- Logique validée par test headless Node ; **rendu visuel à valider dans Chrome**
