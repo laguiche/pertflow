@@ -1,6 +1,6 @@
 // ─── État global ──────────────────────────────────────────────────────────────
 
-window.pertMeta = { title: "Nouveau projet", t0: "", unit: "j" };
+window.pertMeta = { title: "Nouveau projet", t0: "", unit: "j", layout_gap: 30 };
 window.pertGraph = null;
 window.pertCanvas = null;
 
@@ -106,6 +106,11 @@ document.addEventListener("DOMContentLoaded", () => {
     graph.add(node);
   });
 
+  document.getElementById("btn-layout").addEventListener("click", () => {
+    pertAutoLayout();
+    showToast("Nœuds réorganisés chronologiquement");
+  });
+
   document.getElementById("btn-settings").addEventListener("click", openSettings);
   document.getElementById("settings-ok").addEventListener("click", saveSettings);
   document.getElementById("settings-cancel").addEventListener("click", () => {
@@ -159,6 +164,12 @@ function showProperties(node) {
   panel.style.display = "flex";
   content.innerHTML = "";
 
+  // #7 Tracé du chemin critique depuis le nœud sélectionné (sinon, par défaut,
+  // depuis le nœud le plus éloigné de T0 quand rien n'est sélectionné).
+  const isPert = node && (node.type === "pert/activity" || node.type === "pert/milestone");
+  window.pertHighlightTargetId = isPert ? node.id : null;
+  if (window.pertHighlightCriticalPath) pertHighlightCriticalPath(window.pertHighlightTargetId);
+
   if (!node) {
     content.innerHTML = '<p class="prop-empty">Sélectionnez un nœud<br>pour éditer ses propriétés.</p>';
     return;
@@ -167,8 +178,8 @@ function showProperties(node) {
   if (node.type === "pert/activity") {
     buildField(content, "Libellé", "text", node.properties.label, v => {
       node.properties.label = v;
-      node.title = v;
-      node.setDirtyCanvas(true);
+      node.updateSize();           // recalcul largeur + retour à la ligne (#4)
+      node.setDirtyCanvas(true, true);
     });
     buildField(content, "Durée", "number", node.properties.duration, v => {
       node.properties.duration = parseFloat(v) || 0;
@@ -192,7 +203,8 @@ function showProperties(node) {
   } else if (node.type === "pert/milestone") {
     buildField(content, "Libellé", "text", node.properties.label, v => {
       node.properties.label = v;
-      node.setDirtyCanvas(true);
+      node.updateSize();           // recalcul largeur + retour à la ligne (#4/#5)
+      node.setDirtyCanvas(true, true);
     });
     buildField(content, "Date-cible (à tenir)", "date", node.properties.due_date, v => {
       node.properties.due_date = v;
@@ -319,6 +331,8 @@ function openSettings() {
   document.getElementById("settings-title").value = window.pertMeta.title || "";
   document.getElementById("settings-t0").value = window.pertMeta.t0 || "";
   document.getElementById("settings-unit").value = window.pertMeta.unit || "j";
+  document.getElementById("settings-hgap").value =
+    window.pertMeta.layout_gap != null ? window.pertMeta.layout_gap : 30;
   document.getElementById("settings-dialog").style.display = "flex";
 }
 
@@ -326,6 +340,8 @@ function saveSettings() {
   window.pertMeta.title = document.getElementById("settings-title").value;
   window.pertMeta.t0 = document.getElementById("settings-t0").value;
   window.pertMeta.unit = document.getElementById("settings-unit").value;
+  const hgap = parseFloat(document.getElementById("settings-hgap").value);
+  window.pertMeta.layout_gap = isNaN(hgap) ? 30 : Math.max(0, hgap);
   document.getElementById("settings-dialog").style.display = "none";
   document.getElementById("project-title").textContent = window.pertMeta.title || "PertFlow";
   // Recalculer les tailles (l'unité affectée dans les nœuds Activité)

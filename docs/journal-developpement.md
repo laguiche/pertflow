@@ -62,6 +62,83 @@ marges) dans le cadre du pilotage de projets d'ingénierie au long cours.
 > (dates au plus tôt/tard, marges, chemin critique) — les chiffres faux dans un
 > outil de pilotage sont le risque n°1.
 
+### Session 2.5 — Visualisation & lisibilité (✅ 24/06/2026, validation Chrome à faire)
+Les 7 demandes utilisateurs de lisibilité, toutes traitées :
+- **#1 Layout chronologique** : bouton « Réorganiser » → `pertAutoLayout`. Abscisse ∝
+  date au plus tôt (ES), packing vertical par « couloirs » (lanes) pour éliminer les
+  superpositions. Déclenchement **manuel** (choix assumé : ne pas déplacer les nœuds
+  sous le curseur pendant l'édition).
+- **#2 Largeur ∝ durée** + **#1** partagent une échelle commune `PERT_PX_PER_UNIT`
+  (36 px/unité) : une chaîne de tâches se « carrèle » alors comme un diagramme de Gantt.
+- **#4 Multi-lignes** : helper `wrapText` (retour à la ligne sur les espaces) ; libellé
+  d'Activité et de Jalon passent en plusieurs lignes au lieu d'élargir la boîte sans fin.
+- **#5 Refonte Jalon** : abandon du losange (trop exigu) → rectangle arrondi avec un coin
+  « drapeau » qui marque le type Jalon, et un losange glyphe ◆ devant le libellé.
+- **#6 Cible jalon** : `target_missed` (calculé en S2) déclenche désormais un rendu rouge.
+- **#7 Chemin critique tracé** : `pertHighlightCriticalPath` remonte les prédécesseurs
+  contraignants (dont l'EF cale le ES) depuis la cible et colore les liens en rouge.
+  Cible = nœud sélectionné, sinon le plus éloigné de T0. Re-tracé à chaque sélection.
+- Validé par test headless Node (layout sans superposition + liens A→C→D rouges sur
+  PERT diamant), puis **validé en navigateur le 24/06/2026** après une passe de corrections.
+
+**Ajustements après le premier test visuel (24/06/2026).** Une capture d'écran de
+l'utilisateur a révélé plusieurs écarts, corrigés dans la foulée :
+- **Libellé dupliqué** (bande de titre LiteGraph au-dessus de mon en-tête custom) : la
+  cause était un piège LiteGraph — `flags.no_title` n'a **aucun effet** au rendu, le titre
+  est piloté par `Constructor.title_mode`. Correction : `title_mode = LiteGraph.NO_TITLE`
+  sur les trois types de nœuds. Le jalon d'origine (S1) souffrait du même bug, masqué jusque-là.
+- **Largeur peu proportionnelle** : l'échelle (36 px/u.) était trop faible face au plancher
+  de largeur ; passée à 60 px/u., plancher abaissé à 140 px. Compromis assumé : le plancher
+  (place pour la ligne de date calculée) empêche les très courtes durées de rétrécir.
+- **Retour à la ligne non rafraîchi pendant la frappe** : le champ Libellé ne rappelait pas
+  `updateSize()`. Corrigé.
+- **Jalons de sortie souhaités en haut** : le layout les regroupe désormais dans une bande haute.
+- **Espacement horizontal entre tâches** (demande de confort) : ajouté via `rang × gap`, et
+  rendu **paramétrable à chaud** (dialogue Paramètres, défaut 30 px) à la demande explicite de
+  l'utilisateur — décision revisable après consultation de ses propres utilisateurs.
+
+> **🎙️ Restitution — la capture d'écran comme protocole de recette.**
+> La logique métier se valide hors navigateur, mais l'ergonomie se juge à l'œil. Un
+> aller-retour « capture annotée → diagnostic → correctif » a suffi à converger. Côté IA :
+> une annotation visuelle ambiguë (« le bloc est bizarre ») a été traduite en causes
+> techniques précises (titre LiteGraph mal masqué, échelle, rafraîchissement) en lisant
+> le code de la lib — un débogage que l'outil accélère nettement. Côté métier : la
+> décision de rendre l'espacement *paramétrable* (plutôt que de le figer) anticipe une
+> future consultation utilisateurs — on instrumente le doute au lieu de trancher trop tôt.
+
+> **🎙️ Restitution — l'IA face au non-testable automatiquement.**
+> Le calcul PERT se valide hors navigateur (bac à sable Node, cf. Session 2), mais le
+> **rendu visuel** (formes, multi-lignes, couleurs de liens) ne se teste pas en headless
+> sans outillage navigateur. La parade : isoler la *logique* (placement, choix des liens
+> à colorer) en fonctions pures testables, et ne laisser au navigateur que le dessin.
+> L'IA a permis d'extraire systématiquement cette logique testable — mais la validation
+> finale d'ergonomie reste un coup d'œil humain. Limite honnête à présenter.
+
+> **🎙️ Restitution — décider à la place de l'outil, pas l'inverse.**
+> Deux choix de conception (déclenchement du layout : manuel vs automatique ; forme du
+> jalon) ont été tranchés *par l'utilisateur* avant le code, l'IA présentant les options
+> et leurs compromis (dont des maquettes ASCII de formes). Le layout automatique « magique »
+> aurait cassé tout placement manuel : c'est un arbitrage métier, pas technique.
+
+**Précision de contrainte (24/06/2026) — environnement de déploiement DSI.**
+En préparant le test, une question simple (« pourquoi `npx serve`, pas juste ouvrir
+`index.html` ? ») a révélé une contrainte de production jusque-là implicite : l'outil
+tournera sur un **PC d'entreprise fortement verrouillé par la DSI**, où un serveur local
+peut être indisponible ou interdit. Décision actée : **ouverture par double-clic `file://`,
+sans serveur ni architecture client-serveur**, et donc **interdiction des modules ES6 et des
+`fetch()`/XHR de fichiers locaux** (bloqués par CORS en `file://`). Conséquence concrète à
+anticiper : l'**import Excel (Session 3)** devra passer par `<input type="file">` + `FileReader`,
+jamais par `fetch`. Contrainte consignée dans `CLAUDE.md` (contraintes absolues) ; la note
+`npx serve` y a été requalifiée en simple confort de dev, jamais requise en prod.
+
+> **🎙️ Restitution — la contrainte de déploiement est une exigence, pas un détail.**
+> La vraie contrainte n'est pas apparue dans la spec initiale mais dans une question
+> d'usage. Sur un poste verrouillé, l'« architecture » la plus robuste est souvent la
+> plus pauvre : un fichier HTML qu'on double-clique. L'IA tendait par réflexe à proposer
+> un serveur local (`npx serve`) ; c'est le métier qui a recadré vers le strict minimum.
+> Enseignement : expliciter tôt l'environnement cible (droits, réseau, installation)
+> évite de construire une élégance technique inutilisable en production.
+
 ### Réorientation (22/06/2026) — nouvelles priorités utilisateurs
 Après usage et retours d'équipe, le plan initial (4 sessions linéaires) évolue.
 Voir la section « Backlog réorienté » ci-dessous.

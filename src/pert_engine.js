@@ -218,10 +218,184 @@ function pertRecalc() {
     if (n.is_critical) nbCritical++;
   }
 
+  // Les nœuds adaptent leur taille aux valeurs calculées (le jalon grandit pour
+  // afficher les lignes Fin/Cible une fois renseignées).
+  nodes.forEach(n => { if (n.updateSize) n.updateSize(); });
+
+  // #7 Tracé du chemin critique en rouge (vers la cible mémorisée, ou par défaut
+  // le nœud le plus éloigné de T0).
+  pertHighlightCriticalPath(window.pertHighlightTargetId);
+
   const res = { ok: true, nbNodes: nodes.length, nbCritical, projectEnd };
   pertPublishStatus(res);
   graph.setDirtyCanvas(true, true);
   return res;
+}
+
+// ─── #1 Ré-arrangement chronologique automatique ────────────────────────────────
+//
+// Placement de type Gantt : abscisse ∝ date au plus tôt (ES), packing vertical
+// par "couloirs" (lanes) pour eliminer les superpositions. Deux taches qui se
+// chevauchent dans le temps sont posees sur des couloirs differents ; une tache
+// reutilise le premier couloir libere par une tache anterieure.
+// Declenche manuellement (bouton toolbar), jamais pendant l'edition.
+
+const PERT_LAYOUT_MARGIN_X = 60;
+const PERT_LAYOUT_MARGIN_Y = 60;
+const PERT_LAYOUT_GAP_X = 24;   // espace mini entre deux taches d'un meme couloir
+const PERT_LAYOUT_GAP_Y = 30;   // espace vertical entre couloirs
+
+// Espacement horizontal entre taches consecutives (confort visuel des liens).
+// Parametrable a chaud via le dialogue Parametres (meta.layout_gap) ; cette
+// constante n'est que la valeur par defaut (decision revisable apres retours
+// utilisateurs, cf. demande du 24/06/2026).
+const PERT_LAYOUT_HGAP_DEFAULT = 30;
+
+function pertLayoutGap() {
+  const g = window.pertMeta && window.pertMeta.layout_gap;
+  const n = parseFloat(g);
+  return isNaN(n) ? PERT_LAYOUT_HGAP_DEFAULT : Math.max(0, n);
+}
+
+function pertAutoLayout() {
+  const graph = window.pertGraph;
+  if (!graph) return;
+
+  // S'assurer que les ES sont a jour avant de positionner
+  pertRecalc();
+
+  const { nodes, preds, succs } = pertBuildAdjacency(graph);
+  const placeable = nodes.filter(n => n.es !== null);
+  if (!placeable.length) return;
+
+  // Rang = profondeur dans la chaine (plus long chemin en nombre d'aretes depuis
+  // une origine). Sert a INSERER un espace horizontal entre taches consecutives :
+  // l'abscisse stricte (∝ ES) colle les taches bord a bord (style Gantt) et masque
+  // les liens ; on ajoute rang × gap pour les ecarter d'un cran a chaque maillon.
+  const order = pertTopoOrder(nodes, preds, succs);
+  const rank = {};
+  nodes.forEach(n => { rank[n.id] = 0; });
+  for (const id of order) {
+    for (const s of succs[id]) {
+      if (rank[id] + 1 > rank[s]) rank[s] = rank[id] + 1;
+    }
+  }
+
+  const gap = pertLayoutGap();
+  const xOf = {};
+  placeable.forEach(n => {
+    xOf[n.id] = PERT_LAYOUT_MARGIN_X + n.es * PERT_PX_PER_UNIT + rank[n.id] * gap;
+  });
+
+  // Hauteur de couloir = plus grande tache + marge
+  let rowH = 0;
+  placeable.forEach(n => { if (n.size[1] > rowH) rowH = n.size[1]; });
+  rowH += PERT_LAYOUT_GAP_Y;
+
+  // Jalons de sortie (terminaux, sans successeur) regroupes dans une bande EN HAUT
+  // du graphe ; le reste (activites + jalons intermediaires) en dessous.
+  const isOutMilestone = n => n.type === "pert/milestone" && succs[n.id].length === 0;
+  const top = placeable.filter(isOutMilestone);
+  const rest = placeable.filter(n => !isOutMilestone(n));
+
+  const topLanes = pertPackLanes(top, PERT_LAYOUT_MARGIN_Y, rowH, xOf);
+  const restTop = PERT_LAYOUT_MARGIN_Y + (top.length ? topLanes * rowH : 0);
+  pertPackLanes(rest, restTop, rowH, xOf);
+
+  graph.setDirtyCanvas(true, true);
+}
+
+// Packing par couloirs (lanes) d'une liste de nœuds : abscisse fournie par xOf,
+// premier couloir libre verticalement. topY = ordonnee du couloir 0. Renvoie le
+// nombre de couloirs utilises.
+function pertPackLanes(list, topY, rowH, xOf) {
+  list.sort((a, b) => (xOf[a.id] - xOf[b.id]) || (a.pos[1] - b.pos[1]));
+  const lanes = []; // bord droit (x) actuellement occupe de chaque couloir
+  for (const n of list) {
+    const x = xOf[n.id];
+    let lane = lanes.findIndex(right => x >= right + PERT_LAYOUT_GAP_X);
+    if (lane === -1) { lane = lanes.length; lanes.push(0); }
+    n.pos[0] = x;
+    n.pos[1] = topY + lane * rowH;
+    lanes[lane] = x + n.size[0];
+  }
+  return lanes.length;
+}
+
+// ─── #7 Tracé du chemin critique (coloration des connexions) ─────────────────────
+//
+// Remonte les predecesseurs "contraignants" (ceux dont le EF cale le ES du nœud
+// courant) depuis une cible jusqu'a l'origine, et colore les liens traverses en
+// rouge. La cible est le nœud passe en argument (selection utilisateur) ou, a
+// defaut, le nœud le plus eloigne de T0 (EF max). Les autres liens repassent au
+// gris par defaut.
+
+function pertHighlightCriticalPath(targetId) {
+  const graph = window.pertGraph;
+  if (!graph) return;
+
+  // Reinitialiser toutes les couleurs de lien (retour au gris par defaut)
+  for (const id in graph.links) {
+    if (graph.links[id]) graph.links[id].color = null;
+  }
+
+  const { nodes, preds, succs } = pertBuildAdjacency(graph);
+  if (!nodes.length) return;
+  const byId = {};
+  nodes.forEach(n => { byId[n.id] = n; });
+
+  // Cible : nœud demande s'il est calcule, sinon le plus eloigne de T0 (EF max).
+  // A EF egal, on prefere un nœud terminal (sans successeur) — typiquement le
+  // jalon de fin — plutot que la derniere activite qui le precede.
+  let target = (targetId != null && byId[targetId] && byId[targetId].ef !== null)
+    ? byId[targetId] : null;
+  if (!target) {
+    for (const n of nodes) {
+      if (n.ef === null) continue;
+      if (!target) { target = n; continue; }
+      const nTerminal = succs[n.id].length === 0;
+      const tTerminal = succs[target.id].length === 0;
+      if (n.ef > target.ef + PERT_EPS
+          || (Math.abs(n.ef - target.ef) < PERT_EPS && nTerminal && !tTerminal)) {
+        target = n;
+      }
+    }
+  }
+  if (!target || target.ef === null) return;
+
+  // Remontee du chemin contraignant
+  const seen = new Set();
+  let current = target;
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    let binding = null;
+    for (const pid of preds[current.id]) {
+      const p = byId[pid];
+      if (p.ef === null) continue;
+      // predecesseur contraignant : son EF cale le ES du nœud courant
+      if (Math.abs(p.ef - current.es) < PERT_EPS) {
+        // preferer un predecesseur critique, puis celui de plus grand EF
+        if (!binding || (p.is_critical && !binding.is_critical) || p.ef > binding.ef) {
+          binding = p;
+        }
+      }
+    }
+    if (!binding) break;
+    pertColorLink(graph, binding.id, current.id, "#cc0000");
+    current = binding;
+  }
+
+  graph.setDirtyCanvas(true, true);
+}
+
+// Colore le(s) lien(s) origin→target dans graph.links.
+function pertColorLink(graph, originId, targetId, color) {
+  for (const id in graph.links) {
+    const link = graph.links[id];
+    if (link && link.origin_id === originId && link.target_id === targetId) {
+      link.color = color;
+    }
+  }
 }
 
 // ─── Publication de l'état vers l'UI (barre de statut) ───────────────────────────
@@ -253,3 +427,5 @@ function pertPublishStatus(res) {
 window.pertRecalc = pertRecalc;
 window.pertOffsetToDate = pertOffsetToDate;
 window.pertDateToOffset = pertDateToOffset;
+window.pertAutoLayout = pertAutoLayout;
+window.pertHighlightCriticalPath = pertHighlightCriticalPath;
