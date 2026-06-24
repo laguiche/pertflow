@@ -150,6 +150,53 @@ Voir la section « Backlog réorienté » ci-dessous.
 > rôle d'un pilote d'ingénierie : l'IA accélère l'exécution, mais la
 > hiérarchisation de la valeur reste une décision métier.
 
+### Session 3 — Données : import Excel legacy (#8 ✅ 25/06/2026 ; persistance & export ⏳)
+
+**Évolutions UI préalables** (`fix/ui-tweaks`, mergé) : unité « mois » par défaut,
+bouton « Tout afficher » (zoom-to-fit calé sur la boîte englobante, + désactivation du
+cadre LiteGraph `render_canvas_border` qui se décalait après recadrage), et correction
+d'un plafond visuel à 3 liens entrants sur les Jalons (la hauteur du nœud ne tenait pas
+compte du nombre de slots → 4e slot hors boîte).
+
+**Import Excel (#8, l'urgence).** Le PERT legacy est un `.xlsm` où **toute la donnée est
+dans les objets graphiques** (groupes de formes = nœuds, connecteurs = liens), rien
+d'utile dans les cellules — sauf l'onglet **MANUEL**, qui s'est révélé être la **feuille de
+configuration** de l'outil (C-PERT 6.14.x) : `K2`=feuille PERT cible, `K5`=T0 (date série
+Excel), `J10`=unité (1=mois). Décodage par reverse-engineering du XML DrawingML :
+- groupe `<lettre><id>` → type (`A`=activité, `S`=jalon, `E`=nœud T0) ; sous-formes
+  `.1`=libellé, `.2`=`durée/marge` (virgule FR), `.3`/`.4`=date ; jalon → date-cible
+  encodée `E=(jj/mm/aaaa)` dans le libellé.
+- connecteurs `stCxn`/`endCxn` référencent l'`id` d'une **sous-forme** → map
+  `id sous-forme→groupe` pour résoudre les liens. Arêtes touchant `E` ignorées (le
+  successeur démarre à T0).
+
+`src/import_excel.js` en 2 couches : transforms **purs** (testables Node) + couche
+**DOM/ZIP** navigateur. Contrainte `file://` respectée : dézip par **fflate** (MIT, lib
+locale non-module), `<input file>` + `FileReader.readAsArrayBuffer`, parsing `DOMParser`,
+**jamais** `fetch`. Import = **concaténation** dans le PERT existant (bloc posé à droite,
+placement absolu hérité d'Excel conservé — l'utilisateur « Réorganise » s'il le souhaite).
+
+**Validation croisée.** Couche pure : 25/25 en headless. Pipeline e2e sur le fichier réel
+(unzip + DOM via shim xmldom) : 10/10. Puis **pilotage du vrai navigateur** (Playwright +
+Chromium) : import auto → 6 nœuds, 4 liens, T0 `2025-07-01`, unité `mois`, zéro erreur
+console, rendu conforme (capture). Validation humaine en parallèle.
+
+> **🎙️ Restitution — l'IA face à un format propriétaire non documenté.**
+> Reprendre des plannings Excel « legacy » paraissait être le point dur. En réalité,
+> l'essentiel a été de **comprendre la structure** : l'IA a déplié le `.xlsm` (un ZIP),
+> lu le XML DrawingML et reconstruit le modèle (nœuds, liens, dépendances) sans
+> documentation. Le déclic métier : l'onglet « MANUEL », pris au départ pour de l'aide,
+> était la table de configuration (T0, unité, feuille active) — c'est l'utilisateur qui
+> a orienté vers cet onglet. L'IA décode vite un format opaque ; le métier sait *où
+> regarder* et *ce que les nombres signifient* (le champ `durée/marge`, l'unité en mois).
+
+> **🎙️ Restitution — validation croisée homme + machine.**
+> La validation s'est faite à deux niveaux complémentaires : l'IA a piloté le navigateur
+> réel (Playwright) pour un test reproductible et chiffré, *et* l'utilisateur a validé
+> visuellement. Aucune des deux ne remplace l'autre : le test automatisé garantit la
+> non-régression et l'absence d'erreur, le coup d'œil humain juge l'ergonomie et la
+> fidélité au planning d'origine.
+
 ---
 
 ## Backlog réorienté (à partir du 22/06/2026)

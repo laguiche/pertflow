@@ -306,6 +306,46 @@ body {
 
 .dialog-buttons button:hover { opacity: 0.85; }
 
+/* ─── Dialogue generique (ex. choix de feuille a l'import Excel) ─────────────── */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog {
+  background: #16183a;
+  border: 1px solid #2a3a7a;
+  border-radius: 8px;
+  padding: 24px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+.dialog h3 {
+  font-size: 14px;
+  color: #7eb8f7;
+  margin: 0;
+}
+
+.dialog select {
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  color: #dde3ec;
+  padding: 6px 9px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.dialog select:focus { outline: none; border-color: #5a8fd8; }
+
 /* ─── Toast ─────────────────────────────────────────────────────────────────── */
 #toast {
   position: fixed;

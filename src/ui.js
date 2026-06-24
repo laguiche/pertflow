@@ -119,6 +119,16 @@ document.addEventListener("DOMContentLoaded", () => {
     pertZoomToFit();
   });
 
+  // Import Excel legacy (#8) : ouvre le selecteur de fichier
+  document.getElementById("btn-import").addEventListener("click", () => {
+    document.getElementById("excel-input").value = ""; // re-selection du meme fichier OK
+    document.getElementById("excel-input").click();
+  });
+  document.getElementById("excel-input").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) handleExcelFile(file);
+  });
+
   document.getElementById("btn-settings").addEventListener("click", openSettings);
   document.getElementById("settings-ok").addEventListener("click", saveSettings);
   document.getElementById("settings-cancel").addEventListener("click", () => {
@@ -431,4 +441,158 @@ function showToast(msg) {
   toast.classList.add("show");
   clearTimeout(toast._t);
   toast._t = setTimeout(() => toast.classList.remove("show"), 2500);
+}
+
+// ─── Import Excel legacy (#8) ───────────────────────────────────────────────────
+//
+// Flux : <input file> → FileReader.readAsArrayBuffer → PertExcel.importXlsm
+// (lecture auto de la feuille/T0/unite via l'onglet MANUEL) → applyImportModel.
+// Fallback : si la detection auto echoue, on propose le choix de la feuille.
+
+function handleExcelFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const ab = reader.result;
+    let model = null;
+    try {
+      model = PertExcel.importXlsm(ab); // auto via MANUEL
+    } catch (err) {
+      // Detection auto KO → proposer le choix de feuille
+      let sheets = [];
+      try { sheets = PertExcel.listPertSheets(ab); } catch (e2) { /* ignore */ }
+      if (!sheets.length) {
+        showToast("Import impossible : aucun PERT graphique trouvé dans ce fichier");
+        return;
+      }
+      promptSheetChoice(sheets, (chosen) => {
+        try {
+          applyImportModel(PertExcel.importXlsm(ab, chosen));
+        } catch (e3) {
+          showToast("Import échoué : " + e3.message);
+        }
+      });
+      return;
+    }
+    applyImportModel(model);
+  };
+  reader.onerror = () => showToast("Lecture du fichier impossible");
+  reader.readAsArrayBuffer(file);
+}
+
+// Concatene le modele d'import dans le graphe courant.
+function applyImportModel(model) {
+  const graph = window.pertGraph;
+  if (!model || !model.nodes || !model.nodes.length) {
+    showToast("Aucun nœud à importer");
+    return;
+  }
+  const EMU = PertExcel.EMU_PER_PX;
+
+  // Origine des positions importees (coin haut-gauche du bloc Excel).
+  let impMinX = Infinity, impMinY = Infinity;
+  model.nodes.forEach(n => {
+    impMinX = Math.min(impMinX, n.off.x / EMU);
+    impMinY = Math.min(impMinY, n.off.y / EMU);
+  });
+
+  // Decalage pour poser le bloc importe a droite du graphe existant (concatenation
+  // sans recouvrement). Si le graphe est vide, on cale pres de l'origine.
+  let baseX = 60, baseY = 60;
+  if (graph._nodes.length) {
+    let maxX = -Infinity;
+    graph._nodes.forEach(n => { maxX = Math.max(maxX, n.pos[0] + n.size[0]); });
+    baseX = maxX + 80;
+  }
+  const dx = baseX - impMinX;
+  const dy = baseY - impMinY;
+
+  // 1) Creation des noeuds (map srcName → instance pour les liens)
+  const created = {};
+  model.nodes.forEach(n => {
+    const node = LiteGraph.createNode(
+      n.type === "milestone" ? "pert/milestone" : "pert/activity");
+    if (n.type === "milestone") {
+      node.properties.label = n.label || "Jalon";
+      node.properties.due_date = n.due_date || "";
+    } else {
+      node.properties.label = n.label || "Activité";
+      node.properties.duration = (n.duration != null ? n.duration : 1);
+    }
+    if (node.updateSize) node.updateSize();
+    node.pos = [n.off.x / EMU + dx, n.off.y / EMU + dy];
+    graph.add(node);
+    created[n.srcName] = node;
+  });
+
+  // 2) Creation des liens (sortie 0 → premier slot d'entree libre de la cible)
+  let nbLinks = 0;
+  model.edges.forEach(e => {
+    const src = created[e.from], dst = created[e.to];
+    if (!src || !dst) return;
+    if (src.connect(0, dst, freeInputSlot(dst))) nbLinks++;
+  });
+
+  // 3) Metadonnees projet (T0 / unite) issues de la config MANUEL
+  if (model.t0) window.pertMeta.t0 = model.t0;
+  if (model.unit) window.pertMeta.unit = model.unit;
+  // L'unite influe sur la largeur des Activites → recalcul des tailles
+  graph._nodes.forEach(n => { if (n.updateSize) n.updateSize(); });
+
+  pertRecalc();
+  updateStatus();
+  pertZoomToFit();
+  showToast(model.nodes.length + " nœud(s) et " + nbLinks + " lien(s) importés"
+    + (model.sheet ? " (feuille « " + model.sheet + " »)" : ""));
+}
+
+// Premier slot d'entree libre d'un noeud (les Activites/Jalons ont des entrees
+// dynamiques : un slot vide en fin de liste est toujours disponible).
+function freeInputSlot(node) {
+  if (node.inputs) {
+    for (let i = 0; i < node.inputs.length; i++) {
+      if (node.inputs[i].link == null) return i;
+    }
+  }
+  return node.inputs ? node.inputs.length - 1 : 0;
+}
+
+// Dialogue minimal de choix de feuille (fallback si detection auto KO).
+function promptSheetChoice(sheets, onChoose) {
+  let dlg = document.getElementById("sheet-dialog");
+  if (dlg) dlg.remove();
+  dlg = document.createElement("div");
+  dlg.id = "sheet-dialog";
+  dlg.className = "dialog-overlay";
+  dlg.style.display = "flex";
+
+  const box = document.createElement("div");
+  box.className = "dialog";
+  const h = document.createElement("h3");
+  h.textContent = "Choisir la feuille PERT à importer";
+  box.appendChild(h);
+
+  const sel = document.createElement("select");
+  sheets.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.name;
+    opt.textContent = s.name + " (" + s.nodes + " nœud(s))";
+    sel.appendChild(opt);
+  });
+  box.appendChild(sel);
+
+  const btns = document.createElement("div");
+  btns.className = "dialog-buttons";
+  const cancel = document.createElement("button");
+  cancel.textContent = "Annuler";
+  cancel.onclick = () => dlg.remove();
+  const ok = document.createElement("button");
+  ok.textContent = "Importer";
+  ok.className = "primary";
+  ok.onclick = () => { const v = sel.value; dlg.remove(); onChoose(v); };
+  btns.appendChild(cancel);
+  btns.appendChild(ok);
+  box.appendChild(btns);
+
+  dlg.appendChild(box);
+  document.body.appendChild(dlg);
 }
