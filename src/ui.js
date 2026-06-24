@@ -1,6 +1,6 @@
 // ─── État global ──────────────────────────────────────────────────────────────
 
-window.pertMeta = { title: "Nouveau projet", t0: "", unit: "j", layout_gap: 30 };
+window.pertMeta = { title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30 };
 window.pertGraph = null;
 window.pertCanvas = null;
 
@@ -22,6 +22,9 @@ document.addEventListener("DOMContentLoaded", () => {
   lgCanvas.render_shadows = false;
   lgCanvas.render_connections_border = true;
   lgCanvas.connections_width = 2;
+  // Cadre par défaut LiteGraph dessiné en coords graphe (ancré à l'origine 0,0) :
+  // il se décale visuellement après recadrage « Tout afficher ». Inutile ici.
+  lgCanvas.render_canvas_border = false;
 
   // Resize dynamique
   function resizeCanvas() {
@@ -109,6 +112,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-layout").addEventListener("click", () => {
     pertAutoLayout();
     showToast("Nœuds réorganisés chronologiquement");
+    pertZoomToFit();
+  });
+
+  document.getElementById("btn-fit").addEventListener("click", () => {
+    pertZoomToFit();
   });
 
   document.getElementById("btn-settings").addEventListener("click", openSettings);
@@ -153,6 +161,47 @@ function getCanvasCenter() {
     (cx - lgCanvas.ds.offset[0]) / lgCanvas.ds.scale,
     (cy - lgCanvas.ds.offset[1]) / lgCanvas.ds.scale
   ];
+}
+
+// Ajuste zoom + cadrage pour que l'intégralité du planning tienne à l'écran.
+// Calcule la boîte englobante de tous les nœuds (coords graphe), puis règle
+// l'échelle et l'offset du DragAndScale LiteGraph pour la centrer.
+// Convention LiteGraph : ecran = (graphe + offset) * scale.
+function pertZoomToFit() {
+  const lgCanvas = window.pertCanvas;
+  const graph = window.pertGraph;
+  const canvasEl = document.getElementById("pertCanvas");
+  const nodes = graph && graph._nodes ? graph._nodes : [];
+  if (!nodes.length) return;
+
+  // Boîte englobante de tous les nœuds (getBounding renvoie [x, y, w, h])
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const b = new Float32Array(4);
+  for (const n of nodes) {
+    n.getBounding(b);
+    minX = Math.min(minX, b[0]);
+    minY = Math.min(minY, b[1]);
+    maxX = Math.max(maxX, b[0] + b[2]);
+    maxY = Math.max(maxY, b[1] + b[3]);
+  }
+  const bw = maxX - minX, bh = maxY - minY;
+  if (bw <= 0 || bh <= 0) return;
+
+  const margin = 40; // marge en pixels autour du planning
+  const availW = Math.max(1, canvasEl.width - 2 * margin);
+  const availH = Math.max(1, canvasEl.height - 2 * margin);
+
+  // Échelle : on remplit au mieux sans dépasser 100 % (pas de sur-zoom)
+  let scale = Math.min(availW / bw, availH / bh);
+  scale = Math.max(0.1, Math.min(1, scale));
+
+  // Centrer la boîte englobante sur le centre du canvas
+  const gcx = minX + bw / 2, gcy = minY + bh / 2;
+  lgCanvas.ds.scale = scale;
+  lgCanvas.ds.offset[0] = (canvasEl.width / 2) / scale - gcx;
+  lgCanvas.ds.offset[1] = (canvasEl.height / 2) / scale - gcy;
+
+  lgCanvas.setDirty(true, true);
 }
 
 // ─── Panneau propriétés ───────────────────────────────────────────────────────

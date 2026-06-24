@@ -249,8 +249,16 @@ MilestoneNode.prototype.updateSize = function() {
 
   this._labelLines = wrapText("◆ " + this.properties.label, "bold 12px sans-serif", width - 32);
   const nbExtra = (this.ef !== null ? 1 : 0) + (this.properties.due_date ? 1 : 0);
+  const textH = 14 + this._labelLines.length * 16 + nbExtra * 15 + 10;
+
+  // Hauteur minimale pour loger TOUS les slots d'entree (sinon le Jalon plafonne
+  // visuellement a ~3 liens entrants) : LiteGraph empile les slots a
+  // y = (i + 0.7) * NODE_SLOT_HEIGHT, titre masque. On garde une demi-marge basse.
+  const nbInputs = this.inputs ? this.inputs.length : 1;
+  const slotsH = (nbInputs + 0.3) * LiteGraph.NODE_SLOT_HEIGHT;
+
   this.size[0] = width;
-  this.size[1] = 14 + this._labelLines.length * 16 + nbExtra * 15 + 10;
+  this.size[1] = Math.max(textH, slotsH);
 };
 
 MilestoneNode.prototype.onConnectionsChange = function(type) {

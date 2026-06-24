@@ -23,7 +23,7 @@
         <select id="settings-unit">
           <option value="j">Jours</option>
           <option value="sem">Semaines</option>
-          <option value="mois">Mois</option>
+          <option value="mois" selected>Mois</option>
         </select>
       </label>
       <label>Espacement horizontal entre tâches (px)
@@ -45,6 +45,7 @@
     <button id="btn-add-label" title="Ajouter un nœud Label">+ Label</button>
     <div class="tb-sep"></div>
     <button id="btn-layout" title="Ré-arranger les nœuds chronologiquement (selon les dates au plus tôt)">⤓ Réorganiser</button>
+    <button id="btn-fit" title="Ajuster le zoom pour afficher tout le planning à l'écran">🔍 Tout afficher</button>
     <div class="tb-sep"></div>
     <button id="btn-settings" title="Paramètres du projet">⚙ Paramètres</button>
     <div class="tb-sep"></div>
@@ -73,7 +74,7 @@
   <div id="statusbar">
     <span id="status-t0">T0 non défini</span>
     <span class="st-sep">|</span>
-    <span id="status-unit">Unité : jours</span>
+    <span id="status-unit">Unité : mois</span>
     <span class="st-sep">|</span>
     <span id="status-nodes">0 nœud(s)</span>
     <span class="st-sep">|</span>
