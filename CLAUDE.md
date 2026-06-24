@@ -31,6 +31,8 @@ Application web locale (fichier HTML standalone) permettant de créer et gérer 
 - **Canvas/graphe** : LiteGraph.js (MIT) — fichiers : `lib/litegraph.js` + `lib/litegraph.css`
 - **Export PNG** : API Canvas2D native (pas de lib externe nécessaire)
 - **Export PDF** : jsPDF (MIT) — fichier : `lib/jspdf.umd.min.js`
+- **Import Excel (.xlsm)** : fflate (MIT, dézip ZIP) — fichier : `lib/fflate.min.js` ;
+  build global non-module (compatible `file://`), parsing XML via `DOMParser` natif
 - **UI** : Vanilla JS + CSS custom, aucun framework
 
 ### Structure des fichiers
@@ -44,6 +46,7 @@ pertflow/
 ├── src/
 │   ├── nodes.js        # Définition des types de nœuds PERT
 │   ├── pert_engine.js  # Algorithmes de calcul PERT
+│   ├── import_excel.js # Import des plannings legacy Excel (.xlsm → nœuds/liens)
 │   ├── ui.js           # Toolbar, panneau latéral, interactions
 │   ├── storage.js      # Sauvegarde/chargement JSON
 │   └── export.js       # Export PNG et PDF
@@ -404,9 +407,9 @@ visuel utilisateur (cf. ci-dessous). Logique également couverte par test headle
 
 ---
 
-### Session 3 — Persistance, import Excel & export ⏳ À VENIR
+### Session 3 — Persistance, import Excel & export ⏳ EN COURS
 **Objectifs** :
-- [ ] **#8 Import des plannings legacy Excel** (🔴 URGENT) — approche à décider sur fichier exemple (lecture `.xlsx` directe vs gabarit d'import) + **concaténation** dans un PERT existant
+- [x] **#8 Import des plannings legacy Excel** (🔴 URGENT) — lecture directe `.xlsm` (objets graphiques) + **concaténation** dans un PERT existant ✅ 25/06/2026
 - [ ] Sauvegarde/chargement JSON (.pert)
 - [ ] Export PNG
 - [ ] Export PDF
@@ -415,6 +418,27 @@ visuel utilisateur (cf. ci-dessous). Logique également couverte par test headle
 
 **Critère de validation** :
 Importer un planning Excel réel et le concaténer. Sauvegarder, recharger, vérifier intégrité. Exporter PNG et PDF lisibles.
+**Import #8 validé** (croisé) : test e2e Playwright/Chromium sur `C_PERT_exemple.xlsm`
+(6 nœuds, 4 liens, T0/unité depuis MANUEL, 0 erreur console) + validation visuelle utilisateur.
+
+**Import Excel — décisions notables** :
+- Le `.xlsm` est un ZIP ; **toute la donnée est dans `xl/drawings/`** (groupes de formes =
+  nœuds, connecteurs = liens). Les cellules sont cosmétiques SAUF l'onglet **MANUEL**, qui
+  est la **feuille de config** de l'outil C-PERT : `K2`=feuille PERT cible, `K5`=T0 (date
+  série Excel), `J10`=unité (1=mois, 2=sem). L'import lit ces paramètres ; le choix de
+  feuille manuel est un fallback.
+- Convention de nommage : groupe `<lettre><id>` → `A`=activité, `S`=jalon, `E`=nœud T0
+  (non matérialisé → règle `meta.t0`). Sous-formes `.1`=libellé, `.2`=`durée/marge`
+  (virgule décimale FR ; on garde la durée), `.3`/`.4`=date. Jalon : date-cible encodée
+  `E=(jj/mm/aaaa)` dans le libellé → `due_date`.
+- Connecteurs : `stCxn`/`endCxn` pointent une **sous-forme** → map `id sous-forme→groupe`
+  pour résoudre. Arêtes touchant un nœud `E` ignorées (le successeur démarre à T0).
+- **Contrainte `file://`** : dézip par **fflate** (`lib/fflate.min.js`, MIT, global
+  non-module), `<input type="file">` + `FileReader.readAsArrayBuffer`, parsing `DOMParser`,
+  **jamais `fetch`**. `src/import_excel.js` sépare transforms purs (testables Node) et
+  couche DOM/ZIP (navigateur).
+- Placement importé **conservé tel quel** (coordonnées absolues Excel, EMU→px via 9525),
+  concaténé à droite du graphe existant ; l'utilisateur « Réorganise » s'il le souhaite.
 
 ---
 
@@ -476,3 +500,15 @@ Test utilisateur métier sans assistance.
   `pertHighlightCriticalPath` (coloration des liens du chemin critique)
 - `ui.js` / `index.html` : bouton « Réorganiser » ; chemin critique re-tracé à la sélection
 - Logique validée par test headless Node ; **rendu visuel à valider dans Chrome**
+
+### Session 3 (25/06/2026) — en cours
+- Évolutions UI préalables (`fix/ui-tweaks`) : unité « mois » par défaut, bouton
+  « Tout afficher » (zoom-to-fit + masquage du cadre LiteGraph parasite), correction
+  du plafond visuel à 3 liens entrants sur les Jalons (hauteur ∝ nb de slots)
+- **Import Excel legacy #8** (🔴 urgent) livré : `src/import_excel.js` (dézip fflate +
+  parsing DrawingML), bouton « Importer Excel », lecture config onglet MANUEL
+  (feuille/T0/unité), concaténation dans le PERT courant, dialogue fallback de choix
+  de feuille. `lib/fflate.min.js` ajouté
+- Validé en croisé : tests headless (pur 25/25, e2e 10/10) + pilotage navigateur réel
+  (Playwright/Chromium) sur `C_PERT_exemple.xlsm` + validation visuelle utilisateur
+- Reste S3 : persistance `.pert`, export PNG/PDF, copier/coller, nœud Label

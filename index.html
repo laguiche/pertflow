@@ -49,6 +49,8 @@
     <div class="tb-sep"></div>
     <button id="btn-settings" title="Paramètres du projet">⚙ Paramètres</button>
     <div class="tb-sep"></div>
+    <button id="btn-import" title="Importer un planning Excel legacy (.xlsm) et le concaténer">📥 Importer Excel</button>
+    <div class="tb-sep"></div>
     <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
     <button id="btn-export-png" title="Exporter en PNG">🖼 PNG</button>
@@ -85,11 +87,15 @@
 
   <!-- Fichier open (Session 3) -->
   <input type="file" id="file-input" accept=".pert,.json" style="display:none">
+  <!-- Import Excel legacy (Session 3, #8) -->
+  <input type="file" id="excel-input" accept=".xlsm,.xlsx" style="display:none">
 
   <script src="lib/litegraph.js"></script>
   <script src="lib/jspdf.umd.min.js"></script>
+  <script src="lib/fflate.min.js"></script>
   <script src="src/nodes.js"></script>
   <script src="src/pert_engine.js"></script>
+  <script src="src/import_excel.js"></script>
   <script src="src/storage.js"></script>
   <script src="src/export.js"></script>
   <script src="src/ui.js"></script>
