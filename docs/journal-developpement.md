@@ -287,7 +287,21 @@ validation S3 atteint.
   backward pass et de cible par défaut du chemin critique (cohérent avec #7).
 - **Marge négative** = délai/cible infaisable en aval → affichée en rouge comme un
   signal d'alerte (distinct de la marge nulle = critique).
+- **Couleur par import (25/06/2026, évolution inter-sessions).** Demande utilisateur :
+  distinguer d'un coup d'œil les lots issus de plusieurs imports Excel. Choix : une
+  **couleur unique par import** (et non par nœud, jugé fastidieux sur gros imports),
+  sélectionnée dans un dialogue dont la valeur **présélectionnée est la première teinte
+  d'une palette non encore présente dans le workspace**. L'IA a servi à cadrer le
+  périmètre (questions ciblées avant code) puis à livrer + valider en navigateur réel
+  (Playwright : présélection qui évite le bleu déjà pris au 2e import, couleurs bien
+  appliquées aux Activités). Apport métier : itération « idée → feature validée » en une
+  passe, sans casser le flux d'import existant ni les contraintes `file://`.
 
 ## Écueils rencontrés
 - **Perte du poste de développement** (disque HS) → reconstruction depuis Git + `CLAUDE.md`.
-- (à compléter)
+- **Gros plannings tronqués à l'écran (25/06/2026).** Sur `essai_max.pert` (146 nœuds,
+  boîte englobante ~387 × 19 826 px), « Tout afficher » ne montre qu'une moitié des nœuds.
+  Diagnostic IA : double plancher de zoom à 0.1 (`pertZoomToFit` **et** `min_scale` de
+  LiteGraph) alors qu'il faudrait ~0.04 pour tout cadrer. Non bloquant (exports PNG/PDF et
+  navigation restent complets) → laissé tel quel sur décision utilisateur ; piste connue si
+  besoin : abaisser les deux planchers de zoom.

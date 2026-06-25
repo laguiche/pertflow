@@ -504,21 +504,124 @@ function handleExcelFile(file) {
       }
       promptSheetChoice(sheets, (chosen) => {
         try {
-          applyImportModel(PertExcel.importXlsm(ab, chosen));
+          finishExcelImport(PertExcel.importXlsm(ab, chosen));
         } catch (e3) {
           showToast("Import échoué : " + e3.message);
         }
       });
       return;
     }
-    applyImportModel(model);
+    finishExcelImport(model);
   };
   reader.onerror = () => showToast("Lecture du fichier impossible");
   reader.readAsArrayBuffer(file);
 }
 
-// Concatene le modele d'import dans le graphe courant.
-function applyImportModel(model) {
+// Palette de couleurs distinctes proposees pour distinguer visuellement les lots
+// importes successivement (un import = une couleur appliquee a toutes ses Activites).
+const IMPORT_COLOR_PALETTE = [
+  "#4A90D9", // bleu (defaut historique)
+  "#7ED321", // vert
+  "#F5A623", // orange
+  "#BD10E0", // violet
+  "#50E3C2", // turquoise
+  "#E94B6A", // rose
+  "#9013FE", // indigo
+  "#B8E986"  // vert clair
+];
+
+// Premiere couleur de la palette pas encore utilisee par une Activite du workspace
+// (fallback : 1re couleur de la palette si toutes sont deja prises).
+function pickDefaultImportColor() {
+  const graph = window.pertGraph;
+  const used = new Set();
+  if (graph && graph._nodes) {
+    graph._nodes.forEach(n => {
+      if (n.type === "pert/activity" && n.properties && n.properties.color) {
+        used.add(n.properties.color.toLowerCase());
+      }
+    });
+  }
+  const free = IMPORT_COLOR_PALETTE.find(c => !used.has(c.toLowerCase()));
+  return free || IMPORT_COLOR_PALETTE[0];
+}
+
+// Demande la couleur des taches importees (presel. = 1re couleur libre) puis
+// concatene le modele. Point de passage commun aux deux chemins d'import.
+function finishExcelImport(model) {
+  if (!model || !model.nodes || !model.nodes.length) {
+    showToast("Aucun nœud à importer");
+    return;
+  }
+  promptImportColor(pickDefaultImportColor(), (color) => applyImportModel(model, color));
+}
+
+// Dialogue de choix de la couleur des taches importees : selecteur libre + pastilles
+// de la palette (clic = selection rapide). La pastille presel. est mise en exergue.
+function promptImportColor(defaultColor, onChoose) {
+  let dlg = document.getElementById("color-dialog");
+  if (dlg) dlg.remove();
+  dlg = document.createElement("div");
+  dlg.id = "color-dialog";
+  dlg.className = "dialog-overlay";
+  dlg.style.display = "flex";
+
+  const box = document.createElement("div");
+  box.className = "dialog";
+  const h = document.createElement("h3");
+  h.textContent = "Couleur des tâches importées";
+  box.appendChild(h);
+
+  let current = defaultColor;
+
+  const swatches = document.createElement("div");
+  swatches.className = "color-swatches";
+
+  // Selecteur de couleur libre, pre-rempli sur la 1re couleur non utilisee.
+  const picker = document.createElement("input");
+  picker.type = "color";
+  picker.value = current;
+
+  // Synchronise l'exergue des pastilles avec la couleur courante.
+  const syncSelected = () => {
+    swatches.querySelectorAll(".color-swatch").forEach(e =>
+      e.classList.toggle("selected", e.title.toLowerCase() === current.toLowerCase()));
+  };
+
+  IMPORT_COLOR_PALETTE.forEach(c => {
+    const sw = document.createElement("button");
+    sw.className = "color-swatch";
+    sw.style.background = c;
+    sw.title = c;
+    sw.onclick = () => { current = c; picker.value = c; syncSelected(); };
+    swatches.appendChild(sw);
+  });
+  picker.addEventListener("input", () => { current = picker.value; syncSelected(); });
+  syncSelected();
+
+  box.appendChild(swatches);
+  box.appendChild(picker);
+
+  const btns = document.createElement("div");
+  btns.className = "dialog-buttons";
+  const cancel = document.createElement("button");
+  cancel.textContent = "Annuler";
+  cancel.onclick = () => dlg.remove();
+  const ok = document.createElement("button");
+  ok.textContent = "Importer";
+  ok.className = "primary";
+  ok.onclick = () => { dlg.remove(); onChoose(current); };
+  btns.appendChild(cancel);
+  btns.appendChild(ok);
+  box.appendChild(btns);
+
+  dlg.appendChild(box);
+  document.body.appendChild(dlg);
+}
+
+// Concatene le modele d'import dans le graphe courant. importColor (optionnel) =
+// couleur appliquee a toutes les Activites importees (cf. promptImportColor).
+function applyImportModel(model, importColor) {
   const graph = window.pertGraph;
   if (!model || !model.nodes || !model.nodes.length) {
     showToast("Aucun nœud à importer");
@@ -555,6 +658,10 @@ function applyImportModel(model) {
     } else {
       node.properties.label = n.label || "Activité";
       node.properties.duration = (n.duration != null ? n.duration : 1);
+      if (importColor) {
+        node.properties.color = importColor;
+        node.color = importColor;
+      }
     }
     if (node.updateSize) node.updateSize();
     node.pos = [n.off.x / EMU + dx, n.off.y / EMU + dy];

@@ -445,6 +445,13 @@ valide) → export PDF (`%PDF-`) → copier/coller (6→12) → Label `updateSiz
   couche DOM/ZIP (navigateur).
 - Placement importé **conservé tel quel** (coordonnées absolues Excel, EMU→px via 9525),
   concaténé à droite du graphe existant ; l'utilisateur « Réorganise » s'il le souhaite.
+- **Couleur par import** (évolution inter-sessions du 25/06/2026, avant S4) : un dialogue
+  (`promptImportColor`) s'intercale à chaque import et applique **une couleur unique à toutes
+  les Activités du lot** (les Jalons gardent leur code couleur critique/cible). Présélection =
+  **première teinte de `IMPORT_COLOR_PALETTE` non encore utilisée** par une Activité du
+  workspace (`pickDefaultImportColor`), pour distinguer visuellement les imports successifs.
+  Les deux chemins d'import (auto MANUEL + fallback choix de feuille) convergent vers
+  `finishExcelImport` → `applyImportModel(model, color)`.
 
 **Persistance / export — décisions notables** :
 - **`.pert` = `{ version, meta, graph }`** où `graph` est `graph.serialize()` natif. Les
