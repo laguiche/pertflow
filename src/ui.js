@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.pertCanvas = lgCanvas;
 
   lgCanvas.background_image = null;
+  lgCanvas.show_info = false;   // masque l'overlay debug LiteGraph (T/I/N/V/FPS)
   lgCanvas.render_shadows = false;
   lgCanvas.render_connections_border = true;
   lgCanvas.connections_width = 2;
@@ -135,11 +136,25 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("settings-dialog").style.display = "none";
   });
 
-  // Boutons Session 3 — placeholders
-  ["btn-open", "btn-save", "btn-export-png", "btn-export-pdf"].forEach(id => {
-    document.getElementById(id).addEventListener("click", () => {
-      showToast("Disponible en Session 3");
-    });
+  // ── Persistance JSON (.pert) — Session 3 ────────────────────────────────────
+  document.getElementById("btn-save").addEventListener("click", () => {
+    pertSaveProject();
+  });
+  document.getElementById("btn-open").addEventListener("click", () => {
+    document.getElementById("file-input").value = ""; // re-selection du meme fichier OK
+    document.getElementById("file-input").click();
+  });
+  document.getElementById("file-input").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) pertLoadProject(file);
+  });
+
+  // ── Export PNG / PDF — Session 3 ────────────────────────────────────────────
+  document.getElementById("btn-export-png").addEventListener("click", () => {
+    pertExportPNG();
+  });
+  document.getElementById("btn-export-pdf").addEventListener("click", () => {
+    pertExportPDF();
   });
 
   // ── Raccourcis clavier ──────────────────────────────────────────────────────
@@ -149,7 +164,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (e.ctrlKey && e.key === "a") {
       e.preventDefault();
-      lgCanvas.selectAllNodes();
+      lgCanvas.selectNodes();   // sans argument → selectionne tous les noeuds
+      return;
+    }
+
+    // Ctrl+S → sauvegarder le projet (on bloque le dialogue natif du navigateur)
+    if (e.ctrlKey && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      pertSaveProject();
+      return;
+    }
+
+    // Copier / coller : on reutilise le presse-papier interne de LiteGraph
+    // (copyToClipboard/pasteFromClipboard, via localStorage). Le collage place
+    // les noeuds a la derniere position connue de la souris sur le canvas, et
+    // recree les liens internes a la selection copiee.
+    if (e.ctrlKey && (e.key === "c" || e.key === "C")) {
+      lgCanvas.copyToClipboard();
+      return;
+    }
+    if (e.ctrlKey && (e.key === "v" || e.key === "V")) {
+      lgCanvas.pasteFromClipboard();
+      pertRecalc();
+      return;
     }
   });
 
@@ -277,7 +314,8 @@ function showProperties(node) {
   } else if (node.type === "pert/label") {
     buildTextarea(content, "Texte", node.properties.text, v => {
       node.properties.text = v;
-      node.setDirtyCanvas(true);
+      node.updateSize();           // la boite s'ajuste au texte (largeur + lignes)
+      node.setDirtyCanvas(true, true);
     });
   }
 

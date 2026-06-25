@@ -407,19 +407,22 @@ visuel utilisateur (cf. ci-dessous). Logique également couverte par test headle
 
 ---
 
-### Session 3 — Persistance, import Excel & export ⏳ EN COURS
+### Session 3 — Persistance, import Excel & export ✅ TERMINÉE (25/06/2026)
 **Objectifs** :
 - [x] **#8 Import des plannings legacy Excel** (🔴 URGENT) — lecture directe `.xlsm` (objets graphiques) + **concaténation** dans un PERT existant ✅ 25/06/2026
-- [ ] Sauvegarde/chargement JSON (.pert)
-- [ ] Export PNG
-- [ ] Export PDF
-- [ ] Copier/coller nœuds
-- [ ] Nœud Label opérationnel
+- [x] Sauvegarde/chargement JSON (.pert)
+- [x] Export PNG
+- [x] Export PDF
+- [x] Copier/coller nœuds
+- [x] Nœud Label opérationnel
 
 **Critère de validation** :
 Importer un planning Excel réel et le concaténer. Sauvegarder, recharger, vérifier intégrité. Exporter PNG et PDF lisibles.
 **Import #8 validé** (croisé) : test e2e Playwright/Chromium sur `C_PERT_exemple.xlsm`
 (6 nœuds, 4 liens, T0/unité depuis MANUEL, 0 erreur console) + validation visuelle utilisateur.
+**Persistance/export/copier-coller validés** : smoke test Playwright/Chromium en `file://`
+— import → sauvegarde `.pert` → clear + rechargement (intégrité 6=6) → export PNG (signature
+valide) → export PDF (`%PDF-`) → copier/coller (6→12) → Label `updateSize` ; 0 erreur console.
 
 **Import Excel — décisions notables** :
 - Le `.xlsm` est un ZIP ; **toute la donnée est dans `xl/drawings/`** (groupes de formes =
@@ -439,6 +442,26 @@ Importer un planning Excel réel et le concaténer. Sauvegarder, recharger, vér
   couche DOM/ZIP (navigateur).
 - Placement importé **conservé tel quel** (coordonnées absolues Excel, EMU→px via 9525),
   concaténé à droite du graphe existant ; l'utilisateur « Réorganise » s'il le souhaite.
+
+**Persistance / export — décisions notables** :
+- **`.pert` = `{ version, meta, graph }`** où `graph` est `graph.serialize()` natif. Les
+  valeurs calculées (ES/EF/LS/LF/slack) **ne sont PAS sérialisées** (hors `node.properties`) :
+  recalculées par `pertRecalc()` au chargement → cohérence garantie même sur vieux fichier.
+  Chargement = `graph.clear()` puis `graph.configure()`, `updateSize()` rejoué sur chaque
+  nœud (tailles dépendantes unité/libellés), puis recalc + zoom-to-fit.
+- **Export = rendu hors-écran**, indépendant du zoom courant : `LGraphCanvas` temporaire
+  (`{skip_events, skip_render}`, fond blanc, `show_info=false`) sur un canvas dimensionné à
+  la boîte englobante, calé via `ds.scale`/`ds.offset` (convention `écran=(graphe+offset)*scale`),
+  un seul `draw(true,true)`, puis `toDataURL`. Garde-fou résolution **6000 px**. Penser à
+  `graph.detachCanvas(tmp)` après coup (sinon il reste dans `list_of_graphcanvas`).
+- **PDF** : page A4 jsPDF (orientation selon ratio), PNG ajusté en conservant les proportions,
+  titre projet en en-tête. Choix « fit-to-page A4 » plutôt qu'une page sur-mesure → imprimable.
+- **Copier/coller** : presse-papier interne LiteGraph (`copyToClipboard`/`pasteFromClipboard`
+  via `localStorage`) câblé Ctrl+C/Ctrl+V — recrée les liens internes à la sélection, colle à
+  la position souris. **Bug latent corrigé** : Ctrl+A appelait `selectAllNodes()` (inexistant)
+  → c'est `selectNodes()` sans argument qui sélectionne tout.
+- **Label opérationnel** : `updateSize()` rappelé à l'édition du texte (boîte ∝ contenu).
+  Overlay debug LiteGraph (`show_info`) masqué aussi dans le canvas principal.
 
 ---
 
@@ -501,7 +524,7 @@ Test utilisateur métier sans assistance.
 - `ui.js` / `index.html` : bouton « Réorganiser » ; chemin critique re-tracé à la sélection
 - Logique validée par test headless Node ; **rendu visuel à valider dans Chrome**
 
-### Session 3 (25/06/2026) — en cours
+### Session 3 (25/06/2026) — terminée
 - Évolutions UI préalables (`fix/ui-tweaks`) : unité « mois » par défaut, bouton
   « Tout afficher » (zoom-to-fit + masquage du cadre LiteGraph parasite), correction
   du plafond visuel à 3 liens entrants sur les Jalons (hauteur ∝ nb de slots)
@@ -509,6 +532,13 @@ Test utilisateur métier sans assistance.
   parsing DrawingML), bouton « Importer Excel », lecture config onglet MANUEL
   (feuille/T0/unité), concaténation dans le PERT courant, dialogue fallback de choix
   de feuille. `lib/fflate.min.js` ajouté
-- Validé en croisé : tests headless (pur 25/25, e2e 10/10) + pilotage navigateur réel
-  (Playwright/Chromium) sur `C_PERT_exemple.xlsm` + validation visuelle utilisateur
-- Reste S3 : persistance `.pert`, export PNG/PDF, copier/coller, nœud Label
+- **Persistance `.pert`** (`src/storage.js`) : sérialisation `{version,meta,graph}`,
+  sauvegarde Blob + chargement `FileReader`, recalcul/zoom après `configure()`
+- **Export PNG/PDF** (`src/export.js`) : rendu hors-écran (boîte englobante, fond blanc),
+  `toDataURL` + jsPDF page A4 fit-to-page avec titre
+- **Copier/coller** câblé sur le presse-papier natif LiteGraph (Ctrl+C/Ctrl+V) ;
+  correction du bug Ctrl+A (`selectAllNodes` → `selectNodes`)
+- **Nœud Label** opérationnel (`updateSize` à l'édition) ; overlay debug masqué (`show_info`)
+- Validé en croisé : tests headless import (pur 25/25, e2e 10/10) + smoke test navigateur
+  réel (Playwright/Chromium) sur `C_PERT_exemple.xlsm` couvrant import/sauvegarde/rechargement/
+  export PNG+PDF/copier-coller/Label, 0 erreur console + validation visuelle utilisateur

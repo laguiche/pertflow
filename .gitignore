@@ -13,3 +13,6 @@ node_modules/
 
 # Fichiers de projet sauvegardés
 *.pert
+
+# Outillage de validation/captures (Playwright local, hors livraison)
+tools/
