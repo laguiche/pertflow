@@ -293,9 +293,12 @@ onDrawForeground(ctx) {
 >   (avant la Session 4) — approche figée sur fichier exemple.
 > - **Restitution interne de septembre 2026** (« développement d'outils métier assisté
 >   par IA ») : journal tenu en continu dans `docs/journal-developpement.md`.
-> - Undo/Redo et copier/coller reportés en fin de parcours (Session 4).
+> - Undo/Redo reporté en fin de parcours (Session 4). (Copier/coller livré en S3.)
+> - **Documentation dédiée actée en Session 5** (décision du 25/06/2026) : manuel
+>   utilisateur + document de conception et de maintenance. La tâche « Guide
+>   utilisateur 1 page » de S4 en était la prémisse, désormais reprise et étoffée en S5.
 >
-> Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 → S3 (dont import Excel) → S4**.
+> Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 → S5 (doc)**.
 
 ### Session 0 — Mise en place du dépôt GitHub ✅ TERMINÉE
 **Objectifs** :
@@ -473,10 +476,32 @@ valide) → export PDF (`%PDF-`) → copier/coller (6→12) → Label `updateSiz
 - [ ] Gestion des erreurs UI
 - [ ] Toolbar avec icônes
 - [ ] HTML standalone bundlé
-- [ ] Guide utilisateur 1 page
 
 **Critère de validation** :
 Test utilisateur métier sans assistance.
+
+> Note : la « Guide utilisateur 1 page » initialement prévue ici est **déplacée et
+> étoffée en Session 5** (manuel utilisateur complet), décision du 25/06/2026.
+
+---
+
+### Session 5 — Manuel utilisateur & documentation de conception/maintenance ⏳ À VENIR
+**Objectifs** :
+- [ ] **Manuel utilisateur** de PertFlow (prise en main, toolbar, nœuds, calcul PERT,
+  import Excel, sauvegarde/export) — illustré de captures d'écran réelles
+- [ ] **Document de conception logicielle** : architecture (fichiers `file://`, libs
+  locales, modèle de données, moteur PERT, rendu LiteGraph custom), choix techniques
+  et leurs justifications (s'appuyer sur ce `CLAUDE.md` et `docs/journal-developpement.md`)
+- [ ] **Document de maintenance** : comment reprendre/faire évoluer le projet (pièges
+  LiteGraph, contraintes DSI, points de vigilance), pour une reprise par une autre
+  personne ou une équipe de l'entreprise
+
+**Captures d'écran** : produites via l'outillage `tools/screenshot.js` (Playwright
+local, `file://`) — modes `--app` (UI complète) et `--graph` (planning seul).
+
+**Critère de validation** :
+Un nouvel arrivant prend en main l'outil avec le manuel seul ; un développeur tiers
+comprend l'architecture et peut intervenir avec la doc de conception/maintenance.
 
 ---
 

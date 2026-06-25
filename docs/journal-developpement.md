@@ -265,8 +265,9 @@ validation S3 atteint.
 | **S1 reste** | Undo/Redo, copier/coller, suppression explicite ; validation réseau 5 nœuds | clôture S1 |
 | **S2 — Moteur PERT** | forward/backward pass, marges, chemin critique, détection cycles, recalcul auto | features #1, #6, #7 (toutes dépendent du calcul) |
 | **S2.5 — Visualisation** | layout chronologique (#1), largeur ∝ durée (#2), unités sem/mois (#3), multi-lignes (#4), refonte Jalon (#5) | lisibilité |
-| **S3 — Données** | import Excel legacy (#8 🔴), persistance `.pert`, export PNG/PDF | reprise de l'existant |
-| **S4 — Finitions** | menu contextuel, snap-to-grid, erreurs UI, icônes, bundle, guide | livraison |
+| **S3 — Données** ✅ | import Excel legacy (#8 🔴), persistance `.pert`, export PNG/PDF, copier-coller | reprise de l'existant |
+| **S4 — Finitions** | undo/redo, menu contextuel, snap-to-grid, erreurs UI, icônes, bundle standalone | livraison |
+| **S5 — Documentation** | manuel utilisateur + doc de conception/maintenance (captures via `tools/`) | reprise par un tiers |
 
 > Note dépendance : 5 des 7 demandes utilisateurs s'appuient sur le moteur de
 > calcul → faire **S2 d'abord** est le chemin le plus court vers la valeur visible,
