@@ -150,7 +150,7 @@ Voir la section « Backlog réorienté » ci-dessous.
 > rôle d'un pilote d'ingénierie : l'IA accélère l'exécution, mais la
 > hiérarchisation de la valeur reste une décision métier.
 
-### Session 3 — Données : import Excel legacy (#8 ✅ 25/06/2026 ; persistance & export ⏳)
+### Session 3 — Données : import Excel legacy, persistance & export (✅ 25/06/2026)
 
 **Évolutions UI préalables** (`fix/ui-tweaks`, mergé) : unité « mois » par défaut,
 bouton « Tout afficher » (zoom-to-fit calé sur la boîte englobante, + désactivation du
@@ -196,6 +196,40 @@ console, rendu conforme (capture). Validation humaine en parallèle.
 > visuellement. Aucune des deux ne remplace l'autre : le test automatisé garantit la
 > non-régression et l'absence d'erreur, le coup d'œil humain juge l'ergonomie et la
 > fidélité au planning d'origine.
+
+**Persistance `.pert` (`src/storage.js`).** Format `{ version, meta, graph }` où `graph`
+est la sérialisation native LiteGraph (`graph.serialize()`). Les valeurs calculées
+(ES/EF/LS/LF/slack) ne sont **pas** sauvegardées (hors de `node.properties`) : elles sont
+recalculées par `pertRecalc()` après chargement, ce qui garantit la cohérence avec les
+règles de calcul courantes même sur un vieux fichier. Au chargement, on `clear()` puis
+`configure()`, on rejoue `updateSize()` sur chaque nœud (tailles dépendantes de l'unité et
+des libellés), puis recalc + zoom-to-fit. Contrainte `file://` respectée : sauvegarde par
+Blob + `<a download>`, chargement par `<input file>` + `FileReader.readAsText`, jamais `fetch`.
+
+**Export PNG / PDF (`src/export.js`).** Rendu **hors-écran** indépendant du zoom courant :
+calcul de la boîte englobante de tous les nœuds, création d'un canvas à cette taille, attache
+d'un `LGraphCanvas` temporaire (`skip_events`/`skip_render`, fond blanc, overlay debug
+désactivé) calé sur la boîte via `ds.scale`/`ds.offset`, un seul `draw(true,true)`, puis
+`toDataURL`. Garde-fou de résolution (6000 px max) pour les très grands plannings. Le PDF
+(jsPDF, lib locale) embarque ce PNG dans une page A4 (orientation selon le ratio, image
+ajustée en conservant les proportions, titre du projet en en-tête).
+
+**Copier/coller.** Réutilise le presse-papier interne de LiteGraph (`copyToClipboard` /
+`pasteFromClipboard`, via `localStorage`) câblé sur Ctrl+C / Ctrl+V : il recrée les liens
+internes à la sélection et colle à la dernière position connue de la souris. En passant,
+correction d'un **bug latent** : le raccourci Ctrl+A appelait `selectAllNodes()`, méthode
+inexistante — c'est `selectNodes()` (sans argument) qui sélectionne tout.
+
+**Nœud Label opérationnel.** L'édition du texte rappelle désormais `updateSize()` (la boîte
+s'élargit/s'allonge avec le contenu). Overlay debug LiteGraph (`T/I/N/V/FPS`) masqué aussi
+dans le canvas principal (`show_info = false`), cohérent avec `render_canvas_border = false`.
+
+**Validation croisée.** Smoke test Playwright/Chromium en `file://` sur `C_PERT_exemple.xlsm` :
+import (6 nœuds, 4 liens) → sauvegarde `.pert` (relecture JSON : version/meta/graphe OK) →
+`clear()` + rechargement (intégrité 6=6) → export PNG (signature PNG valide, 82 Ko) → export
+PDF (en-tête `%PDF-` valide) → copier/coller (6→12) → Label `updateSize`. Zéro erreur console.
+Rendu PNG inspecté visuellement (fond blanc, chemin critique rouge, nœuds custom). Critère de
+validation S3 atteint.
 
 ---
 
