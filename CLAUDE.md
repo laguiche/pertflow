@@ -475,9 +475,9 @@ valide) → export PDF (`%PDF-`) → copier/coller (6→12) → Label `updateSiz
 
 ---
 
-### Session 4 — Finitions UX et packaging ⏳ À VENIR
+### Session 4 — Finitions UX et packaging ⏳ EN COURS
 **Objectifs** :
-- [ ] Undo/Redo
+- [x] **Undo/Redo** (26/06/2026) — historique par snapshots (`src/history.js`)
 - [ ] Menu contextuel clic droit
 - [ ] Snap-to-grid (optionnel)
 - [ ] Gestion des erreurs UI
@@ -489,6 +489,32 @@ Test utilisateur métier sans assistance.
 
 > Note : la « Guide utilisateur 1 page » initialement prévue ici est **déplacée et
 > étoffée en Session 5** (manuel utilisateur complet), décision du 25/06/2026.
+
+**Undo/Redo — décisions notables (26/06/2026)** :
+- Historique par **snapshots sérialisés** (`meta` + `graph.serialize()`), restaurés
+  par `configure()` — même mécanisme que la persistance `.pert`, donc robuste et
+  exhaustif (couvre ajout/suppression/connexion/déplacement/édition/import/layout/
+  paramètres) sans tracer chaque mutation. Pile bornée à 60 entrées.
+- **Coalescence** des frappes clavier (commit différé, debounce 450 ms) → un seul
+  cran d'undo par saisie de champ, pas un par caractère.
+- `pertHistoryMark()` câblé sur les événements LiteGraph (`onNodeAdded`,
+  `onNodeRemoved`, `onConnectionChange`, `onNodeMoved`) + édition de propriété +
+  bouton « Réorganiser » ; baseline `pertHistoryReset()` au démarrage **et** après
+  chargement `.pert` (sinon Ctrl+Z post-chargement remonte avant le chargement).
+- Pur JS, `<script src>`, aucune dépendance (contrainte `file://`).
+
+**Décisions de conception pour les tâches restantes (figées le 26/06/2026)** :
+- **Snap-to-grid = option utilisateur** : bouton **toggle on/off** dans la toolbar.
+  La grille n'est **affichée que lorsque l'option est activée** (pas de grille visible
+  à l'état désactivé).
+- **Icônes toolbar** : on **améliore les icônes en restant sur la techno actuelle**
+  (emoji/Unicode dans le HTML). Évolution future possible (non retenue pour S4) :
+  passer à des **SVG inline** pour un rendu plus « pro » et homogène — à évaluer si
+  besoin, sans dépendance ni fichier externe (compatible `file://`).
+- **Bundle HTML standalone = génération à la demande par script** : un script produit
+  le fichier bundlé dans un répertoire **`./dist`**. La **structure actuelle est
+  conservée** (`index.html` + `src/` + `lib/`) pour poursuivre les développements ;
+  le bundle n'est qu'un artefact de livraison, pas le format de travail.
 
 ---
 
@@ -574,3 +600,21 @@ comprend l'architecture et peut intervenir avec la doc de conception/maintenance
 - Validé en croisé : tests headless import (pur 25/25, e2e 10/10) + smoke test navigateur
   réel (Playwright/Chromium) sur `C_PERT_exemple.xlsm` couvrant import/sauvegarde/rechargement/
   export PNG+PDF/copier-coller/Label, 0 erreur console + validation visuelle utilisateur
+
+### Session 4 (26/06/2026) — en cours
+- Reprise après crash PC en plein travail sur l'undo/redo (récupération du travail
+  non commité : `src/history.js` intact, câblage `index.html`/`ui.js` présent)
+- **Undo/Redo livré** : `src/history.js` (historique par snapshots, coalescence des
+  frappes, baseline au démarrage et après chargement `.pert`), boutons toolbar +
+  raccourcis Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z, marques sur les événements de graphe et
+  l'édition de propriété. Correction d'un trou de réinitialisation d'historique dans
+  `src/storage.js` (chargement `.pert`)
+- Validé en navigateur réel (Playwright/Chromium, `file://`) : smoke test existant sans
+  régression + test ciblé ajout/undo/redo, coalescence, boutons aux extrémités, baseline
+  réinitialisée après chargement `.pert` ; 0 erreur console
+- **Décisions de conception figées** pour les tâches restantes (snap-to-grid toggle +
+  grille visible seulement si activée ; icônes sur techno actuelle, SVG inline en
+  évolution future possible ; bundle généré à la demande dans `./dist`, structure
+  conservée) — détail dans la section Session 4 plus haut
+- **Reste à faire** : menu contextuel clic droit, snap-to-grid, gestion erreurs UI,
+  icônes toolbar, bundle HTML standalone
