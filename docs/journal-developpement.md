@@ -231,6 +231,61 @@ PDF (en-tête `%PDF-` valide) → copier/coller (6→12) → Label `updateSize`.
 Rendu PNG inspecté visuellement (fond blanc, chemin critique rouge, nœuds custom). Critère de
 validation S3 atteint.
 
+### Session 4 — Finitions UX, puis intégration d'un 2e retour utilisateur (⏳ en cours, 26–27/06/2026)
+
+**Undo/Redo (26/06/2026).** Historique par **snapshots sérialisés** (`meta` +
+`graph.serialize()`, restaurés par `configure()` — même mécanisme que la persistance
+`.pert`), donc robuste et exhaustif sans tracer chaque mutation. Pile bornée à 60 entrées,
+**coalescence** des frappes clavier (un seul cran d'undo par saisie, pas un par caractère),
+baseline réinitialisée au démarrage **et** après chargement `.pert`. Pur JS, `<script src>`,
+zéro dépendance (contrainte `file://`). Récupéré après un crash PC en plein travail (le code
+non commité — `src/history.js` + câblage — était intact). Validé en navigateur réel.
+
+**2e retour utilisateur structuré (27/06/2026).** L'utilisateur métier (« Mickael ») a
+transmis **32 remarques**, qu'il avait lui-même **pré-classées en catégories** (à
+approfondir / améliorations / bugs / nice-to-have / appli « pro » / écarté / déjà prévu).
+Le travail a consisté à transformer ce retour en plan d'action versionné :
+- **Re-tri en buckets actionnables** et recoupement avec l'existant : séparer ce qui est
+  **déjà fait** (#6 CTRL+Z, livré en S4), **déjà prévu** (#27/#45 menu contextuel, #46
+  grille, #28 barre de recherche) et **réellement nouveau**.
+- **Détection d'un thème transversal** : 5 remarques distinctes (#2, #3, #4, #14, #16) ne
+  sont en fait **qu'une seule fonctionnalité de fond** — une dimension « groupe »
+  (WP/métier/service) au-delà du responsable, déclinée ensuite en couleur, filtre et
+  agrégation de coût. Le signal le plus fort du retour, promu en chantier dédié.
+- **Repérage d'une brique de fondation sous-estimée** : #34 (identifiant unique par
+  activité), rangé en « nice to have » par l'utilisateur, débloque en réalité le
+  micro-jalonnement et les exports → remonté en priorité, placé en tête du chantier métier.
+- **Garde-fou de contrainte** : #7 (choisir la destination des exports) se heurte à
+  `file://` (le navigateur pilote le dossier de téléchargement) → à expliquer plutôt qu'à
+  promettre.
+- **Intégration dans la roadmap (`CLAUDE.md`)** plutôt qu'au fil de l'eau : 6 sessions
+  ajoutées (S5 correctifs & quick wins, S6/S7 regroupement métier en 2 temps, S8 propriétés
+  & jalons enrichis, S9 exports avancés, S10 liens & layout), **documentation déplacée en
+  toute fin** de parcours, et bloc « Long terme / écarté » (#38 sous-PERT, #41). Chaque
+  objectif S5+ porte le `#NN` renvoyant à la ligne du retour brut.
+- **Archivage du retour brut** dans un répertoire dédié `retours-utilisateurs/` (avec un
+  README) pour la traçabilité. Commité et mergé sur `main`.
+
+> **🎙️ Restitution — l'IA comme outil de triage et de hiérarchisation d'un retour terrain.**
+> Un retour utilisateur, c'est rarement une liste de tâches : ce sont 32 remarques de
+> granularité et de maturité inégales, où le même besoin réapparaît sous cinq formulations.
+> L'apport IA ici n'est pas d'« écrire du code » mais de **structurer la matière** : regrouper
+> les doublons cachés (les 5 remarques = un seul chantier WP), distinguer le déjà-fait du
+> déjà-prévu du nouveau (éviter de re-spécifier), et requalifier la valeur réelle d'un item
+> que l'utilisateur sous-estimait (l'identifiant unique, fondation discrète de plusieurs
+> features). Mais la **hiérarchisation finale est restée une décision métier** : trois
+> arbitrages explicites de l'utilisateur (correctifs avant le chantier de fond ; découper le
+> chantier WP en deux temps ; documenter en dernier) ont fixé l'ordre. L'IA propose un plan
+> argumenté et chiffré ; le pilote tranche la priorité. C'est la division du travail visée.
+
+> **🎙️ Restitution — la documentation-comme-code transforme un retour en roadmap exécutable.**
+> Le retour n'a pas atterri dans un ticket ou un mail vite oublié : il a été **dépouillé,
+> catégorisé et réparti dans `CLAUDE.md`** (la spec exécutable du projet), avec un lien `#NN`
+> vers le retour brut archivé. Conséquence concrète : la prochaine session de dev (ou un
+> repreneur) trouve l'intention, l'arbitrage et la trace d'origine au même endroit que le
+> reste de la conception. Le même réflexe qui a sauvé le projet après la perte du poste (cf.
+> Session 1) sert ici à ne perdre aucune exigence utilisateur entre deux sessions.
+
 ---
 
 ## Backlog réorienté (à partir du 22/06/2026)
@@ -272,6 +327,13 @@ validation S3 atteint.
 > Note dépendance : 5 des 7 demandes utilisateurs s'appuient sur le moteur de
 > calcul → faire **S2 d'abord** est le chemin le plus court vers la valeur visible,
 > et rend l'import Excel immédiatement exploitable (les tâches importées se calculent).
+
+> **Mise à jour 27/06/2026** : ce tableau reflète la réorientation du 22/06. Suite au 2e
+> retour utilisateur (cf. Session 4 ci-dessus), la roadmap a été **étendue** — S4 reste
+> les finitions, puis **S5** (correctifs & quick wins), **S6/S7** (regroupement métier WP
+> en 2 temps), **S8** (propriétés & jalons enrichis), **S9** (exports avancés), **S10**
+> (liens & layout), et la **Documentation déplacée en toute fin**. La roadmap détaillée et
+> à jour fait foi dans `CLAUDE.md` (section « ÉTAT D'AVANCEMENT PAR SESSION »).
 
 ---
 
