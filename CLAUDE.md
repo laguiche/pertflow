@@ -294,11 +294,22 @@ onDrawForeground(ctx) {
 > - **Restitution interne de septembre 2026** (« développement d'outils métier assisté
 >   par IA ») : journal tenu en continu dans `docs/journal-developpement.md`.
 > - Undo/Redo reporté en fin de parcours (Session 4). (Copier/coller livré en S3.)
-> - **Documentation dédiée actée en Session 5** (décision du 25/06/2026) : manuel
->   utilisateur + document de conception et de maintenance. La tâche « Guide
->   utilisateur 1 page » de S4 en était la prémisse, désormais reprise et étoffée en S5.
+> - **Documentation dédiée** : manuel utilisateur + document de conception et de
+>   maintenance. Initialement actée en Session 5 (25/06/2026), **déplacée en toute fin
+>   de parcours** (décision du 27/06/2026) pour que le manuel illustre l'application
+>   aboutie. La tâche « Guide utilisateur 1 page » de S4 en était la prémisse.
 >
-> Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 → S5 (doc)**.
+> **2e retour utilisateur (27/06/2026, « Mickael »)** — 32 remarques dépouillées et
+> catégorisées (`retours-utilisateurs/remarques_mickael`). Intégrées à la roadmap plutôt que
+> traitées au fil de l'eau : voir le détail réparti sur S5→S10 ci-dessous, et le bloc
+> « Long terme / écarté » en fin de section. Le numéro `#NN` des objectifs S5+ renvoie
+> à la ligne correspondante de `remarques_mickael`. Arbitrages utilisateur du 27/06 :
+> correctifs/quick wins **avant** le chantier métier ; chantier « regroupement WP »
+> **découpé en 2 temps** (S6 dimension+couleur, S7 filtre+coût) ; **doc en dernier**.
+>
+> Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 (en
+> cours) → S5 (correctifs & quick wins) → S6/S7 (regroupement métier WP) → S8
+> (propriétés & jalons enrichis) → S9 (exports avancés) → S10 (liens & layout) → Doc (fin)**.
 
 ### Session 0 — Mise en place du dépôt GitHub ✅ TERMINÉE
 **Objectifs** :
@@ -488,7 +499,14 @@ valide) → export PDF (`%PDF-`) → copier/coller (6→12) → Label `updateSiz
 Test utilisateur métier sans assistance.
 
 > Note : la « Guide utilisateur 1 page » initialement prévue ici est **déplacée et
-> étoffée en Session 5** (manuel utilisateur complet), décision du 25/06/2026.
+> étoffée dans la session Doc finale** (manuel utilisateur complet), décision du
+> 25/06/2026 (placement en fin de parcours acté le 27/06/2026).
+>
+> Note (retour Mickael, 27/06/2026) : le nettoyage du menu clic droit (#27/#45) couvre
+> aussi **#28** (barre de recherche LiteGraph parasite au double-clic sur le fond) — à
+> traiter ici ; sinon repris en S5. **#6 (CTRL+Z)** demandé par l'utilisateur est déjà
+> livré (Undo/Redo ci-dessus). **#46** (grille aimantée) correspond au snap-to-grid
+> ci-dessus ; son sous-point « liens droits/coudés » est planifié en S10.
 
 **Undo/Redo — décisions notables (26/06/2026)** :
 - Historique par **snapshots sérialisés** (`meta` + `graph.serialize()`), restaurés
@@ -518,7 +536,111 @@ Test utilisateur métier sans assistance.
 
 ---
 
-### Session 5 — Manuel utilisateur & documentation de conception/maintenance ⏳ À VENIR
+### Session 5 — Correctifs & quick wins (retour utilisateur Mickael) ⏳ À VENIR
+Issue du 2e retour utilisateur du 27/06/2026 (`remarques_mickael`). Petits efforts,
+forte satisfaction perçue, faible risque — traités en premier (arbitrage utilisateur).
+**Objectifs** :
+- [ ] **#25 (bug)** Cohérence linguistique : supprimer le mélange français/anglais dans l'UI
+- [ ] **#26 (bug)** Dernier lien du chemin critique non coloré en rouge — corriger la
+  remontée des prédécesseurs jusqu'au nœud terminal (la fonction de tracé existe depuis S2.5)
+- [ ] **#29 (bug)** Export PDF : améliorer la définition et réduire le poids du fichier
+- [ ] **#8** Revoir l'affichage du responsable dans le nœud Activité
+- [ ] **#20** Coin du Jalon en vert quand la cible est tenue avec marge suffisante
+  (symétrique du rouge « cible non tenue » déjà en place)
+- [ ] **#15** Réorganisation : empêcher qu'un Label se retrouve superposé à une activité
+- [ ] **#28 (bug)** Neutraliser la barre de recherche LiteGraph au double-clic sur le fond
+  (si non déjà traité dans le nettoyage clic droit de S4)
+
+**Critère de validation** :
+L'utilisateur métier ne relève plus #25/#26/#28/#29 ; rendu validé en navigateur réel.
+
+---
+
+### Session 6 — Regroupement métier (WP/service), temps 1 : dimension + couleur ⏳ À VENIR
+Chantier transversal majeur du retour Mickael — une seule fonctionnalité de fond
+derrière 5 remarques (#2, #3, #4, #14, #16), **découpée en 2 temps** (S6 puis S7,
+arbitrage utilisateur). Temps 1 = modèle de données + restitution visuelle.
+**Objectifs** :
+- [ ] **#34** Identifiant unique par Activité — brique de fondation (micro-jalonnement,
+  exports Excel/Gantt). Champ affiché et éditable, stable à la sérialisation
+- [ ] **#2** Dimension « groupe » sur l'Activité au-delà du responsable :
+  WP / métier / service (champ dédié dans le panneau propriétés)
+- [ ] **#14** Couleur associée à un groupe + mémorisation des couleurs choisies
+  (palette persistante, réutilisable rapidement)
+- [ ] **#4** Harmonisation visuelle : les activités d'un même groupe partagent une teinte
+  → zones par WP/métier lisibles « de loin » sur un PERT chargé
+
+**Point de conception à figer en début de session** : modèle du « groupe » (attribut
+texte libre vs liste gérée), et articulation avec la couleur d'import existante
+(`IMPORT_COLOR_PALETTE` / `pickDefaultImportColor`) pour éviter deux systèmes de couleur.
+
+**Critère de validation** :
+Sur un PERT chargé, les zones par WP/métier sont identifiables d'un coup d'œil par la couleur.
+
+---
+
+### Session 7 — Regroupement métier (WP/service), temps 2 : filtre + coût ⏳ À VENIR
+Suite de S6 sur la même dimension « groupe ».
+**Objectifs** :
+- [ ] **#16** Filtrer / mettre en évidence par WP/métier/service ou par couleur
+- [ ] **#3** Estimation rapide du coût d'une activité ou d'un groupe d'un même WP/métier
+  (agrégation) — **périmètre à confirmer** : l'utilisateur le note « peut-être hors scope »
+
+**Critère de validation** :
+L'utilisateur isole visuellement un WP et obtient une estimation agrégée.
+
+---
+
+### Session 8 — Propriétés & jalons enrichis ⏳ À VENIR
+**Objectifs** :
+- [ ] **#12** Champ texte libre dans les propriétés d'Activité (hypothèses de durée,
+  contenu réel de la tâche)
+- [ ] **#13** Liste des responsables déjà saisis, proposée à la sélection (orthographe
+  cohérente) — autocomplétion / `datalist` alimentée par les valeurs existantes du graphe
+- [ ] **#17** Tag de type sur les Jalons : aucun / DOTD / COTD / Ingénierie (affichage distinctif)
+- [ ] **#18** Largeur ∝ durée rendue **optionnelle** (toggle) — laisser le choix d'activer
+  ou non la proportionnalité (introduite en S2.5)
+
+**Critère de validation** :
+Propriétés enrichies utilisables ; jalons taggables ; largeur proportionnelle désactivable.
+
+---
+
+### Session 9 — Exports avancés ⏳ À VENIR
+**Objectifs** :
+- [ ] **#21** Export Excel (notamment pour faciliter le micro-jalonnement) — s'appuie
+  sur l'identifiant unique (#34) de S6
+- [ ] **#33** Export Gantt
+- [ ] **#7** Destination des sauvegardes/exports : ⚠️ **bridé par `file://`** — le
+  navigateur pilote le dossier de téléchargement, pas de sélecteur de chemin possible
+  sans serveur. Au mieux : nom de fichier suggéré + dossier Téléchargements. À **expliquer**
+  à l'utilisateur plutôt qu'à promettre.
+
+**Écarté / à rediscuter en début de session** :
+- **#5** Incrément automatique du n° de version à chaque sauvegarde — l'utilisateur
+  lui-même le juge « peut-être une fausse bonne idée ». À trancher avant implémentation.
+
+**Critère de validation** :
+Export Excel et Gantt exploitables ; contrainte de destination explicitée à l'utilisateur.
+
+---
+
+### Session 10 — Rendu des liens & layout ⏳ À VENIR
+**Objectifs** :
+- [ ] **#19** Liens qui ne passent plus sous/sur les activités (routage évitant les nœuds)
+- [ ] **#46** Liens droits ou coudés au choix (la grille aimantée du même point est
+  couverte par le snap-to-grid de S4)
+- [ ] **#15 (suite)** Affiner la réorganisation automatique si la superposition de Label
+  n'a pas été entièrement résolue en S5
+
+**Critère de validation** :
+Sur un PERT chargé, les liens restent lisibles sans masquer les nœuds.
+
+---
+
+### Session Doc — Manuel utilisateur & documentation de conception/maintenance ⏳ À VENIR (en fin de parcours)
+Placée intentionnellement en dernier (décision du 27/06/2026) pour que le manuel illustre
+l'application aboutie, sans refaire les captures à chaque ajout de fonctionnalité.
 **Objectifs** :
 - [ ] **Manuel utilisateur** de PertFlow (prise en main, toolbar, nœuds, calcul PERT,
   import Excel, sauvegarde/export) — illustré de captures d'écran réelles
@@ -535,6 +657,17 @@ local, `file://`) — modes `--app` (UI complète) et `--graph` (planning seul).
 **Critère de validation** :
 Un nouvel arrivant prend en main l'outil avec le manuel seul ; un développeur tiers
 comprend l'architecture et peut intervenir avec la doc de conception/maintenance.
+
+---
+
+### Long terme / écarté (hors roadmap planifiée)
+Issu du retour Mickael (27/06/2026), volontairement non planifié :
+- **#38** Sous-PERT — fonctionnalité de l'application « pro », beaucoup plus tard
+- **#41** Chemin critique affiché seulement « quand nécessaire » — l'utilisateur indique
+  **ne pas vouloir le retenir** ; le comportement actuel (re-tracé à la sélection, cf. S2.5)
+  est conservé
+- **#5** Incrément auto du n° de version — rattaché à S9 mais marqué « à rediscuter »
+  (cf. ci-dessus), l'utilisateur doutant lui-même de l'intérêt
 
 ---
 

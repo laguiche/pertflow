@@ -1,0 +1,46 @@
+# A approfondir avec l'utilisateur (fonctionnalité normalement déjà codée,...)
+* Au dela d'allouer une activité à une personne, il faudrait etre en mesure de l'alloué à un service/métier/WP...
+* Ce serait bien de pouvoir estimer rapidement le cout d'une activité ou groupe d'activité appartenant à un même métier/WP (peut etre hors scope)
+* (même si ou peux cloner des activités) Il faudrait que la couleur du fond reprenne s'harmonise avec la couleur des activités. De manière à ce que de loin, si le PERT est compliqué, les zones par  WP/métier/service/responsable...
+* a chaque fois qu'on sauvegarde, il faudrait que le numéro de version s'incrémente automatiquement (peut etre une fausse bonne idée)
+* il faudrait etre en mesure de faire un CTRL+Z
+* Choisir la destination de la sauvegarde et des export PNG/PDF
+* L'affichage du responsable d'une activité est à revoir
+
+
+# Améliorations qui pourrait être apporté (si la complexité de développement est acceptable):
+* Ajouter dans les propriété d'une activité : un champs de texte libre pour notamment expliquer nos hypothèses notamment sur la durée d'une tâche, où ce que l'on y fait vraiment
+* Ce que j'aime bien, c'est d'avoir la possibilité de lister les noms des personnes responsables (par exemple) pour retrouver exactement la même orthographe dans une sélection dans la partie "Propriété" d'une tâche
+* sur la palette de couleur, il faudrait garder les couleurs choisies en mémoire pour pouvoir plus vite la retrouver OU mieux, il faudrait etre en mesure de choisir une couleur par WP/métier/service/responsable...
+* la réorganisation est pas top, le label peut se retrouver sur une activité
+* il faudrait etre capable de filtrer seulement sur WP/métier/service/responsable OU une couleur
+* Il faudrait qu'on soit capable de tagger des Jalons comme : aucun, DOTD, COTD, Ingénierie
+* C'est intéressant que la longueur physique des case soit représentative de la durée réelle mais il faudrait avoir le choix de prendre ou non cette option
+* Il faudrait que naturellement, les liens ne passent pas dessous ou dessus des activités
+* le coin d'un jalon devrait passer en vert si il est tenue avec suffisament de marge
+* Un export au format Excel, ce serait super, notamment pour simplifier la mise en place d’un micro jalonnement
+
+
+# bug:
+* Y a mélange de français et d'anglais
+* il faudrait être en mesure de pouvoir afficher le chemin critique d'une tache sélectionnée (_ajout de ma part: sur un chemin critique il semble que le dernier lien n'est pas en rouge_)
+* Quand on fait un clic droit sur le background, on a des menus qui apparaissent et qui sont peut être pas pour l'utilisateur
+* J'ai souvent la barre SEARCH qui apparait quand je double clic sur le background et je ne sais pas comment m'en débarasser
+* la définition du PDF n'est pas génial et le ficihier généré peut être vite volumineux
+
+
+# Améliorations "nice to have":
+* Export en Gantt
+* Comme tu peux le voir, j’ai besoin d’un identifiant unique par activité pour un éventuelle micro jalonnement (ça me simplifie grandement la vie)
+
+
+# Fonctionnalité pour l'application "pro" (beaucoup plus tard):
+* avoir des sous PERT
+
+# Proposition que je suis certain de ne pas prendre en compte:
+* je ne sais pas si c'est bien de toujours montrer le chemin critique, il faudrait envisager de le faire apparaitre que quand c'est nécessaire
+
+
+# Fonctionnalités déjà prévues dans la roadmap:
+* les options des clic droit sur les boites sont pas encore finalisés
+* pour les gens un peu "pointilleux", on pourrait envisager d'avoir des ligne droit ou coudé et la possibilité d'aligner les activité sur une grille aimanté
