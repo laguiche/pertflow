@@ -55,6 +55,9 @@
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
     <button id="btn-export-png" title="Exporter en PNG">🖼 PNG</button>
     <button id="btn-export-pdf" title="Exporter en PDF">📄 PDF</button>
+    <div class="tb-sep"></div>
+    <button id="btn-undo" title="Annuler (Ctrl+Z)" disabled>↶ Annuler</button>
+    <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
   </div>
 
   <!-- ── Zone principale ──────────────────────────────────────────────────── -->
@@ -96,6 +99,7 @@
   <script src="src/nodes.js"></script>
   <script src="src/pert_engine.js"></script>
   <script src="src/import_excel.js"></script>
+  <script src="src/history.js"></script>
   <script src="src/storage.js"></script>
   <script src="src/export.js"></script>
   <script src="src/ui.js"></script>

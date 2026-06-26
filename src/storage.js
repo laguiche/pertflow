@@ -103,6 +103,11 @@ function pertApplyProject(data) {
   pertRecalc();
   updateStatus();
   pertZoomToFit();
+
+  // Nouvelle reference d'historique : le projet charge devient la baseline d'undo
+  // (sinon un Ctrl+Z remonterait avant le chargement, sur un graphe etranger).
+  if (window.pertHistoryReset) window.pertHistoryReset();
+
   showToast("Projet charge : " + graph._nodes.length + " nœud(s)");
 }
 

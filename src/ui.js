@@ -71,6 +71,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Nœud supprimé (touche Delete native LiteGraph)
   graph.onNodeRemoved = function() {
     pertRecalc();
+    pertHistoryMark();
     setTimeout(() => {
       const sel = Object.values(lgCanvas.selected_nodes || {});
       if (sel.length === 1) showProperties(sel[0]);
@@ -79,16 +80,23 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // ── Recalcul PERT automatique (ajout / connexion) ───────────────────────────
-  graph.onNodeAdded = function() { pertRecalc(); };
+  graph.onNodeAdded = function() { pertRecalc(); pertHistoryMark(); };
   graph.onConnectionChange = function() {
     pertRecalc();
+    pertHistoryMark();
     // Rafraîchir le panneau si un nœud unique est sélectionné (valeurs calculées)
     const sel = Object.values(lgCanvas.selected_nodes || {});
     if (sel.length === 1) showProperties(sel[0]);
   };
 
+  // Deplacement de noeud(s) termine (drag relache) → cran d'historique.
+  lgCanvas.onNodeMoved = function() { pertHistoryMark(); };
+
   // Premier calcul (graphe éventuellement déjà peuplé)
   pertRecalc();
+
+  // Baseline de l'historique : etat initial (apres recalc) comme reference d'undo.
+  pertHistoryReset();
 
   // ── Toolbar ─────────────────────────────────────────────────────────────────
 
@@ -112,6 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("btn-layout").addEventListener("click", () => {
     pertAutoLayout();
+    pertHistoryMark();   // les positions changent → cran d'historique
     showToast("Nœuds réorganisés chronologiquement");
     pertZoomToFit();
   });
@@ -119,6 +128,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-fit").addEventListener("click", () => {
     pertZoomToFit();
   });
+
+  // Undo / Redo (Session 4)
+  document.getElementById("btn-undo").addEventListener("click", () => pertUndo());
+  document.getElementById("btn-redo").addEventListener("click", () => pertRedo());
 
   // Import Excel legacy (#8) : ouvre le selecteur de fichier
   document.getElementById("btn-import").addEventListener("click", () => {
@@ -172,6 +185,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.ctrlKey && (e.key === "s" || e.key === "S")) {
       e.preventDefault();
       pertSaveProject();
+      return;
+    }
+
+    // Undo : Ctrl+Z  /  Redo : Ctrl+Y ou Ctrl+Shift+Z (conventions navigateur)
+    if (e.ctrlKey && !e.shiftKey && (e.key === "z" || e.key === "Z")) {
+      e.preventDefault();
+      pertUndo();
+      return;
+    }
+    if (e.ctrlKey && ((e.key === "y" || e.key === "Y") ||
+        (e.shiftKey && (e.key === "z" || e.key === "Z")))) {
+      e.preventDefault();
+      pertRedo();
       return;
     }
 
@@ -341,8 +367,9 @@ function buildField(parent, labelText, type, value, onChange, attrs) {
   input.type = type;
   input.value = value !== null && value !== undefined ? value : "";
   if (attrs) Object.assign(input, attrs);
-  input.addEventListener(type === "color" ? "input" : "change", e => onChange(e.target.value));
-  if (type !== "color") input.addEventListener("input", e => onChange(e.target.value));
+  const handler = e => { onChange(e.target.value); pertHistoryMark(); };
+  input.addEventListener(type === "color" ? "input" : "change", handler);
+  if (type !== "color") input.addEventListener("input", handler);
   label.appendChild(input);
   parent.appendChild(label);
 }
