@@ -308,8 +308,9 @@ onDrawForeground(ctx) {
 > **découpé en 2 temps** (S6 dimension+couleur, S7 filtre+coût) ; **doc en dernier**.
 >
 > Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 ✅
-> → S5 ✅ (correctifs & quick wins) → S6/S7 (regroupement métier WP) → S8
-> (propriétés & jalons enrichis) → S9 (exports avancés) → S10 (liens & layout) → Doc (fin)**.
+> → S5 ✅ (correctifs & quick wins) → S6 ✅ (regroupement métier WP, temps 1) → S7
+> (regroupement WP, temps 2) → S8 (propriétés & jalons enrichis) → S9 (exports avancés)
+> → S10 (liens & layout) → Doc (fin)**.
 
 ### Session 0 — Mise en place du dépôt GitHub ✅ TERMINÉE
 **Objectifs** :
@@ -665,26 +666,68 @@ utilisateur à confirmer avant merge** (même schéma que S4).
 
 ---
 
-### Session 6 — Regroupement métier (WP/service), temps 1 : dimension + couleur ⏳ À VENIR
+### Session 6 — Regroupement métier (WP/service), temps 1 : dimension + couleur ✅ TERMINÉE (27/06/2026)
 Chantier transversal majeur du retour Mickael — une seule fonctionnalité de fond
 derrière 5 remarques (#2, #3, #4, #14, #16), **découpée en 2 temps** (S6 puis S7,
 arbitrage utilisateur). Temps 1 = modèle de données + restitution visuelle.
 **Objectifs** :
-- [ ] **#34** Identifiant unique par Activité — brique de fondation (micro-jalonnement,
-  exports Excel/Gantt). Champ affiché et éditable, stable à la sérialisation
-- [ ] **#2** Dimension « groupe » sur l'Activité au-delà du responsable :
-  WP / métier / service (champ dédié dans le panneau propriétés)
-- [ ] **#14** Couleur associée à un groupe + mémorisation des couleurs choisies
-  (palette persistante, réutilisable rapidement)
-- [ ] **#4** Harmonisation visuelle : les activités d'un même groupe partagent une teinte
+- [x] **#34** Identifiant unique par Activité — brique de fondation (micro-jalonnement,
+  exports Excel/Gantt). **Précision utilisateur : uid AUTOMATIQUE, ni visible ni éditable
+  pour l'instant** (≠ « champ affiché et éditable » de la spec initiale). Stable à la
+  sérialisation (stocké dans `properties.uid`)
+- [x] **#2** Dimension « groupe » sur l'Activité au-delà du responsable :
+  WP / métier / service (combobox enrichissable dans le panneau propriétés)
+- [x] **#14** Couleur associée à un groupe + mémorisation des couleurs choisies
+  (registre `pertMeta.groups` persistant dans le `.pert`, réutilisable rapidement)
+- [x] **#4** Harmonisation visuelle : les activités d'un même groupe partagent une teinte
   → zones par WP/métier lisibles « de loin » sur un PERT chargé
 
-**Point de conception à figer en début de session** : modèle du « groupe » (attribut
-texte libre vs liste gérée), et articulation avec la couleur d'import existante
-(`IMPORT_COLOR_PALETTE` / `pickDefaultImportColor`) pour éviter deux systèmes de couleur.
+**Décisions de conception figées en début de session (arbitrage utilisateur)** :
+- **Modèle du groupe = combobox enrichissable** (texte libre + `<datalist>` des valeurs
+  déjà saisies), PAS une liste gérée. L'utilisateur saisit le nom qu'il veut ; un nom
+  déjà employé est reproposé sans ressaisie. **Même mécanisme appliqué au Responsable**
+  (amorce #13) — helper `buildCombobox` réutilisable.
+- **Articulation couleur/groupe = « premier venu fixe la teinte »** : la 1re activité à
+  porter un nom de groupe enregistre **sa** couleur courante comme couleur du groupe
+  (`pertMeta.groups[nom]`) ; les suivantes du même groupe **héritent** de cette teinte.
+  Pas de 2e système de couleur : le rendu lit toujours `node.properties.color` ; le
+  registre ne sert qu'à la mémoire (#14) et à la propagation (#4). Sans groupe → couleur
+  individuelle inchangée (compatible avec la couleur d'import `IMPORT_COLOR_PALETTE`).
+- **Propagation au changement** (point laissé « à voir », tranché ici) : changer la couleur
+  d'une activité **groupée** met à jour la couleur du groupe ET recolore **tous** ses
+  membres (`pertRecolorGroup`). Sans quoi le groupe diverge et l'harmonisation #4 tombe.
+  Trivial à inverser (couleur figée) si retour utilisateur contraire.
 
 **Critère de validation** :
 Sur un PERT chargé, les zones par WP/métier sont identifiables d'un coup d'œil par la couleur.
+**État** : implémenté et validé par test headless navigateur (`tools/smoke-s6.js` : uid
+auto/unique/dédoublonnage clone+coller, premier-venu/héritage, propagation, round-trip
+`.pert`) + smoke existant sans régression + contrôle du panneau (combobox Groupe/Responsable
+avec datalists alimentées). **Validation visuelle utilisateur à confirmer avant merge/tag
+v0.6** (même schéma que S4/S5).
+
+**Implémentation — décisions notables (27/06/2026)** :
+- **#34 uid** : généré par `pertGenUid()` (timestamp base36 + aléatoire), posé dans
+  `properties.uid` du constructeur `ActivityNode` → sérialisé nativement et stable.
+  `configure()` (chargement) écrase l'uid du constructeur par l'uid sauvegardé → stabilité.
+  Anciens `.pert` sans uid : le constructeur en fournit un. **`clone()` et copier/coller
+  recopient les `properties` → uid dupliqué** : `pertEnsureUids()` (le 1er vu conservé, les
+  doublons régénérés) est appelé après Dupliquer, après collage Ctrl+V, et par sécurité au
+  chargement `.pert`. Pas de champ panneau (invisible, non éditable).
+- **`buildCombobox(parent, label, value, options, onInput, onCommit)`** : `<input>` +
+  `<datalist>`. `onInput` à chaque frappe (mémorisation), `onCommit` à la validation
+  (`change`/sélection). Pour le **Groupe**, la teinte n'est appliquée qu'à `onCommit` (pas
+  à chaque frappe) pour ne pas perturber la saisie ; la valeur de l'input couleur est
+  resynchronisée **sans reconstruire le panneau** (la reconstruction ferait perdre le focus).
+- **Registre `pertMeta.groups`** `{ nom: couleur }` : sérialisé dans `storage.js`
+  (`pertSerializeProject` + `pertApplyProject`), restauré par l'undo (`history.js` `restore`
+  — le snapshot capte déjà `pertMeta` entier, mais `restore` ne réapplique que des clés
+  explicites, d'où l'ajout). `pertApplyGroup` (héritage/premier-venu) et `pertRecolorGroup`
+  (propagation) dans `ui.js`. `collectGroupNames`/`collectResponsibles` alimentent les datalists.
+- **Articulation avec l'import** : aucun 2e système — les activités importées restent sans
+  groupe (couleur d'import individuelle) ; l'utilisateur les affecte à un groupe ensuite s'il
+  le souhaite, et l'héritage prend le relais. `IMPORT_COLOR_PALETTE`/`pickDefaultImportColor`
+  inchangés.
 
 ---
 
@@ -882,4 +925,25 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   `compress:true` (#29) ; `src/ui.js` : `onShowNodePanel` no-op + `showLinkMenu` FR (#25)
 - Validé : `tools/smoke-critical.js` (#26), `tools/smoke-s5.js` (#15/#20/#8), smoke existant
   sans régression, capture de contrôle. **Validation visuelle utilisateur à confirmer avant
+  merge/tag v0.6**
+
+### Session 6 (27/06/2026) — regroupement métier WP/service, temps 1 (retour Mickael)
+- Sur la branche `session/6-regroupement-wp`. 4 objectifs livrés (#34, #2, #14, #4).
+  Détail et décisions dans la section Session 6 plus haut. Deux décisions de conception
+  tranchées par l'utilisateur en début de session : **groupe = combobox enrichissable**
+  (même mécanisme que le Responsable, repris au passage — amorce #13) ; **couleur/groupe
+  = « premier venu fixe la teinte »** (propagation au changement décidée côté implémentation
+  pour préserver l'harmonisation #4). Précision utilisateur sur **#34 : uid automatique,
+  ni visible ni éditable**.
+- `src/nodes.js` : `properties.uid` (auto) + `properties.group` sur l'Activité ;
+  helpers `pertGenUid` / `pertEnsureUids` (dédoublonnage clone/coller/chargement).
+  `src/ui.js` : `buildCombobox` (Groupe + Responsable), registre `pertGroups` +
+  `pertApplyGroup` (héritage/premier-venu) + `pertRecolorGroup` (propagation),
+  `collectGroupNames` / `collectResponsibles` (datalists), `pertEnsureUids` après
+  Dupliquer/coller, `pertMeta.groups` initialisé. `src/storage.js` : sérialisation +
+  restauration de `groups` + `pertEnsureUids` au chargement. `src/history.js` : restauration
+  de `groups` dans `restore`.
+- Validé : `tools/smoke-s6.js` (uid auto/unique/dédoublonnage, premier-venu/héritage,
+  propagation couleur, round-trip `.pert`), smoke existant sans régression, contrôle du
+  panneau (combobox + datalists). **Validation visuelle utilisateur à confirmer avant
   merge/tag v0.6**

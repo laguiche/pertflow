@@ -373,6 +373,45 @@ satisfaction », priorisés par l'utilisateur avant le chantier métier) :
 
 ---
 
+### Session 6 — Regroupement métier (WP/service), temps 1 (✅ 27/06/2026)
+
+Premier temps du chantier métier majeur du retour Mickael : donner aux activités une
+**dimension de regroupement** (work package / métier / service) et la rendre lisible
+**de loin** par la couleur. Découpé en 2 temps sur arbitrage utilisateur — S6 pose le
+modèle de données et la restitution visuelle, S7 ajoutera le filtre et le coût.
+
+- **#34 — identifiant unique d'activité.** Brique de fondation pour les futurs exports
+  (Excel/Gantt) et le micro-jalonnement. **Précision utilisateur en ouverture de session :
+  pour l'instant l'uid doit être *automatique*, ni visible ni éditable** — à rebours de la
+  spec initiale (« champ affiché et éditable »). Implémenté comme propriété cachée générée
+  à la création, stable à la sauvegarde. Subtilité : `clone()` et le copier/coller LiteGraph
+  recopient les propriétés (donc l'uid) → un dé-doublonnage (`pertEnsureUids`) régénère les
+  doublons après duplication/collage/chargement.
+- **#2 — dimension « groupe ».** L'utilisateur a tranché le modèle : « ce n'est pas
+  tellement différent du responsable, ce devrait être le même type de champ ». D'où un
+  **combobox enrichissable** (texte libre + liste des valeurs déjà saisies, reproposées
+  sans ressaisie) — et non une liste gérée par dialogue. Le même mécanisme a été appliqué
+  au **Responsable** au passage (amorce de #13, prévu S8).
+- **#14 / #4 — couleur de groupe et harmonisation.** Articulation couleur ↔ groupe choisie
+  par l'utilisateur : **« premier venu fixe la teinte »** — la première activité d'un groupe
+  enregistre sa couleur comme couleur du groupe, les suivantes en héritent. Un seul système
+  de couleur (le rendu lit toujours `node.properties.color`) ; un registre `pertMeta.groups`
+  ne sert qu'à mémoriser (persisté dans le `.pert`) et à propager. Le point « propagation au
+  changement » (laissé ouvert à la décision) a été tranché côté implémentation : changer la
+  couleur d'un membre recolore tout le groupe, sinon l'harmonisation #4 se déliterait.
+
+> **🎙️ Restitution — l'utilisateur choisit le bon *modèle*, pas seulement la couleur du bouton.**
+> Les deux décisions soumises en début de session étaient structurantes (modèle de saisie du
+> groupe ; couplage couleur/groupe) et ont été présentées avec maquettes et options chiffrées.
+> La réponse de l'utilisateur sur le premier point — « c'est le même besoin que le responsable »
+> — a non seulement réglé la question du groupe mais **généralisé** la solution (un helper
+> combobox réutilisable, qui resservira pour #13). C'est l'inverse du sur-engineering : une
+> exigence reformulée par le métier simplifie l'architecture au lieu de la complexifier. La
+> précision sur #34 (« automatique, pas éditable ») illustre l'autre versant : livrer la
+> *brique* (l'identifiant stable) sans la *surface* (un champ d'UI) tant qu'elle n'a pas d'usage.
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)
