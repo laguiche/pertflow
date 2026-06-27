@@ -6,8 +6,16 @@
 // le successeur demarre la ou le predecesseur finit.
 const PERT_PX_PER_UNIT = 60;   // pixels par unite de duree (jour/semaine/mois)
 const ACT_MIN_W = 140;         // largeur mini d'une activite : doit loger la ligne
-                               // calculee la plus large ("Fin t.tot : 28/11/26")
-const ACT_MAX_W = 480;         // largeur maxi : au-dela le libelle passe en multi-lignes (#4)
+                               // calculee la plus large ("Fin t.tot : 28/11/26").
+                               // En-dessous (taches courtes) la proportionnalite cede
+                               // a la lisibilite du texte (plancher).
+const ACT_MAX_W = 3000;        // garde-fou de securite uniquement (taille de canvas).
+                               // L'ancien plafond a 480 (= 8 unites) saturait des 8
+                               // mois : une tache de 15 et une de 30 avaient la meme
+                               // largeur (#2 inoperant au-dela). 3000 = 50 unites laisse
+                               // la largeur ∝ duree sur toute la plage realiste, et cale
+                               // la barre sur son empan temporel (es × PERT_PX_PER_UNIT)
+                               // → coherence avec le layout facon Gantt.
 const ACT_LABEL_LH = 18;       // hauteur de ligne du libelle (police bold 13px)
 
 // #20 Seuil de marge (en unites de temps) au-dela duquel une date-cible de Jalon

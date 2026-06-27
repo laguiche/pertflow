@@ -348,6 +348,12 @@ satisfaction », priorisés par l'utilisateur avant le chantier métier) :
   est critique) — `is_critical` a donc été retiré de `targetState`.
 - **#15 — Label superposé après réorganisation.** Les Labels n'ont pas de date au plus tôt →
   non placés par le layout. On reloge ceux qui chevauchent un nœud dans une bande sous le graphe.
+- **Bug largeur ∝ durée plafonnée (hors liste, trouvé en clôture).** L'utilisateur a remarqué
+  qu'une activité de 30 mois faisait la même taille qu'une de 15 mois. Cause : le plafond de
+  largeur `ACT_MAX_W=480` saturait dès 8 unités (480 ÷ 60 px/u.), annulant la proportionnalité
+  (#2) au-delà. Plafond porté à 3000 px (garde-fou). Effet de bord positif : la barre couvre
+  désormais son empan temporel (le layout place le successeur à `es × 60`), d'où une cohérence
+  Gantt — les barres se touchent au lieu de laisser un grand vide.
 - **Bug barre d'état (hors liste, trouvé en clôture).** La barre indiquait « Chemin critique :
   0 nœud(s) » en permanence. Cause : `is_critical` testait `slack == 0` strict ; or une cible de
   jalon non tenue borne LF à la cible et fait passer tout le chemin contraignant en marge

@@ -403,6 +403,8 @@ visuel utilisateur (cf. ci-dessous). Logique également couverte par test headle
 - **Largeur Activité bornée [140, 480] px** : le plancher 140 loge la ligne calculée la plus large
   (« Fin t.tôt : 28/11/26 ») → les très courtes durées (1-2 u.) restent au plancher, la
   proportionnalité n'est nette qu'au-delà. Compromis assumé (texte vs proportionnalité stricte).
+  **MàJ S5 (27/06)** : le plafond `480` saturait dès 8 unités (15 et 30 mois identiques) → relevé
+  à **3000 px** (simple garde-fou), la borne effective est donc `[140, 3000]`.
 - **Layout = packing par couloirs** (lanes) : abscisse ∝ ES, tâches se chevauchant dans le temps
   posées sur des couloirs distincts ; **jalons de sortie (terminaux) regroupés en bande haute** ;
   déclenché **manuellement** (bouton), jamais pendant l'édition pour ne pas casser un placement manuel.
@@ -595,6 +597,9 @@ forte satisfaction perçue, faible risque — traités en premier (arbitrage uti
 - [x] **Bug barre d'état** (hors liste, trouvé en validation) : « Chemin critique : 0 nœud(s) »
   affiché en permanence dès qu'une date-cible de jalon était ratée (marges toutes négatives →
   aucun nœud à slack 0). Chemin critique redéfini en **marge minimale** (cf. notes)
+- [x] **Bug largeur ∝ durée plafonnée** (hors liste, trouvé en validation) : le plafond
+  `ACT_MAX_W=480` saturait dès 8 unités → une activité de 15 et une de 30 mois avaient la même
+  largeur. Plafond relevé à 3000 px (garde-fou de sécurité), proportionnalité rétablie (cf. notes)
 
 **Critère de validation** :
 L'utilisateur métier ne relève plus #25/#26/#28/#29 ; rendu validé en navigateur réel.
@@ -637,6 +642,15 @@ utilisateur à confirmer avant merge** (même schéma que S4).
   Libellé).
 - **#15** : `pertRelocateOverlappingLabels` appelée en fin de `pertAutoLayout` ; ne déplace
   que les Labels en recouvrement (test d'intersection de rectangles), empilés sous le graphe.
+- **Bug largeur ∝ durée plafonnée (`ACT_MAX_W`)** : la largeur d'une activité est
+  `clamp(durée × PERT_PX_PER_UNIT, ACT_MIN_W, ACT_MAX_W)`. L'ancien plafond `480` (= 8 unités à
+  60 px/u.) saturait toutes les durées ≥ 8 → 15 et 30 mois rendus à l'identique, et la barre ne
+  couvrait plus son empan temporel (le layout place le successeur à `es × 60`, créant un grand
+  vide). Plafond porté à **3000 px** (= 50 unités), réduit à un simple garde-fou de taille de
+  canvas (cas typo). Le plancher `ACT_MIN_W=140` reste pour la lisibilité du texte des tâches
+  courtes (compromis assumé : sous ~2,3 unités, lisibilité > proportionnalité stricte). Effet
+  de bord positif : la barre cale désormais sur son empan temporel → cohérence avec le layout
+  façon Gantt.
 - **Bug barre d'état (chemin critique = marge minimale)** : `is_critical` était `|slack| < eps`
   (strictement 0). Une date-cible de jalon non tenue borne LF à la cible → tout le chemin
   contraignant passe en marge **négative**, donc plus aucun nœud à slack 0 → `nbCritical = 0`
