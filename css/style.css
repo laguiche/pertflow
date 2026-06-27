@@ -63,6 +63,18 @@ body {
   background: #1a3060;
 }
 
+/* Bouton toggle actif (ex. grille aimantee) : etat enfonce mis en evidence. */
+#toolbar button.active {
+  background: #1a4a9a;
+  border-color: #4a8ad8;
+  color: #fff;
+}
+
+#toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* ─── Main area ─────────────────────────────────────────────────────────────── */
 #main {
   display: flex;
@@ -398,6 +410,13 @@ body {
 #toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Variante erreur : toast rouge pour les echecs (import, chargement, export...). */
+#toast.error {
+  background: #5c1515;
+  border-color: #b14444;
+  color: #ffd6d6;
 }
 
 /* ─── LiteGraph overrides ────────────────────────────────────────────────────── */

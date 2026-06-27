@@ -27,6 +27,89 @@ document.addEventListener("DOMContentLoaded", () => {
   // il se décale visuellement après recadrage « Tout afficher ». Inutile ici.
   lgCanvas.render_canvas_border = false;
 
+  // ── Menu contextuel (clic droit) — recentré sur le PERT (Session 4) ──────────
+  // On neutralise la barre de recherche LiteGraph (#28), inutile pour un usage
+  // PERT et qui s'ouvrait de façon parasite au double-clic sur le fond.
+  lgCanvas.allow_searchbox = false;
+
+  // Position graphe du dernier clic droit, pour ajouter le nœud sous le curseur.
+  // processContextMenu reçoit l'événement souris ; on le convertit en coords graphe
+  // AVANT de laisser LiteGraph construire le menu (qui appelle getMenuOptions).
+  let lastCtxGraphPos = null;
+  const origProcessContextMenu = lgCanvas.processContextMenu;
+  lgCanvas.processContextMenu = function (node, event) {
+    try { lastCtxGraphPos = this.convertEventToCanvasOffset(event); }
+    catch (e) { lastCtxGraphPos = null; }
+    return origProcessContextMenu.call(this, node, event);
+  };
+
+  // Ajoute un nœud du type donné à la position graphe fournie (ou au centre).
+  function addNodeAt(typeName, pos) {
+    const n = LiteGraph.createNode(typeName);
+    if (n.updateSize) n.updateSize();
+    n.pos = pos ? [pos[0], pos[1]] : getCanvasCenter();
+    graph.add(n);
+    return n;
+  }
+
+  // Menu du fond de canvas : uniquement des actions PERT, en français
+  // (remplace intégralement le menu natif anglais « Add Node / Add Group… »).
+  lgCanvas.getMenuOptions = function () {
+    const pos = lastCtxGraphPos;
+    return [
+      { content: "▭ Ajouter une Activité", callback: () => addNodeAt("pert/activity", pos) },
+      { content: "◈ Ajouter un Jalon",     callback: () => addNodeAt("pert/milestone", pos) },
+      { content: "❏ Ajouter un Label",     callback: () => addNodeAt("pert/label", pos) },
+      null,
+      { content: "⤓ Réorganiser", callback: () => {
+          pertAutoLayout(); pertHistoryMark(); pertZoomToFit();
+        } },
+      { content: "🔍 Tout afficher", callback: () => pertZoomToFit() }
+    ];
+  };
+
+  // Menu d'un nœud : francisé et limité aux actions utiles (remplace le menu natif
+  // anglais Inputs/Outputs/Properties/Title/Mode/Resize/Collapse/Pin/Colors/Shapes).
+  lgCanvas.getNodeMenuOptions = function (node) {
+    return [
+      { content: "⧉ Dupliquer", callback: () => {
+          const clone = node.clone();
+          if (!clone) return;
+          clone.pos = [node.pos[0] + 24, node.pos[1] + 24];
+          if (clone.updateSize) clone.updateSize();
+          graph.add(clone);          // déclenche onNodeAdded → recalc + historique
+          pertRecalc();
+        } },
+      null,
+      { content: "🗑 Supprimer", callback: () => { graph.remove(node); } }
+    ];
+  };
+
+  // ── Snap-to-grid (option utilisateur, Session 4) ─────────────────────────────
+  // Toggle toolbar : quand actif, le déplacement des nœuds s'aligne sur la grille
+  // (align_to_grid natif LiteGraph) ET la grille devient visible. Décision figée :
+  // pas de grille affichée tant que l'option est désactivée.
+  window.pertSnapEnabled = false;
+  const GRID_STEP = LiteGraph.CANVAS_GRID_SIZE; // 10 px (pas d'alignement natif)
+
+  // Dessin de la grille en espace graphe (ctx déjà transformé par LiteGraph).
+  // Évité quand le pas projeté à l'écran devient trop dense (zoom arrière).
+  lgCanvas.onDrawBackground = function (ctx, area) {
+    if (!window.pertSnapEnabled) return;
+    if (GRID_STEP * this.ds.scale < 6) return; // grille illisible → on s'abstient
+    const x0 = Math.floor(area[0] / GRID_STEP) * GRID_STEP;
+    const y0 = Math.floor(area[1] / GRID_STEP) * GRID_STEP;
+    const x1 = area[0] + area[2], y1 = area[1] + area[3];
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(126,184,247,0.10)";
+    ctx.beginPath();
+    for (let x = x0; x <= x1; x += GRID_STEP) { ctx.moveTo(x, area[1]); ctx.lineTo(x, y1); }
+    for (let y = y0; y <= y1; y += GRID_STEP) { ctx.moveTo(area[0], y); ctx.lineTo(x1, y); }
+    ctx.stroke();
+    ctx.restore();
+  };
+
   // Resize dynamique
   function resizeCanvas() {
     const container = document.getElementById("canvas-container");
@@ -129,6 +212,17 @@ document.addEventListener("DOMContentLoaded", () => {
     pertZoomToFit();
   });
 
+  // Toggle grille aimantée (snap-to-grid) : bascule l'état + visibilité de grille.
+  document.getElementById("btn-snap").addEventListener("click", () => {
+    window.pertSnapEnabled = !window.pertSnapEnabled;
+    lgCanvas.align_to_grid = window.pertSnapEnabled; // alignement natif au déplacement
+    document.getElementById("btn-snap").classList.toggle("active", window.pertSnapEnabled);
+    lgCanvas.setDirty(true, true); // redessine (affiche / masque la grille)
+    showToast(window.pertSnapEnabled
+      ? "Grille aimantée activée — les nœuds s'alignent au déplacement"
+      : "Grille aimantée désactivée");
+  });
+
   // Undo / Redo (Session 4)
   document.getElementById("btn-undo").addEventListener("click", () => pertUndo());
   document.getElementById("btn-redo").addEventListener("click", () => pertRedo());
@@ -151,7 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Persistance JSON (.pert) — Session 3 ────────────────────────────────────
   document.getElementById("btn-save").addEventListener("click", () => {
-    pertSaveProject();
+    guardUI("Sauvegarde impossible", () => pertSaveProject());
   });
   document.getElementById("btn-open").addEventListener("click", () => {
     document.getElementById("file-input").value = ""; // re-selection du meme fichier OK
@@ -159,15 +253,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("file-input").addEventListener("change", (e) => {
     const file = e.target.files && e.target.files[0];
-    if (file) pertLoadProject(file);
+    if (file) guardUI("Ouverture impossible", () => pertLoadProject(file));
   });
 
   // ── Export PNG / PDF — Session 3 ────────────────────────────────────────────
   document.getElementById("btn-export-png").addEventListener("click", () => {
-    pertExportPNG();
+    guardUI("Export PNG impossible", () => pertExportPNG());
   });
   document.getElementById("btn-export-pdf").addEventListener("click", () => {
-    pertExportPDF();
+    guardUI("Export PDF impossible", () => pertExportPDF());
   });
 
   // ── Raccourcis clavier ──────────────────────────────────────────────────────
@@ -214,6 +308,17 @@ document.addEventListener("DOMContentLoaded", () => {
       pertRecalc();
       return;
     }
+  });
+
+  // ── Filet de sécurité global : surface les erreurs inattendues ───────────────
+  // En file:// (pas de console accessible pour l'utilisateur métier), une exception
+  // non rattrapée passerait inaperçue. On la signale par un toast rouge discret.
+  window.addEventListener("error", (e) => {
+    showError("Erreur inattendue : " + (e && e.message ? e.message : "voir la console"));
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const r = e && e.reason;
+    showError("Erreur inattendue : " + (r && r.message ? r.message : "voir la console"));
   });
 
   // ── Barre de statut ─────────────────────────────────────────────────────────
@@ -495,7 +600,7 @@ function updateStatus() {
 
 // ─── Toast notification ───────────────────────────────────────────────────────
 
-function showToast(msg) {
+function showToast(msg, isError) {
   let toast = document.getElementById("toast");
   if (!toast) {
     toast = document.createElement("div");
@@ -503,10 +608,30 @@ function showToast(msg) {
     document.body.appendChild(toast);
   }
   toast.textContent = msg;
+  toast.classList.toggle("error", !!isError);
   toast.classList.add("show");
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => toast.classList.remove("show"), 2500);
+  // Les erreurs restent affichées un peu plus longtemps (lecture du message).
+  toast._t = setTimeout(() => toast.classList.remove("show"), isError ? 4500 : 2500);
 }
+
+// Toast rouge dédié aux échecs (raccourci lisible aux points d'appel).
+function showError(msg) { showToast(msg, true); }
+window.showToast = showToast;
+window.showError = showError;
+
+// Exécute une action en attrapant toute exception inattendue et en la signalant
+// à l'utilisateur (toast rouge) plutôt que de la laisser casser l'UI silencieusement.
+// Contexte = libellé de l'action, intégré au message d'erreur.
+function guardUI(context, fn) {
+  try {
+    fn();
+  } catch (err) {
+    showError(context + " : " + (err && err.message ? err.message : "erreur inattendue"));
+    if (window.qtLog) window.qtLog("[PertFlow] " + context + " — " + err);
+  }
+}
+window.guardUI = guardUI;
 
 // ─── Import Excel legacy (#8) ───────────────────────────────────────────────────
 //
@@ -538,9 +663,9 @@ function handleExcelFile(file) {
       });
       return;
     }
-    finishExcelImport(model);
+    guardUI("Import Excel impossible", () => finishExcelImport(model));
   };
-  reader.onerror = () => showToast("Lecture du fichier impossible");
+  reader.onerror = () => showError("Lecture du fichier impossible");
   reader.readAsArrayBuffer(file);
 }
 
