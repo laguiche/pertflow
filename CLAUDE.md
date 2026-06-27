@@ -592,6 +592,9 @@ forte satisfaction perçue, faible risque — traités en premier (arbitrage uti
 - [x] **#15** Réorganisation : les Labels chevauchant un nœud placé sont relogés dans une
   bande libre sous le graphe (les Labels non gênants gardent leur position)
 - [x] **#28 (bug)** Barre de recherche LiteGraph neutralisée — **livré en S4** (`allow_searchbox = false`)
+- [x] **Bug barre d'état** (hors liste, trouvé en validation) : « Chemin critique : 0 nœud(s) »
+  affiché en permanence dès qu'une date-cible de jalon était ratée (marges toutes négatives →
+  aucun nœud à slack 0). Chemin critique redéfini en **marge minimale** (cf. notes)
 
 **Critère de validation** :
 L'utilisateur métier ne relève plus #25/#26/#28/#29 ; rendu validé en navigateur réel.
@@ -634,6 +637,17 @@ utilisateur à confirmer avant merge** (même schéma que S4).
   Libellé).
 - **#15** : `pertRelocateOverlappingLabels` appelée en fin de `pertAutoLayout` ; ne déplace
   que les Labels en recouvrement (test d'intersection de rectangles), empilés sous le graphe.
+- **Bug barre d'état (chemin critique = marge minimale)** : `is_critical` était `|slack| < eps`
+  (strictement 0). Une date-cible de jalon non tenue borne LF à la cible → tout le chemin
+  contraignant passe en marge **négative**, donc plus aucun nœud à slack 0 → `nbCritical = 0`
+  et « Chemin critique : 0 nœud(s) ». Corrigé en définissant le chemin critique par la **marge
+  minimale** : `is_critical = slack <= minSlack + eps`. En projet faisable `minSlack = 0` (le
+  terminal d'EF max est calé sur la fin de projet) → comportement strictement inchangé ; en
+  projet infaisable, le chemin contraignant (le plus en retard) est identifié. C'est aussi la
+  définition PERT standard (float minimal, négatif si échéance imposée intenable). Le tracé
+  rouge des liens (`pertHighlightCriticalPath`) marchait déjà (basé sur la contrainte EF, pas
+  sur `is_critical`) ; seuls le compteur de statut et les bordures rouges des activités étaient
+  affectés.
 
 ---
 

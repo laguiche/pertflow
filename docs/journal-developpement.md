@@ -348,6 +348,12 @@ satisfaction », priorisés par l'utilisateur avant le chantier métier) :
   est critique) — `is_critical` a donc été retiré de `targetState`.
 - **#15 — Label superposé après réorganisation.** Les Labels n'ont pas de date au plus tôt →
   non placés par le layout. On reloge ceux qui chevauchent un nœud dans une bande sous le graphe.
+- **Bug barre d'état (hors liste, trouvé en clôture).** La barre indiquait « Chemin critique :
+  0 nœud(s) » en permanence. Cause : `is_critical` testait `slack == 0` strict ; or une cible de
+  jalon non tenue borne LF à la cible et fait passer tout le chemin contraignant en marge
+  négative → aucun nœud à 0 → compteur à 0. Corrigé en redéfinissant le chemin critique par la
+  **marge minimale** (définition PERT standard) : inchangé en projet faisable (min = 0), et le
+  chemin contraignant reste identifié même quand une échéance imposée est intenable.
 
 > **🎙️ Restitution — l'utilisateur affine le diagnostic, l'IA exécute la correction.** Sur
 > #26, c'est la précision de l'utilisateur (« seulement quand un nœud est sélectionné ») qui a

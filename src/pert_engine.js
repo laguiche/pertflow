@@ -211,10 +211,22 @@ function pertRecalc() {
   }
 
   // — Marges + chemin critique —
-  let nbCritical = 0;
+  // Le chemin critique = chemin de marge MINIMALE (et non strictement nulle). En
+  // projet faisable, la marge minimale vaut 0 (le nœud terminal d'EF max est calé
+  // sur la fin de projet) → comportement identique a "slack == 0". Mais si une
+  // date-cible de jalon est ratee, le backward pass borne LF a la cible et tout le
+  // chemin contraignant passe en marge NEGATIVE : aucun nœud n'a alors slack == 0.
+  // Avec le critere min-slack on identifie quand meme ce chemin (sinon nbCritical
+  // valait 0 et la barre d'etat affichait "Chemin critique : 0 nœud(s)" en
+  // permanence des qu'une cible n'etait pas tenue).
+  let minSlack = Infinity;
   for (const n of nodes) {
     n.slack = n.lf - n.ef;
-    n.is_critical = Math.abs(n.slack) < PERT_EPS;
+    if (n.slack < minSlack) minSlack = n.slack;
+  }
+  let nbCritical = 0;
+  for (const n of nodes) {
+    n.is_critical = n.slack <= minSlack + PERT_EPS;
     if (n.is_critical) nbCritical++;
   }
 
