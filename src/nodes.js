@@ -290,13 +290,19 @@ MilestoneNode.prototype.onConnectionsChange = function(type) {
   this.updateSize();
 };
 
-// Etat d'exergue du Jalon (#20) : "alert" (rouge) si critique ou cible non tenue ;
-// "safe" (vert) si la cible est tenue avec une marge confortable (dateCible - EF >=
-// seuil) ; "neutral" (orange) sinon (juste tenue, ou aucune cible). La marge prise
-// en compte est celle vis-a-vis de la cible, pas le slack (qui peut etre borne par
-// l'aval du graphe).
+// Etat d'exergue du Jalon (#20) : reflete la TENUE DE LA CIBLE (echeance
+// contractuelle du jalon), INDEPENDAMMENT de l'appartenance au chemin critique.
+// Un jalon est avant tout un marqueur d'echeance : sa couleur doit dire "la cible
+// est-elle tenue ?", pas "suis-je sur le chemin critique ?" (ce dernier est porte
+// par le rouge des LIENS). Etats :
+//   "alert"   (rouge)  : cible non tenue (EF > cible).
+//   "safe"    (vert)   : cible tenue avec marge confortable (dateCible - EF >= seuil).
+//   "neutral" (orange) : juste tenue (0 <= marge < seuil) ou aucune cible.
+// La marge consideree est celle vis-a-vis de la cible (dateCible - EF), pas le slack
+// (qui peut etre borne par l'aval du graphe). Un jalon terminal largement en avance
+// sur sa cible apparait donc en vert, meme s'il est sur le chemin critique.
 MilestoneNode.prototype.targetState = function() {
-  if (this.is_critical || this.target_missed) return "alert";
+  if (this.target_missed) return "alert";
   if (this.properties.due_date && this.ef !== null) {
     const dueOff = pertDateToOffset(this.properties.due_date);
     if (dueOff !== null && (dueOff - this.ef) >= MILESTONE_GREEN_MARGIN) return "safe";

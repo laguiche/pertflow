@@ -342,8 +342,10 @@ satisfaction », priorisés par l'utilisateur avant le chantier métier) :
   coloré (texte blanc + 👤), tronqué si trop long. Choix de placement validé par l'utilisateur.
 - **#20 — coin de Jalon vert.** Symétrique du rouge « cible non tenue ». Décision utilisateur :
   3 états avec seuil (vert si marge ≥ 1 unité, orange si juste tenue, rouge si ratée). Subtilité
-  retenue : la marge mesurée est celle **vis-à-vis de la cible** (et non le slack), et un jalon
-  terminal restant toujours critique, le vert concerne les **jalons intermédiaires**.
+  retenue : la marge mesurée est celle **vis-à-vis de la cible** (et non le slack). La validation
+  utilisateur a corrigé une erreur de conception : la couleur du jalon **ne doit PAS dépendre du
+  chemin critique** (un jalon terminal largement en avance sur sa cible doit être vert, même s'il
+  est critique) — `is_critical` a donc été retiré de `targetState`.
 - **#15 — Label superposé après réorganisation.** Les Labels n'ont pas de date au plus tôt →
   non placés par le layout. On reloge ceux qui chevauchent un nœud dans une bande sous le graphe.
 

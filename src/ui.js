@@ -116,6 +116,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // Dessin de la grille en espace graphe (ctx déjà transformé par LiteGraph).
   // Évité quand le pas projeté à l'écran devient trop dense (zoom arrière).
   lgCanvas.onDrawBackground = function (ctx, area) {
+    // #26 Neutralise le surlignage blanc des liens du nœud selectionne : LiteGraph
+    // force la couleur #FFF pour les liens de highlighted_links (renderLink), ce qui
+    // masquait le rouge du chemin critique sur le ou les liens touchant le nœud
+    // selectionne (typiquement le dernier lien vers un jalon de fin selectionne).
+    // onDrawBackground est appele dans drawBackCanvas JUSTE avant drawConnections,
+    // dans le meme cycle de rendu → vider la table ici fait primer nos couleurs.
+    this.highlighted_links = {};
+
     if (!window.pertSnapEnabled) return;
     if (GRID_STEP * this.ds.scale < 6) return; // grille illisible → on s'abstient
     const x0 = Math.floor(area[0] / GRID_STEP) * GRID_STEP;
@@ -438,7 +446,8 @@ function showProperties(node) {
     }, { min: 0, step: 0.5 });
     buildField(content, "Responsable", "text", node.properties.responsible, v => {
       node.properties.responsible = v;
-      node.setDirtyCanvas(true);
+      node.updateSize();           // #8 l'en-tete doit grandir pour loger la ligne 👤
+      node.setDirtyCanvas(true, true);
     });
     buildField(content, "Couleur", "color", node.properties.color, v => {
       node.properties.color = v;

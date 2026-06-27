@@ -586,7 +586,9 @@ forte satisfaction perçue, faible risque — traités en premier (arbitrage uti
   tronqué si trop long) — auparavant même police/taille que « Fin t.tôt » et collé à elle,
   les deux infos se confondaient (décision utilisateur : « dans l'en-tête coloré »)
 - [x] **#20** Coin/exergue du Jalon en vert quand la cible est tenue avec marge ≥ 1 unité
-  (orange si juste tenue, rouge si ratée/critique) — décision utilisateur : 3 états avec seuil
+  (orange si juste tenue, rouge si ratée) — décision utilisateur : 3 états avec seuil. La
+  couleur reflète la **tenue de la cible**, indépendamment du chemin critique (cf. retour
+  utilisateur : un jalon terminal largement en avance sur sa cible doit être vert)
 - [x] **#15** Réorganisation : les Labels chevauchant un nœud placé sont relogés dans une
   bande libre sous le graphe (les Labels non gênants gardent leur position)
 - [x] **#28 (bug)** Barre de recherche LiteGraph neutralisée — **livré en S4** (`allow_searchbox = false`)
@@ -599,11 +601,14 @@ L'utilisateur métier ne relève plus #25/#26/#28/#29 ; rendu validé en navigat
 utilisateur à confirmer avant merge** (même schéma que S4).
 
 **Implémentation — décisions notables (27/06/2026)** :
-- **#26** : la coloration du chemin critique part de la cible (nœud sélectionné, sinon
-  terminal d'EF max) et **remonte** les prédécesseurs contraignants ; on a ajouté une
-  **descente symétrique** vers l'aval (successeurs que le nœud contraint, EF cale le ES),
-  jusqu'au nœud terminal. Sans effet quand la cible est déjà le terminal (clic fond) →
-  comportement par défaut inchangé.
+- **#26** : DEUX volets. (1) Données — la coloration part de la cible (nœud sélectionné,
+  sinon terminal d'EF max) et **remonte** les prédécesseurs contraignants ; ajout d'une
+  **descente symétrique** vers l'aval (successeurs que le nœud contraint, EF cale le ES)
+  jusqu'au terminal. Sans effet au clic fond (cible déjà terminale). (2) Rendu — LiteGraph
+  force la couleur **#FFF** (blanc) sur les liens du nœud sélectionné (`highlighted_links`
+  dans `renderLink`), ce qui **masquait** le rouge sur le dernier lien d'un jalon sélectionné.
+  Corrigé en vidant `highlighted_links` dans notre `onDrawBackground` (appelé juste avant
+  `drawConnections` dans `drawBackCanvas`) → nos couleurs de lien priment, sans patcher la lib.
 - **#25** : les menus contextuels étaient déjà francisés en S4 ; restaient deux entrées
   natives anglaises — le **panneau de nœud** au double-clic (`onShowNodePanel` → no-op) et
   le **menu de lien** au clic droit (`showLinkMenu` remplacé par un menu FR « Supprimer le lien »).
@@ -615,9 +620,15 @@ utilisateur à confirmer avant merge** (même schéma que S4).
   Troncature par `ellipsize()` (helper canvas) pour éviter tout débordement.
 - **#20** : état calculé par `MilestoneNode.prototype.targetState()` (« alert »/« safe »/
   « neutral ») — testable isolément. Marge mesurée **vis-à-vis de la cible** (`dueOffset - ef`),
-  pas le slack (qui peut être borné par l'aval). Un Jalon **terminal est toujours critique**
-  (slack 0) donc rouge : le vert concerne les **jalons intermédiaires** non critiques (cibles
-  type DOTD/COTD).
+  pas le slack (qui peut être borné par l'aval). **`is_critical` N'INTERVIENT PAS** dans la
+  couleur du jalon (correctif post-validation utilisateur) : un jalon est un marqueur
+  d'échéance, sa couleur dit « cible tenue ? » et non « sur le chemin critique ? » (ce dernier
+  est porté par le rouge des LIENS). DOTD/COTD ne sont que des libellés d'importance
+  contractuelle, sans lien avec la tenue.
+- **#8** (correctif post-validation) : le handler du champ « Responsable » dans `showProperties`
+  ne rappelait pas `updateSize()` → l'en-tête ne grandissait pas et le nom débordait sous le
+  bandeau quand le libellé tenait sur une ligne. Ajout de `node.updateSize()` (comme le champ
+  Libellé).
 - **#15** : `pertRelocateOverlappingLabels` appelée en fin de `pertAutoLayout` ; ne déplace
   que les Labels en recouvrement (test d'intersection de rectangles), empilés sous le graphe.
 
