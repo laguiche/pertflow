@@ -211,10 +211,22 @@ function pertRecalc() {
   }
 
   // — Marges + chemin critique —
-  let nbCritical = 0;
+  // Le chemin critique = chemin de marge MINIMALE (et non strictement nulle). En
+  // projet faisable, la marge minimale vaut 0 (le nœud terminal d'EF max est calé
+  // sur la fin de projet) → comportement identique a "slack == 0". Mais si une
+  // date-cible de jalon est ratee, le backward pass borne LF a la cible et tout le
+  // chemin contraignant passe en marge NEGATIVE : aucun nœud n'a alors slack == 0.
+  // Avec le critere min-slack on identifie quand meme ce chemin (sinon nbCritical
+  // valait 0 et la barre d'etat affichait "Chemin critique : 0 nœud(s)" en
+  // permanence des qu'une cible n'etait pas tenue).
+  let minSlack = Infinity;
   for (const n of nodes) {
     n.slack = n.lf - n.ef;
-    n.is_critical = Math.abs(n.slack) < PERT_EPS;
+    if (n.slack < minSlack) minSlack = n.slack;
+  }
+  let nbCritical = 0;
+  for (const n of nodes) {
+    n.is_critical = n.slack <= minSlack + PERT_EPS;
     if (n.is_critical) nbCritical++;
   }
 
@@ -302,7 +314,37 @@ function pertAutoLayout() {
   const restTop = PERT_LAYOUT_MARGIN_Y + (top.length ? topLanes * rowH : 0);
   pertPackLanes(rest, restTop, rowH, xOf);
 
+  // #15 Les Labels n'ont pas de ES → ils ne sont pas places par le layout et
+  // peuvent se retrouver sous une activite/jalon repositionne. On reloge ceux qui
+  // chevauchent un nœud place, dans une bande libre sous le graphe.
+  pertRelocateOverlappingLabels(graph, placeable);
+
   graph.setDirtyCanvas(true, true);
+}
+
+// Reloge les Labels qui chevauchent un nœud place (placed) vers une bande
+// verticale libre sous le graphe. Les Labels non genants gardent leur position
+// (un placement manuel volontaire n'est pas bouscule sans raison).
+function pertRelocateOverlappingLabels(graph, placed) {
+  const labels = graph._nodes.filter(n => n.type === "pert/label");
+  if (!labels.length || !placed.length) return;
+
+  const overlaps = (a, b) =>
+    a.pos[0] < b.pos[0] + b.size[0] && a.pos[0] + a.size[0] > b.pos[0] &&
+    a.pos[1] < b.pos[1] + b.size[1] && a.pos[1] + a.size[1] > b.pos[1];
+
+  // Bas du graphe = ordonnee max des nœuds places (bord inferieur).
+  let bottomY = -Infinity;
+  placed.forEach(n => { bottomY = Math.max(bottomY, n.pos[1] + n.size[1]); });
+  let cursorY = bottomY + PERT_LAYOUT_GAP_Y;
+  const x = PERT_LAYOUT_MARGIN_X;
+
+  for (const lbl of labels) {
+    if (!placed.some(n => overlaps(lbl, n))) continue; // ne touche pas un Label OK
+    lbl.pos[0] = x;
+    lbl.pos[1] = cursorY;                 // sous le graphe → aucun chevauchement
+    cursorY += lbl.size[1] + PERT_LAYOUT_GAP_Y; // empile les Labels relogés
+  }
 }
 
 // Packing par couloirs (lanes) d'une liste de nœuds : abscisse fournie par xOf,
@@ -363,7 +405,7 @@ function pertHighlightCriticalPath(targetId) {
   }
   if (!target || target.ef === null) return;
 
-  // Remontee du chemin contraignant
+  // Remontee du chemin contraignant (cible → T0, vers l'amont)
   const seen = new Set();
   let current = target;
   while (current && !seen.has(current.id)) {
@@ -382,6 +424,35 @@ function pertHighlightCriticalPath(targetId) {
     }
     if (!binding) break;
     pertColorLink(graph, binding.id, current.id, "#cc0000");
+    current = binding;
+  }
+
+  // Descente vers le nœud terminal (cible → fin de projet, vers l'aval) — #26.
+  // Symetrique de la remontee : sans elle, selectionner un nœud intermediaire
+  // laissait le ou les liens en aval (jusqu'au jalon de fin) en gris, donc le
+  // "dernier lien" du chemin critique n'etait pas colore. On suit les successeurs
+  // que le nœud courant contraint (son EF cale le ES du successeur), en preferant
+  // les successeurs critiques, jusqu'a un nœud terminal. Sans effet quand la cible
+  // est deja le nœud terminal (cas du clic sur le fond) : la boucle s'arrete
+  // immediatement (aucun successeur), donc le comportement par defaut est inchange.
+  const seenFwd = new Set();
+  current = target;
+  while (current && !seenFwd.has(current.id)) {
+    seenFwd.add(current.id);
+    let binding = null;
+    for (const sid of succs[current.id]) {
+      const s = byId[sid];
+      if (s.es === null) continue;
+      // successeur contraint : son ES est cale par le EF du nœud courant
+      if (Math.abs(current.ef - s.es) < PERT_EPS) {
+        // preferer un successeur critique, puis celui de plus grand EF (plus loin)
+        if (!binding || (s.is_critical && !binding.is_critical) || s.ef > binding.ef) {
+          binding = s;
+        }
+      }
+    }
+    if (!binding) break;
+    pertColorLink(graph, current.id, binding.id, "#cc0000");
     current = binding;
   }
 

@@ -319,6 +319,60 @@ Le travail a consisté à transformer ce retour en plan d'action versionné :
 
 ---
 
+### Session 5 — Correctifs & quick wins du retour Mickael (✅ 27/06/2026)
+
+Sept remarques du retour utilisateur traitées en un lot (les « petits efforts à forte
+satisfaction », priorisés par l'utilisateur avant le chantier métier) :
+
+- **#26 — dernier lien du chemin critique non rouge à la sélection.** Le tracé partait de
+  la cible (nœud sélectionné) et **remontait** vers T0 ; il s'arrêtait donc au nœud
+  sélectionné, laissant gris les liens en aval. Ajout d'une **descente symétrique** vers le
+  nœud terminal. Le diagnostic a été affiné par l'utilisateur lui-même (« le bug n'apparaît
+  que quand un nœud est sélectionné ; au clic sur le fond, le chemin complet est rouge ») —
+  ce qui a pointé directement la dissymétrie remontée/descente.
+- **#25 — mélange français/anglais.** Les menus contextuels étaient déjà francisés (S4) ;
+  restaient deux panneaux **natifs LiteGraph** en anglais, atteignables autrement : le
+  panneau de propriétés au double-clic sur un nœud et le menu au clic droit sur un lien.
+  Neutralisés / remplacés par du français.
+- **#29 — PDF lourd.** Un PDF de 1,5 Mo pour un PNG de 80 Ko : jsPDF stockait l'image **non
+  compressée**. `compress:true` (deflate, sans perte) → poids ÷10. Le rendu hors-écran passe
+  en 2× pour la netteté. Améliore définition **et** poids, sans compromis.
+- **#8 — affichage du responsable.** Problème précisé par l'utilisateur : même police/taille
+  que « Fin t.tôt » et collé à elle → les deux infos se confondaient. Déplacé dans l'en-tête
+  coloré (texte blanc + 👤), tronqué si trop long. Choix de placement validé par l'utilisateur.
+- **#20 — coin de Jalon vert.** Symétrique du rouge « cible non tenue ». Décision utilisateur :
+  3 états avec seuil (vert si marge ≥ 1 unité, orange si juste tenue, rouge si ratée). Subtilité
+  retenue : la marge mesurée est celle **vis-à-vis de la cible** (et non le slack). La validation
+  utilisateur a corrigé une erreur de conception : la couleur du jalon **ne doit PAS dépendre du
+  chemin critique** (un jalon terminal largement en avance sur sa cible doit être vert, même s'il
+  est critique) — `is_critical` a donc été retiré de `targetState`.
+- **#15 — Label superposé après réorganisation.** Les Labels n'ont pas de date au plus tôt →
+  non placés par le layout. On reloge ceux qui chevauchent un nœud dans une bande sous le graphe.
+- **Bug largeur ∝ durée plafonnée (hors liste, trouvé en clôture).** L'utilisateur a remarqué
+  qu'une activité de 30 mois faisait la même taille qu'une de 15 mois. Cause : le plafond de
+  largeur `ACT_MAX_W=480` saturait dès 8 unités (480 ÷ 60 px/u.), annulant la proportionnalité
+  (#2) au-delà. Plafond porté à 3000 px (garde-fou). Effet de bord positif : la barre couvre
+  désormais son empan temporel (le layout place le successeur à `es × 60`), d'où une cohérence
+  Gantt — les barres se touchent au lieu de laisser un grand vide.
+- **Bug barre d'état (hors liste, trouvé en clôture).** La barre indiquait « Chemin critique :
+  0 nœud(s) » en permanence. Cause : `is_critical` testait `slack == 0` strict ; or une cible de
+  jalon non tenue borne LF à la cible et fait passer tout le chemin contraignant en marge
+  négative → aucun nœud à 0 → compteur à 0. Corrigé en redéfinissant le chemin critique par la
+  **marge minimale** (définition PERT standard) : inchangé en projet faisable (min = 0), et le
+  chemin contraignant reste identifié même quand une échéance imposée est intenable.
+
+> **🎙️ Restitution — l'utilisateur affine le diagnostic, l'IA exécute la correction.** Sur
+> #26, c'est la précision de l'utilisateur (« seulement quand un nœud est sélectionné ») qui a
+> transformé un symptôme flou en cause localisée : la fonction de tracé était asymétrique
+> (remontée sans descente). Sur #8, de même, l'utilisateur n'a pas demandé « mets-le ailleurs »
+> mais a décrit *pourquoi* c'était illisible (typographie identique, proximité) — ce qui rend
+> la bonne correction évidente. La boucle efficace n'est pas « l'IA devine », mais « l'utilisateur
+> qualifie le besoin, l'IA propose des options chiffrées/illustrées, l'utilisateur tranche ».
+> Deux arbitrages purement visuels (#8 placement, #20 seuil) ont été soumis avec maquettes ASCII
+> avant toute ligne de code.
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)

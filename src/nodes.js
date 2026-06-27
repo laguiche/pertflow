@@ -6,9 +6,22 @@
 // le successeur demarre la ou le predecesseur finit.
 const PERT_PX_PER_UNIT = 60;   // pixels par unite de duree (jour/semaine/mois)
 const ACT_MIN_W = 140;         // largeur mini d'une activite : doit loger la ligne
-                               // calculee la plus large ("Fin t.tot : 28/11/26")
-const ACT_MAX_W = 480;         // largeur maxi : au-dela le libelle passe en multi-lignes (#4)
+                               // calculee la plus large ("Fin t.tot : 28/11/26").
+                               // En-dessous (taches courtes) la proportionnalite cede
+                               // a la lisibilite du texte (plancher).
+const ACT_MAX_W = 3000;        // garde-fou de securite uniquement (taille de canvas).
+                               // L'ancien plafond a 480 (= 8 unites) saturait des 8
+                               // mois : une tache de 15 et une de 30 avaient la meme
+                               // largeur (#2 inoperant au-dela). 3000 = 50 unites laisse
+                               // la largeur ∝ duree sur toute la plage realiste, et cale
+                               // la barre sur son empan temporel (es × PERT_PX_PER_UNIT)
+                               // → coherence avec le layout facon Gantt.
 const ACT_LABEL_LH = 18;       // hauteur de ligne du libelle (police bold 13px)
+
+// #20 Seuil de marge (en unites de temps) au-dela duquel une date-cible de Jalon
+// est consideree "tenue confortablement" → coin vert (sinon orange si juste tenue,
+// rouge si non tenue). Exprime dans l'unite courante (j / sem / mois).
+const MILESTONE_GREEN_MARGIN = 1;
 
 // ─── Mesure de texte (canvas offscreen partage) ───────────────────────────────
 
@@ -40,6 +53,17 @@ function wrapText(text, font, maxWidth) {
   }
   lines.push(current);
   return lines;
+}
+
+// Tronque un texte avec une ellipse pour qu'il tienne dans maxWidth (mesure avec
+// la police courante de ctx). Sert au responsable dans l'en-tete (#8) : un nom
+// trop long est ecourte plutot que de deborder du nœud.
+function ellipsize(ctx, text, maxWidth) {
+  text = String(text || "");
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + "…").width > maxWidth) t = t.slice(0, -1);
+  return t + "…";
 }
 
 // ─── Nœud Activité ────────────────────────────────────────────────────────────
@@ -91,10 +115,14 @@ ActivityNode.prototype.updateSize = function() {
 
   // #4 libelle multi-lignes si trop long pour la largeur
   this._labelLines = wrapText(this.properties.label, "bold 13px sans-serif", width - 20);
-  const headerH = this._labelLines.length * ACT_LABEL_LH + 12;
+  // #8 En-tete = libelle + (si renseigne) ligne responsable, dans le bandeau colore.
+  // Le responsable est ainsi nettement separe des lignes de dates calculees (avant,
+  // meme police/taille et colle a "Fin t.tot" → les deux infos se confondaient).
+  const respLineH = this.properties.responsible ? 16 : 0;
+  const headerH = this._labelLines.length * ACT_LABEL_LH + respLineH + 12;
 
-  // Section info : ligne duree (toujours) + ligne responsable (optionnelle)
-  const infoH = this.properties.responsible ? 44 : 28;
+  // Section info : ligne duree seulement (le responsable est passe dans l'en-tete)
+  const infoH = 28;
   // Section calculs : EF + marge
   const calcH = 48;
 
@@ -146,7 +174,16 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
     ctx.fillText(ln, 10, 16 + i * ACT_LABEL_LH);
   });
 
-  // Section info : durée + responsable
+  // #8 Responsable dans l'en-tete (texte blanc + icone 👤), tronque si trop long.
+  // Place sous le libelle, dans le bandeau colore → distinct des dates calculees.
+  if (this.properties.responsible) {
+    ctx.font = "11px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    const respY = this._labelLines.length * ACT_LABEL_LH + 13;
+    ctx.fillText(ellipsize(ctx, "👤 " + this.properties.responsible, w - 16), 10, respY);
+  }
+
+  // Section info : durée (le responsable est desormais dans l'en-tete)
   ctx.fillStyle = "#f0f4f8";
   ctx.fillRect(0, headerH, w, calcTop - headerH);
 
@@ -177,12 +214,6 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
   ctx.fillStyle = "#2c3e50";
   ctx.font = "12px sans-serif";
   ctx.fillText("Durée : " + this.properties.duration + " " + unit, 10, headerH + 18);
-
-  if (this.properties.responsible) {
-    ctx.fillStyle = "#555";
-    ctx.font = "11px sans-serif";
-    ctx.fillText("Resp. : " + this.properties.responsible, 10, headerH + 34);
-  }
 
   // Texte section calculs : EF converti en date calendaire
   ctx.font = "11px sans-serif";
@@ -267,13 +298,40 @@ MilestoneNode.prototype.onConnectionsChange = function(type) {
   this.updateSize();
 };
 
+// Etat d'exergue du Jalon (#20) : reflete la TENUE DE LA CIBLE (echeance
+// contractuelle du jalon), INDEPENDAMMENT de l'appartenance au chemin critique.
+// Un jalon est avant tout un marqueur d'echeance : sa couleur doit dire "la cible
+// est-elle tenue ?", pas "suis-je sur le chemin critique ?" (ce dernier est porte
+// par le rouge des LIENS). Etats :
+//   "alert"   (rouge)  : cible non tenue (EF > cible).
+//   "safe"    (vert)   : cible tenue avec marge confortable (dateCible - EF >= seuil).
+//   "neutral" (orange) : juste tenue (0 <= marge < seuil) ou aucune cible.
+// La marge consideree est celle vis-a-vis de la cible (dateCible - EF), pas le slack
+// (qui peut etre borne par l'aval du graphe). Un jalon terminal largement en avance
+// sur sa cible apparait donc en vert, meme s'il est sur le chemin critique.
+MilestoneNode.prototype.targetState = function() {
+  if (this.target_missed) return "alert";
+  if (this.properties.due_date && this.ef !== null) {
+    const dueOff = pertDateToOffset(this.properties.due_date);
+    if (dueOff !== null && (dueOff - this.ef) >= MILESTONE_GREEN_MARGIN) return "safe";
+  }
+  return "neutral";
+};
+
 // Rectangle arrondi dessine en fond → les slots (rendus ensuite) restent visibles.
 MilestoneNode.prototype.onDrawBackground = function(ctx) {
   const w = this.size[0], h = this.size[1];
   const r = 8;
 
-  // Mise en exergue : rouge si critique OU si la date-cible n'est pas tenue
-  const alert = this.is_critical || this.target_missed;
+  const state = this.targetState();
+  const alert = state === "alert";
+  const safe  = state === "safe";
+
+  // Couleurs selon l'etat : rouge (alerte) / vert (cible confortable) / orange (neutre)
+  const bodyFill   = alert ? "#ffe5e5" : (safe ? "#e9f7e9" : "#fff8e1");
+  const strokeCol  = alert ? "#cc0000" : (safe ? "#2e9e2e" : "#d0a000");
+  const strokeW    = alert ? 3 : (safe ? 2 : 1.5);
+  const cornerCol  = alert ? "#cc0000" : (safe ? "#2e9e2e" : "#f5a623");
 
   // Corps arrondi
   ctx.beginPath();
@@ -287,10 +345,10 @@ MilestoneNode.prototype.onDrawBackground = function(ctx) {
   ctx.lineTo(0, r);
   ctx.arcTo(0, 0, r, 0, r);
   ctx.closePath();
-  ctx.fillStyle = alert ? "#ffe5e5" : "#fff8e1";
+  ctx.fillStyle = bodyFill;
   ctx.fill();
-  ctx.strokeStyle = alert ? "#cc0000" : "#d0a000";
-  ctx.lineWidth = alert ? 3 : 1.5;
+  ctx.strokeStyle = strokeCol;
+  ctx.lineWidth = strokeW;
   ctx.stroke();
 
   // Coin "drapeau" en haut a droite : marqueur visuel du type Jalon
@@ -299,7 +357,7 @@ MilestoneNode.prototype.onDrawBackground = function(ctx) {
   ctx.lineTo(w, 0);
   ctx.lineTo(w, 18);
   ctx.closePath();
-  ctx.fillStyle = alert ? "#cc0000" : "#f5a623";
+  ctx.fillStyle = cornerCol;
   ctx.fill();
 
   // Libellé (losange glyphe prepende sur la 1re ligne, multi-lignes #4/#5)

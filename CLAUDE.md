@@ -308,7 +308,7 @@ onDrawForeground(ctx) {
 > **découpé en 2 temps** (S6 dimension+couleur, S7 filtre+coût) ; **doc en dernier**.
 >
 > Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 ✅
-> → S5 (correctifs & quick wins) → S6/S7 (regroupement métier WP) → S8
+> → S5 ✅ (correctifs & quick wins) → S6/S7 (regroupement métier WP) → S8
 > (propriétés & jalons enrichis) → S9 (exports avancés) → S10 (liens & layout) → Doc (fin)**.
 
 ### Session 0 — Mise en place du dépôt GitHub ✅ TERMINÉE
@@ -403,6 +403,8 @@ visuel utilisateur (cf. ci-dessous). Logique également couverte par test headle
 - **Largeur Activité bornée [140, 480] px** : le plancher 140 loge la ligne calculée la plus large
   (« Fin t.tôt : 28/11/26 ») → les très courtes durées (1-2 u.) restent au plancher, la
   proportionnalité n'est nette qu'au-delà. Compromis assumé (texte vs proportionnalité stricte).
+  **MàJ S5 (27/06)** : le plafond `480` saturait dès 8 unités (15 et 30 mois identiques) → relevé
+  à **3000 px** (simple garde-fou), la borne effective est donc `[140, 3000]`.
 - **Layout = packing par couloirs** (lanes) : abscisse ∝ ES, tâches se chevauchant dans le temps
   posées sur des couloirs distincts ; **jalons de sortie (terminaux) regroupés en bande haute** ;
   déclenché **manuellement** (bouton), jamais pendant l'édition pour ne pas casser un placement manuel.
@@ -571,23 +573,95 @@ libs inlinées) — tous en navigateur réel (Playwright/Chromium, `file://`), 0
 
 ---
 
-### Session 5 — Correctifs & quick wins (retour utilisateur Mickael) ⏳ À VENIR
+### Session 5 — Correctifs & quick wins (retour utilisateur Mickael) ✅ TERMINÉE (27/06/2026)
 Issue du 2e retour utilisateur du 27/06/2026 (`remarques_mickael`). Petits efforts,
 forte satisfaction perçue, faible risque — traités en premier (arbitrage utilisateur).
 **Objectifs** :
-- [ ] **#25 (bug)** Cohérence linguistique : supprimer le mélange français/anglais dans l'UI
-- [ ] **#26 (bug)** Dernier lien du chemin critique non coloré en rouge — corriger la
-  remontée des prédécesseurs jusqu'au nœud terminal (la fonction de tracé existe depuis S2.5)
-- [ ] **#29 (bug)** Export PDF : améliorer la définition et réduire le poids du fichier
-- [ ] **#8** Revoir l'affichage du responsable dans le nœud Activité
-- [ ] **#20** Coin du Jalon en vert quand la cible est tenue avec marge suffisante
-  (symétrique du rouge « cible non tenue » déjà en place)
-- [ ] **#15** Réorganisation : empêcher qu'un Label se retrouve superposé à une activité
-- [ ] **#28 (bug)** Neutraliser la barre de recherche LiteGraph au double-clic sur le fond
-  (si non déjà traité dans le nettoyage clic droit de S4)
+- [x] **#25 (bug)** Cohérence linguistique : neutralisation des derniers panneaux/menus
+  natifs LiteGraph en anglais (panneau de nœud au double-clic, menu de lien au clic droit)
+- [x] **#26 (bug)** Dernier lien du chemin critique non coloré — descente symétrique vers
+  le nœud terminal ajoutée à `pertHighlightCriticalPath` (le tracé ne s'arrêtait plus à la
+  cible sélectionnée mais allait jusqu'au terminal en aval)
+- [x] **#29 (bug)** Export PDF : `compress:true` (flux image deflate sans perte → poids
+  ÷10, de ~1,5 Mo à ~150 Ko) + rendu hors-écran en 2× (meilleure définition)
+- [x] **#8** Responsable déplacé dans l'en-tête coloré du nœud Activité (texte blanc + 👤,
+  tronqué si trop long) — auparavant même police/taille que « Fin t.tôt » et collé à elle,
+  les deux infos se confondaient (décision utilisateur : « dans l'en-tête coloré »)
+- [x] **#20** Coin/exergue du Jalon en vert quand la cible est tenue avec marge ≥ 1 unité
+  (orange si juste tenue, rouge si ratée) — décision utilisateur : 3 états avec seuil. La
+  couleur reflète la **tenue de la cible**, indépendamment du chemin critique (cf. retour
+  utilisateur : un jalon terminal largement en avance sur sa cible doit être vert)
+- [x] **#15** Réorganisation : les Labels chevauchant un nœud placé sont relogés dans une
+  bande libre sous le graphe (les Labels non gênants gardent leur position)
+- [x] **#28 (bug)** Barre de recherche LiteGraph neutralisée — **livré en S4** (`allow_searchbox = false`)
+- [x] **Bug barre d'état** (hors liste, trouvé en validation) : « Chemin critique : 0 nœud(s) »
+  affiché en permanence dès qu'une date-cible de jalon était ratée (marges toutes négatives →
+  aucun nœud à slack 0). Chemin critique redéfini en **marge minimale** (cf. notes)
+- [x] **Bug largeur ∝ durée plafonnée** (hors liste, trouvé en validation) : le plafond
+  `ACT_MAX_W=480` saturait dès 8 unités → une activité de 15 et une de 30 mois avaient la même
+  largeur. Plafond relevé à 3000 px (garde-fou de sécurité), proportionnalité rétablie (cf. notes)
 
 **Critère de validation** :
 L'utilisateur métier ne relève plus #25/#26/#28/#29 ; rendu validé en navigateur réel.
+**État** : implémenté et validé par tests headless navigateur (`tools/smoke-critical.js` #26,
+`tools/smoke-s5.js` #15/#20/#8) + smoke existant sans régression + capture de contrôle
+(en-tête responsable, coin vert/rouge, chemin critique complet). **Validation visuelle
+utilisateur à confirmer avant merge** (même schéma que S4).
+
+**Implémentation — décisions notables (27/06/2026)** :
+- **#26** : DEUX volets. (1) Données — la coloration part de la cible (nœud sélectionné,
+  sinon terminal d'EF max) et **remonte** les prédécesseurs contraignants ; ajout d'une
+  **descente symétrique** vers l'aval (successeurs que le nœud contraint, EF cale le ES)
+  jusqu'au terminal. Sans effet au clic fond (cible déjà terminale). (2) Rendu — LiteGraph
+  force la couleur **#FFF** (blanc) sur les liens du nœud sélectionné (`highlighted_links`
+  dans `renderLink`), ce qui **masquait** le rouge sur le dernier lien d'un jalon sélectionné.
+  Corrigé en vidant `highlighted_links` dans notre `onDrawBackground` (appelé juste avant
+  `drawConnections` dans `drawBackCanvas`) → nos couleurs de lien priment, sans patcher la lib.
+- **#25** : les menus contextuels étaient déjà francisés en S4 ; restaient des entrées
+  natives anglaises — le **panneau de nœud** au double-clic (`onShowNodePanel` → no-op), le
+  **menu de lien** au clic droit (`showLinkMenu` remplacé par un menu FR « Supprimer le lien »),
+  et (post-validation) le **titre du menu de nœud** : LiteGraph y met `node.type`
+  (« pert/activity »…) via `processContextMenu` ; notre wrapper le remplace après création
+  par `node.constructor.title` (« Activité »/« Jalon »/« Label »), sans patcher la lib.
+- **#29** : le poids venait de l'absence de compression jsPDF (image stockée brute), pas de
+  la résolution. `compress:true` = gain sans perte ; le 2× est un bonus de netteté.
+  `pertRenderToCanvas(renderScale)` accepte un facteur de suréchantillonnage (PNG reste à 1×).
+- **#8** : `MILESTONE_GREEN_MARGIN` mis à part, le responsable passe de la section info à
+  l'en-tête → `infoH` repasse à 28 (constante) et `headerH` intègre une ligne responsable.
+  Troncature par `ellipsize()` (helper canvas) pour éviter tout débordement.
+- **#20** : état calculé par `MilestoneNode.prototype.targetState()` (« alert »/« safe »/
+  « neutral ») — testable isolément. Marge mesurée **vis-à-vis de la cible** (`dueOffset - ef`),
+  pas le slack (qui peut être borné par l'aval). **`is_critical` N'INTERVIENT PAS** dans la
+  couleur du jalon (correctif post-validation utilisateur) : un jalon est un marqueur
+  d'échéance, sa couleur dit « cible tenue ? » et non « sur le chemin critique ? » (ce dernier
+  est porté par le rouge des LIENS). DOTD/COTD ne sont que des libellés d'importance
+  contractuelle, sans lien avec la tenue.
+- **#8** (correctif post-validation) : le handler du champ « Responsable » dans `showProperties`
+  ne rappelait pas `updateSize()` → l'en-tête ne grandissait pas et le nom débordait sous le
+  bandeau quand le libellé tenait sur une ligne. Ajout de `node.updateSize()` (comme le champ
+  Libellé).
+- **#15** : `pertRelocateOverlappingLabels` appelée en fin de `pertAutoLayout` ; ne déplace
+  que les Labels en recouvrement (test d'intersection de rectangles), empilés sous le graphe.
+- **Bug largeur ∝ durée plafonnée (`ACT_MAX_W`)** : la largeur d'une activité est
+  `clamp(durée × PERT_PX_PER_UNIT, ACT_MIN_W, ACT_MAX_W)`. L'ancien plafond `480` (= 8 unités à
+  60 px/u.) saturait toutes les durées ≥ 8 → 15 et 30 mois rendus à l'identique, et la barre ne
+  couvrait plus son empan temporel (le layout place le successeur à `es × 60`, créant un grand
+  vide). Plafond porté à **3000 px** (= 50 unités), réduit à un simple garde-fou de taille de
+  canvas (cas typo). Le plancher `ACT_MIN_W=140` reste pour la lisibilité du texte des tâches
+  courtes (compromis assumé : sous ~2,3 unités, lisibilité > proportionnalité stricte). Effet
+  de bord positif : la barre cale désormais sur son empan temporel → cohérence avec le layout
+  façon Gantt.
+- **Bug barre d'état (chemin critique = marge minimale)** : `is_critical` était `|slack| < eps`
+  (strictement 0). Une date-cible de jalon non tenue borne LF à la cible → tout le chemin
+  contraignant passe en marge **négative**, donc plus aucun nœud à slack 0 → `nbCritical = 0`
+  et « Chemin critique : 0 nœud(s) ». Corrigé en définissant le chemin critique par la **marge
+  minimale** : `is_critical = slack <= minSlack + eps`. En projet faisable `minSlack = 0` (le
+  terminal d'EF max est calé sur la fin de projet) → comportement strictement inchangé ; en
+  projet infaisable, le chemin contraignant (le plus en retard) est identifié. C'est aussi la
+  définition PERT standard (float minimal, négatif si échéance imposée intenable). Le tracé
+  rouge des liens (`pertHighlightCriticalPath`) marchait déjà (basé sur la contrainte EF, pas
+  sur `is_critical`) ; seuls le compteur de statut et les bordures rouges des activités étaient
+  affectés.
 
 ---
 
@@ -792,3 +866,20 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   → `dist/pertflow.html` (libs+sources inlinés, 0 requête externe, `dist/` gitignoré)
 - Validé en navigateur réel (Playwright/Chromium, `file://`) : `tools/smoke.js` sans
   régression + nouveau `tools/smoke-s4.js` + vérification du bundle, 0 erreur console
+- **Mergé sur `main`, tagué `v0.5`, poussé** après validation visuelle utilisateur (Firefox).
+  ⚠️ Numérotation des tags décalée (S2.5 a consommé un tag) : v0.1=S1, v0.2=S2, v0.3=S2.5,
+  v0.4=S3, v0.5=S4 → la prochaine session sera v0.6
+
+### Session 5 (27/06/2026) — correctifs & quick wins (retour Mickael)
+- 7 remarques traitées (#25, #26, #29, #8, #20, #15 ; #28 déjà livré en S4) sur la branche
+  `session/5-correctifs`. Détail et décisions d'implémentation dans la section Session 5
+  plus haut. Deux arbitrages visuels tranchés par l'utilisateur : #8 responsable « dans
+  l'en-tête coloré » ; #20 coin vert « si marge confortable » (3 états, seuil 1 unité)
+- `src/pert_engine.js` : descente symétrique vers le terminal dans
+  `pertHighlightCriticalPath` (#26) + `pertRelocateOverlappingLabels` (#15) ;
+  `src/nodes.js` : responsable dans l'en-tête + `ellipsize` (#8), `targetState` 3 états +
+  `MILESTONE_GREEN_MARGIN` (#20) ; `src/export.js` : `pertRenderToCanvas(renderScale)` +
+  `compress:true` (#29) ; `src/ui.js` : `onShowNodePanel` no-op + `showLinkMenu` FR (#25)
+- Validé : `tools/smoke-critical.js` (#26), `tools/smoke-s5.js` (#15/#20/#8), smoke existant
+  sans régression, capture de contrôle. **Validation visuelle utilisateur à confirmer avant
+  merge/tag v0.6**

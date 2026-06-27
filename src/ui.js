@@ -40,7 +40,16 @@ document.addEventListener("DOMContentLoaded", () => {
   lgCanvas.processContextMenu = function (node, event) {
     try { lastCtxGraphPos = this.convertEventToCanvasOffset(event); }
     catch (e) { lastCtxGraphPos = null; }
-    return origProcessContextMenu.call(this, node, event);
+    const ret = origProcessContextMenu.call(this, node, event);
+    // #25 LiteGraph met node.type ("pert/activity"…) comme TITRE du menu de nœud
+    // (cf. options.title = node.type dans processContextMenu). On le remplace, apres
+    // creation du menu, par le libelle FR du type (ActivityNode.title = "Activité"…).
+    if (node) {
+      const titles = document.querySelectorAll(".litemenu-title");
+      const el = titles[titles.length - 1]; // le menu qu'on vient d'ouvrir
+      if (el) el.textContent = (node.constructor && node.constructor.title) || node.type;
+    }
+    return ret;
   };
 
   // Ajoute un nœud du type donné à la position graphe fournie (ou au centre).
@@ -85,6 +94,27 @@ document.addEventListener("DOMContentLoaded", () => {
     ];
   };
 
+  // #25 Cohérence linguistique : neutraliser les derniers panneaux/menus natifs
+  // LiteGraph en anglais encore atteignables (les menus contextuels de fond et de
+  // nœud sont déjà francisés ci-dessus).
+  // - Double-clic sur un nœud ouvrait le panneau natif anglais (Title/Properties…),
+  //   redondant ici puisque notre panneau de propriétés est toujours affiché à droite.
+  lgCanvas.onShowNodePanel = function () { /* supprime le panneau natif anglais */ };
+  // - Clic droit sur un lien ouvrait un menu natif anglais (« Add Node / Delete »).
+  //   On le remplace par un menu français minimal (suppression du lien).
+  lgCanvas.showLinkMenu = function (link, e) {
+    new LiteGraph.ContextMenu(["Supprimer le lien"], {
+      event: e,
+      callback: (v) => {
+        if (v === "Supprimer le lien" && link) {
+          graph.removeLink(link.id);   // déclenche onConnectionChange → recalc + historique
+          pertRecalc();
+        }
+      }
+    });
+    return false;
+  };
+
   // ── Snap-to-grid (option utilisateur, Session 4) ─────────────────────────────
   // Toggle toolbar : quand actif, le déplacement des nœuds s'aligne sur la grille
   // (align_to_grid natif LiteGraph) ET la grille devient visible. Décision figée :
@@ -95,6 +125,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // Dessin de la grille en espace graphe (ctx déjà transformé par LiteGraph).
   // Évité quand le pas projeté à l'écran devient trop dense (zoom arrière).
   lgCanvas.onDrawBackground = function (ctx, area) {
+    // #26 Neutralise le surlignage blanc des liens du nœud selectionne : LiteGraph
+    // force la couleur #FFF pour les liens de highlighted_links (renderLink), ce qui
+    // masquait le rouge du chemin critique sur le ou les liens touchant le nœud
+    // selectionne (typiquement le dernier lien vers un jalon de fin selectionne).
+    // onDrawBackground est appele dans drawBackCanvas JUSTE avant drawConnections,
+    // dans le meme cycle de rendu → vider la table ici fait primer nos couleurs.
+    this.highlighted_links = {};
+
     if (!window.pertSnapEnabled) return;
     if (GRID_STEP * this.ds.scale < 6) return; // grille illisible → on s'abstient
     const x0 = Math.floor(area[0] / GRID_STEP) * GRID_STEP;
@@ -417,7 +455,8 @@ function showProperties(node) {
     }, { min: 0, step: 0.5 });
     buildField(content, "Responsable", "text", node.properties.responsible, v => {
       node.properties.responsible = v;
-      node.setDirtyCanvas(true);
+      node.updateSize();           // #8 l'en-tete doit grandir pour loger la ligne 👤
+      node.setDirtyCanvas(true, true);
     });
     buildField(content, "Couleur", "color", node.properties.color, v => {
       node.properties.color = v;
