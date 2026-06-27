@@ -93,6 +93,8 @@
         global.pertMeta.t0 = data.meta.t0;
         global.pertMeta.unit = data.meta.unit;
         global.pertMeta.layout_gap = data.meta.layout_gap;
+        // #14 registre des couleurs de groupes (capte dans le snapshot via pertMeta)
+        global.pertMeta.groups = data.meta.groups || {};
       }
       graph.clear();
       if (data.graph) graph.configure(data.graph);

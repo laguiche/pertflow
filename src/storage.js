@@ -21,7 +21,9 @@ function pertSerializeProject() {
       title: meta.title || "",
       t0: meta.t0 || "",
       unit: meta.unit || "j",
-      layout_gap: meta.layout_gap != null ? meta.layout_gap : 30
+      layout_gap: meta.layout_gap != null ? meta.layout_gap : 30,
+      // #14 registre des couleurs de groupes (WP/metier/service)
+      groups: meta.groups || {}
     },
     // graph.serialize() renvoie un objet JS (noeuds + liens + positions/tailles)
     graph: graph ? graph.serialize() : null
@@ -87,10 +89,16 @@ function pertApplyProject(data) {
   window.pertMeta.t0 = meta.t0 || "";
   window.pertMeta.unit = meta.unit || "j";
   window.pertMeta.layout_gap = meta.layout_gap != null ? meta.layout_gap : 30;
+  // #14 registre des couleurs de groupes (robuste aux fichiers anterieurs : {})
+  window.pertMeta.groups = meta.groups || {};
 
   // Restauration du graphe : on vide tout puis on reconfigure depuis le fichier.
   graph.clear();
   graph.configure(data.graph);
+
+  // #34 securite : garantir l'unicite des uid (anciens fichiers sans uid → genere ;
+  // doublons eventuels → regeneres). Les fichiers recents ont deja des uid uniques.
+  if (window.pertEnsureUids) pertEnsureUids();
 
   // Les tailles des noeuds dependent de l'unite et des libelles : configure()
   // restaure la taille serialisee, mais on la recalcule pour rester coherent

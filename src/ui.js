@@ -1,6 +1,8 @@
 // ─── État global ──────────────────────────────────────────────────────────────
 
-window.pertMeta = { title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30 };
+// groups : registre des couleurs memorisees par groupe (WP/metier/service), #14.
+// { "<nom du groupe>": "<couleur>" } — serialise dans le .pert, capte par l'undo.
+window.pertMeta = { title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, groups: {} };
 window.pertGraph = null;
 window.pertCanvas = null;
 
@@ -87,6 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
           clone.pos = [node.pos[0] + 24, node.pos[1] + 24];
           if (clone.updateSize) clone.updateSize();
           graph.add(clone);          // déclenche onNodeAdded → recalc + historique
+          pertEnsureUids();          // #34 le clone recopie l'uid → on le regenere
           pertRecalc();
         } },
       null,
@@ -343,6 +346,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (e.ctrlKey && (e.key === "v" || e.key === "V")) {
       lgCanvas.pasteFromClipboard();
+      pertEnsureUids();   // #34 les noeuds colles recopient l'uid → on les regenere
       pertRecalc();
       return;
     }
@@ -453,16 +457,46 @@ function showProperties(node) {
       pertRecalc();
       fillCalcSection(node);
     }, { min: 0, step: 0.5 });
-    buildField(content, "Responsable", "text", node.properties.responsible, v => {
+    // Responsable : combobox enrichissable (#13 amorce) — texte libre + reproposition
+    // des responsables deja saisis (datalist) pour une orthographe coherente.
+    buildCombobox(content, "Responsable", node.properties.responsible, collectResponsibles(), v => {
       node.properties.responsible = v;
       node.updateSize();           // #8 l'en-tete doit grandir pour loger la ligne 👤
       node.setDirtyCanvas(true, true);
     });
-    buildField(content, "Couleur", "color", node.properties.color, v => {
+
+    // #2 Couleur — on garde la reference de l'input pour resynchroniser sa valeur
+    // quand le groupe vient d'imposer sa teinte. #14 : changer la couleur d'une
+    // activite groupee met a jour la couleur du groupe et recolore tous ses membres.
+    const colorInput = buildField(content, "Couleur", "color", node.properties.color, v => {
       node.properties.color = v;
       node.color = v;
+      const g = (node.properties.group || "").trim();
+      if (g) { pertGroups()[g] = v; pertRecolorGroup(g, v); }
       node.setDirtyCanvas(true);
     });
+
+    // #2/#14 Groupe : combobox enrichissable. La teinte du groupe est appliquee a la
+    // VALIDATION du champ (change/selection), pas a chaque frappe, pour ne pas
+    // perturber la saisie ni reconstruire le panneau pendant qu'on tape.
+    buildCombobox(content, "Groupe", node.properties.group, collectGroupNames(),
+      v => { node.properties.group = v; },   // onInput : memorise le texte au fil de la frappe
+      v => {                                  // onCommit : applique la teinte du groupe
+        node.properties.group = (v || "").trim();
+        pertApplyGroup(node);
+        if (colorInput) colorInput.value = node.properties.color; // resync sans rebuild
+        node.updateSize();
+        node.setDirtyCanvas(true, true);
+      });
+
+    // Action explicite : rattacher au groupe courant toutes les taches de meme couleur
+    // (pratique pour tagger un lot importe entier). Lit le groupe au moment du clic.
+    const sameColorBtn = document.createElement("button");
+    sameColorBtn.className = "panel-action";
+    sameColorBtn.textContent = "Appliquer ce groupe aux tâches de même couleur";
+    sameColorBtn.title = "Affecte le groupe courant à toutes les autres activités de même couleur";
+    sameColorBtn.addEventListener("click", () => pertApplyGroupToSameColor(node));
+    content.appendChild(sameColorBtn);
 
     buildCalcSection(content, node);
 
@@ -516,6 +550,123 @@ function buildField(parent, labelText, type, value, onChange, attrs) {
   if (type !== "color") input.addEventListener("input", handler);
   label.appendChild(input);
   parent.appendChild(label);
+  return input;
+}
+
+// Combobox enrichissable = <input> texte + <datalist> alimentee par les valeurs deja
+// saisies (Responsable, Groupe). L'utilisateur tape librement OU choisit une valeur
+// existante sans la ressaisir. onInput est appele a chaque frappe (memorisation au fil
+// de l'eau) ; onCommit (optionnel) a la validation (change/selection) — sert au Groupe
+// pour n'appliquer la teinte qu'une fois la saisie terminee. Si onCommit est omis,
+// onInput fait office des deux.
+function buildCombobox(parent, labelText, value, options, onInput, onCommit) {
+  const label = document.createElement("label");
+  label.textContent = labelText;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value !== null && value !== undefined ? value : "";
+  input.setAttribute("autocomplete", "off");
+  const listId = "dl-" + labelText.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  input.setAttribute("list", listId);
+  const dl = document.createElement("datalist");
+  dl.id = listId;
+  (options || []).forEach(o => {
+    const opt = document.createElement("option");
+    opt.value = o;
+    dl.appendChild(opt);
+  });
+  input.addEventListener("input", e => { onInput(e.target.value); pertHistoryMark(); });
+  input.addEventListener("change", e => { (onCommit || onInput)(e.target.value); pertHistoryMark(); });
+  label.appendChild(input);
+  label.appendChild(dl);
+  parent.appendChild(label);
+  return input;
+}
+
+// ─── Groupes (WP / métier / service) — registre couleur #14 ──────────────────────
+
+// Registre des couleurs memorisees par groupe (cree paresseusement).
+function pertGroups() {
+  if (!window.pertMeta.groups) window.pertMeta.groups = {};
+  return window.pertMeta.groups;
+}
+
+// Noms de groupes connus (registre + groupes effectivement portes par des Activites),
+// tries — alimente la datalist du combobox Groupe.
+function collectGroupNames() {
+  const set = new Set();
+  Object.keys(pertGroups()).forEach(k => { if (k) set.add(k); });
+  const g = window.pertGraph;
+  if (g && g._nodes) g._nodes.forEach(n => {
+    if (n.type === "pert/activity" && n.properties && n.properties.group) set.add(n.properties.group);
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"));
+}
+
+// Responsables deja saisis (datalist du combobox Responsable, #13 amorce).
+function collectResponsibles() {
+  const set = new Set();
+  const g = window.pertGraph;
+  if (g && g._nodes) g._nodes.forEach(n => {
+    if (n.type === "pert/activity" && n.properties && n.properties.responsible) set.add(n.properties.responsible);
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"));
+}
+
+// "Premier venu fixe la teinte" (#14) : a l'affectation d'un groupe, l'Activite herite
+// de la couleur memorisee du groupe si elle existe (#4 harmonisation), sinon sa couleur
+// courante DEVIENT celle du groupe (premiere activite a porter ce nom). Groupe vide →
+// rien (l'Activite garde sa couleur individuelle, compatible import).
+function pertApplyGroup(node) {
+  const g = (node.properties.group || "").trim();
+  node.properties.group = g;
+  if (!g) return;
+  const reg = pertGroups();
+  if (reg[g]) { node.properties.color = reg[g]; node.color = reg[g]; }
+  else { reg[g] = node.properties.color; }
+}
+
+// Action explicite (bouton du panneau) : affecte le groupe courant a toutes les autres
+// Activites de MEME couleur. Pensee pour les lots importes (une couleur = un lot) : on
+// tague une tache et on rattache tout le lot d'un clic. Choix "bouton explicite" (pas
+// d'automatisme) pour eviter les surprises avec le bleu par defaut des nouvelles taches.
+// Les taches deja dans ce groupe sont ignorees ; les autres voient leur groupe ecrase
+// (action deliberee, annulable par Ctrl+Z).
+function pertApplyGroupToSameColor(node) {
+  const g = (node.properties.group || "").trim();
+  if (!g) { showToast("Renseignez d'abord un groupe pour cette activité"); return; }
+  const color = (node.properties.color || "").toLowerCase();
+  const graph = window.pertGraph;
+  if (!graph || !graph._nodes) return;
+  // S'assure que le groupe est enregistre (premier-venu) avant de propager.
+  pertApplyGroup(node);
+  let n = 0;
+  graph._nodes.forEach(other => {
+    if (other === node || other.type !== "pert/activity" || !other.properties) return;
+    if ((other.properties.color || "").toLowerCase() !== color) return;
+    if ((other.properties.group || "").trim() === g) return; // deja ce groupe
+    other.properties.group = g;
+    other.setDirtyCanvas(true);
+    n++;
+  });
+  if (n > 0) pertHistoryMark();
+  showToast(n > 0
+    ? n + " tâche(s) de même couleur rattachée(s) au groupe « " + g + " »"
+    : "Aucune autre tâche de cette couleur à rattacher");
+}
+
+// Propage une couleur a toutes les Activites d'un groupe (changement de couleur d'un
+// membre → tout le groupe se recolore, #4).
+function pertRecolorGroup(groupName, color) {
+  const g = window.pertGraph;
+  if (!g || !g._nodes) return;
+  g._nodes.forEach(n => {
+    if (n.type === "pert/activity" && n.properties && (n.properties.group || "").trim() === groupName) {
+      n.properties.color = color;
+      n.color = color;
+      n.setDirtyCanvas(true);
+    }
+  });
 }
 
 function buildTextarea(parent, labelText, value, onChange) {

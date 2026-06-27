@@ -73,9 +73,18 @@ function ActivityNode() {
   this.addOutput("", "pert_flow");
 
   this.properties = {
+    // #34 Identifiant unique d'Activite — genere automatiquement, NI visible NI
+    // editable par l'utilisateur. Brique de fondation pour le micro-jalonnement et
+    // les exports Excel/Gantt a venir (S9). Stocke dans properties → serialise
+    // nativement par graph.serialize(), donc stable a la sauvegarde/chargement.
+    uid: pertGenUid(),
     label: "Nouvelle activité",
     duration: 1,
     responsible: "",
+    // #2 Dimension "groupe" (WP / metier / service) au-dela du responsable. Texte
+    // libre saisi via un combobox enrichissable (cf. ui.js). Couleur du groupe
+    // memorisee dans pertMeta.groups (#14) ; harmonisation visuelle #4.
+    group: "",
     color: "#4A90D9"
   };
 
@@ -469,6 +478,35 @@ function manageDynamicInputs(node, slotType) {
 LiteGraph.registerNodeType("pert/activity", ActivityNode);
 LiteGraph.registerNodeType("pert/milestone", MilestoneNode);
 LiteGraph.registerNodeType("pert/label", LabelNode);
+
+// ─── Identifiant unique d'Activité (#34) ────────────────────────────────────────
+//
+// Genere automatiquement a la creation d'une Activite, invisible et non editable.
+// Format court de type uuid (timestamp base36 + aleatoire) : la collision est
+// negligeable pour un usage mono-poste. Sert de cle stable aux futurs exports.
+
+function pertGenUid() {
+  return "a-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
+// Garantit l'unicite des uid d'Activite dans le graphe courant. A appeler apres les
+// operations qui peuvent dupliquer un uid (clone "Dupliquer", copier/coller, et par
+// securite apres un chargement .pert) : clone()/configure() recopient les properties
+// donc l'uid d'origine → on regenere l'uid des doublons (le 1er vu est conserve).
+function pertEnsureUids() {
+  const graph = window.pertGraph;
+  if (!graph || !graph._nodes) return;
+  const seen = new Set();
+  graph._nodes.forEach(n => {
+    if (n.type !== "pert/activity" || !n.properties) return;
+    let id = n.properties.uid;
+    if (!id || seen.has(id)) {
+      id = pertGenUid();
+      n.properties.uid = id;
+    }
+    seen.add(id);
+  });
+}
 
 // ─── Utilitaire ───────────────────────────────────────────────────────────────
 

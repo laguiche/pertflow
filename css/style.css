@@ -217,6 +217,26 @@ body {
   color: #fff;
 }
 
+/* Bouton d'action neutre du panneau (ex. propagation de groupe par couleur) */
+.panel-action {
+  margin-top: 8px;
+  padding: 6px 7px;
+  background: #1e2a40;
+  border: 1px solid #34507a;
+  border-radius: 4px;
+  color: #b9d2f5;
+  cursor: pointer;
+  font-size: 11px;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.panel-action:hover {
+  background: #2a3c5c;
+  color: #fff;
+}
+
 /* ─── Status bar ────────────────────────────────────────────────────────────── */
 #statusbar {
   display: flex;
