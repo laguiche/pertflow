@@ -85,6 +85,27 @@ document.addEventListener("DOMContentLoaded", () => {
     ];
   };
 
+  // #25 Cohérence linguistique : neutraliser les derniers panneaux/menus natifs
+  // LiteGraph en anglais encore atteignables (les menus contextuels de fond et de
+  // nœud sont déjà francisés ci-dessus).
+  // - Double-clic sur un nœud ouvrait le panneau natif anglais (Title/Properties…),
+  //   redondant ici puisque notre panneau de propriétés est toujours affiché à droite.
+  lgCanvas.onShowNodePanel = function () { /* supprime le panneau natif anglais */ };
+  // - Clic droit sur un lien ouvrait un menu natif anglais (« Add Node / Delete »).
+  //   On le remplace par un menu français minimal (suppression du lien).
+  lgCanvas.showLinkMenu = function (link, e) {
+    new LiteGraph.ContextMenu(["Supprimer le lien"], {
+      event: e,
+      callback: (v) => {
+        if (v === "Supprimer le lien" && link) {
+          graph.removeLink(link.id);   // déclenche onConnectionChange → recalc + historique
+          pertRecalc();
+        }
+      }
+    });
+    return false;
+  };
+
   // ── Snap-to-grid (option utilisateur, Session 4) ─────────────────────────────
   // Toggle toolbar : quand actif, le déplacement des nœuds s'aligne sur la grille
   // (align_to_grid natif LiteGraph) ET la grille devient visible. Décision figée :

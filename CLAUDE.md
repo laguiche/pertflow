@@ -308,7 +308,7 @@ onDrawForeground(ctx) {
 > **découpé en 2 temps** (S6 dimension+couleur, S7 filtre+coût) ; **doc en dernier**.
 >
 > Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 ✅
-> → S5 (correctifs & quick wins) → S6/S7 (regroupement métier WP) → S8
+> → S5 ✅ (correctifs & quick wins) → S6/S7 (regroupement métier WP) → S8
 > (propriétés & jalons enrichis) → S9 (exports avancés) → S10 (liens & layout) → Doc (fin)**.
 
 ### Session 0 — Mise en place du dépôt GitHub ✅ TERMINÉE
@@ -571,23 +571,55 @@ libs inlinées) — tous en navigateur réel (Playwright/Chromium, `file://`), 0
 
 ---
 
-### Session 5 — Correctifs & quick wins (retour utilisateur Mickael) ⏳ À VENIR
+### Session 5 — Correctifs & quick wins (retour utilisateur Mickael) ✅ TERMINÉE (27/06/2026)
 Issue du 2e retour utilisateur du 27/06/2026 (`remarques_mickael`). Petits efforts,
 forte satisfaction perçue, faible risque — traités en premier (arbitrage utilisateur).
 **Objectifs** :
-- [ ] **#25 (bug)** Cohérence linguistique : supprimer le mélange français/anglais dans l'UI
-- [ ] **#26 (bug)** Dernier lien du chemin critique non coloré en rouge — corriger la
-  remontée des prédécesseurs jusqu'au nœud terminal (la fonction de tracé existe depuis S2.5)
-- [ ] **#29 (bug)** Export PDF : améliorer la définition et réduire le poids du fichier
-- [ ] **#8** Revoir l'affichage du responsable dans le nœud Activité
-- [ ] **#20** Coin du Jalon en vert quand la cible est tenue avec marge suffisante
-  (symétrique du rouge « cible non tenue » déjà en place)
-- [ ] **#15** Réorganisation : empêcher qu'un Label se retrouve superposé à une activité
-- [ ] **#28 (bug)** Neutraliser la barre de recherche LiteGraph au double-clic sur le fond
-  (si non déjà traité dans le nettoyage clic droit de S4)
+- [x] **#25 (bug)** Cohérence linguistique : neutralisation des derniers panneaux/menus
+  natifs LiteGraph en anglais (panneau de nœud au double-clic, menu de lien au clic droit)
+- [x] **#26 (bug)** Dernier lien du chemin critique non coloré — descente symétrique vers
+  le nœud terminal ajoutée à `pertHighlightCriticalPath` (le tracé ne s'arrêtait plus à la
+  cible sélectionnée mais allait jusqu'au terminal en aval)
+- [x] **#29 (bug)** Export PDF : `compress:true` (flux image deflate sans perte → poids
+  ÷10, de ~1,5 Mo à ~150 Ko) + rendu hors-écran en 2× (meilleure définition)
+- [x] **#8** Responsable déplacé dans l'en-tête coloré du nœud Activité (texte blanc + 👤,
+  tronqué si trop long) — auparavant même police/taille que « Fin t.tôt » et collé à elle,
+  les deux infos se confondaient (décision utilisateur : « dans l'en-tête coloré »)
+- [x] **#20** Coin/exergue du Jalon en vert quand la cible est tenue avec marge ≥ 1 unité
+  (orange si juste tenue, rouge si ratée/critique) — décision utilisateur : 3 états avec seuil
+- [x] **#15** Réorganisation : les Labels chevauchant un nœud placé sont relogés dans une
+  bande libre sous le graphe (les Labels non gênants gardent leur position)
+- [x] **#28 (bug)** Barre de recherche LiteGraph neutralisée — **livré en S4** (`allow_searchbox = false`)
 
 **Critère de validation** :
 L'utilisateur métier ne relève plus #25/#26/#28/#29 ; rendu validé en navigateur réel.
+**État** : implémenté et validé par tests headless navigateur (`tools/smoke-critical.js` #26,
+`tools/smoke-s5.js` #15/#20/#8) + smoke existant sans régression + capture de contrôle
+(en-tête responsable, coin vert/rouge, chemin critique complet). **Validation visuelle
+utilisateur à confirmer avant merge** (même schéma que S4).
+
+**Implémentation — décisions notables (27/06/2026)** :
+- **#26** : la coloration du chemin critique part de la cible (nœud sélectionné, sinon
+  terminal d'EF max) et **remonte** les prédécesseurs contraignants ; on a ajouté une
+  **descente symétrique** vers l'aval (successeurs que le nœud contraint, EF cale le ES),
+  jusqu'au nœud terminal. Sans effet quand la cible est déjà le terminal (clic fond) →
+  comportement par défaut inchangé.
+- **#25** : les menus contextuels étaient déjà francisés en S4 ; restaient deux entrées
+  natives anglaises — le **panneau de nœud** au double-clic (`onShowNodePanel` → no-op) et
+  le **menu de lien** au clic droit (`showLinkMenu` remplacé par un menu FR « Supprimer le lien »).
+- **#29** : le poids venait de l'absence de compression jsPDF (image stockée brute), pas de
+  la résolution. `compress:true` = gain sans perte ; le 2× est un bonus de netteté.
+  `pertRenderToCanvas(renderScale)` accepte un facteur de suréchantillonnage (PNG reste à 1×).
+- **#8** : `MILESTONE_GREEN_MARGIN` mis à part, le responsable passe de la section info à
+  l'en-tête → `infoH` repasse à 28 (constante) et `headerH` intègre une ligne responsable.
+  Troncature par `ellipsize()` (helper canvas) pour éviter tout débordement.
+- **#20** : état calculé par `MilestoneNode.prototype.targetState()` (« alert »/« safe »/
+  « neutral ») — testable isolément. Marge mesurée **vis-à-vis de la cible** (`dueOffset - ef`),
+  pas le slack (qui peut être borné par l'aval). Un Jalon **terminal est toujours critique**
+  (slack 0) donc rouge : le vert concerne les **jalons intermédiaires** non critiques (cibles
+  type DOTD/COTD).
+- **#15** : `pertRelocateOverlappingLabels` appelée en fin de `pertAutoLayout` ; ne déplace
+  que les Labels en recouvrement (test d'intersection de rectangles), empilés sous le graphe.
 
 ---
 
@@ -792,3 +824,20 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   → `dist/pertflow.html` (libs+sources inlinés, 0 requête externe, `dist/` gitignoré)
 - Validé en navigateur réel (Playwright/Chromium, `file://`) : `tools/smoke.js` sans
   régression + nouveau `tools/smoke-s4.js` + vérification du bundle, 0 erreur console
+- **Mergé sur `main`, tagué `v0.5`, poussé** après validation visuelle utilisateur (Firefox).
+  ⚠️ Numérotation des tags décalée (S2.5 a consommé un tag) : v0.1=S1, v0.2=S2, v0.3=S2.5,
+  v0.4=S3, v0.5=S4 → la prochaine session sera v0.6
+
+### Session 5 (27/06/2026) — correctifs & quick wins (retour Mickael)
+- 7 remarques traitées (#25, #26, #29, #8, #20, #15 ; #28 déjà livré en S4) sur la branche
+  `session/5-correctifs`. Détail et décisions d'implémentation dans la section Session 5
+  plus haut. Deux arbitrages visuels tranchés par l'utilisateur : #8 responsable « dans
+  l'en-tête coloré » ; #20 coin vert « si marge confortable » (3 états, seuil 1 unité)
+- `src/pert_engine.js` : descente symétrique vers le terminal dans
+  `pertHighlightCriticalPath` (#26) + `pertRelocateOverlappingLabels` (#15) ;
+  `src/nodes.js` : responsable dans l'en-tête + `ellipsize` (#8), `targetState` 3 états +
+  `MILESTONE_GREEN_MARGIN` (#20) ; `src/export.js` : `pertRenderToCanvas(renderScale)` +
+  `compress:true` (#29) ; `src/ui.js` : `onShowNodePanel` no-op + `showLinkMenu` FR (#25)
+- Validé : `tools/smoke-critical.js` (#26), `tools/smoke-s5.js` (#15/#20/#8), smoke existant
+  sans régression, capture de contrôle. **Validation visuelle utilisateur à confirmer avant
+  merge/tag v0.6**

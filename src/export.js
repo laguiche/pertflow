@@ -12,8 +12,11 @@ const PERT_EXPORT_MARGIN = 30;     // marge en pixels autour du planning
 const PERT_EXPORT_MAX_PX = 6000;   // garde-fou resolution (memoire canvas)
 
 // Rend tout le graphe dans un canvas hors-ecran a fond blanc.
+// renderScale (defaut 1) = facteur de suréchantillonnage : un rendu a 2x produit
+// une image plus nette une fois ajustee a la page (utile pour le PDF, #29), au prix
+// d'une resolution plus elevee (bornee par PERT_EXPORT_MAX_PX).
 // Renvoie { canvas, w, h } ou null si rien a exporter.
-function pertRenderToCanvas() {
+function pertRenderToCanvas(renderScale) {
   const graph = window.pertGraph;
   const nodes = graph && graph._nodes ? graph._nodes : [];
   if (!nodes.length) return null;
@@ -28,17 +31,20 @@ function pertRenderToCanvas() {
     maxX = Math.max(maxX, b[0] + b[2]);
     maxY = Math.max(maxY, b[1] + b[3]);
   }
-  const m = PERT_EXPORT_MARGIN;
-  let w = Math.ceil(maxX - minX + 2 * m);
-  let h = Math.ceil(maxY - minY + 2 * m);
+  const m = PERT_EXPORT_MARGIN;                 // marge en pixels image
+  let scale = renderScale && renderScale > 0 ? renderScale : 1;
+  // Dimensions image = boite englobante mise a l'echelle + marges (en px image).
+  let w = Math.ceil((maxX - minX) * scale + 2 * m);
+  let h = Math.ceil((maxY - minY) * scale + 2 * m);
   if (w <= 0 || h <= 0) return null;
 
-  // Garde-fou : borne la resolution en conservant le ratio (gros plannings).
-  let scale = 1;
+  // Garde-fou : borne la resolution en conservant le ratio (gros plannings ou
+  // facteur de suréchantillonnage trop ambitieux).
   if (w > PERT_EXPORT_MAX_PX || h > PERT_EXPORT_MAX_PX) {
-    scale = Math.min(PERT_EXPORT_MAX_PX / w, PERT_EXPORT_MAX_PX / h);
-    w = Math.floor(w * scale);
-    h = Math.floor(h * scale);
+    const k = Math.min(PERT_EXPORT_MAX_PX / w, PERT_EXPORT_MAX_PX / h);
+    scale *= k;
+    w = Math.floor(w * k);
+    h = Math.floor(h * k);
   }
 
   const off = document.createElement("canvas");
@@ -94,7 +100,8 @@ function pertExportPNG() {
 // Export PDF : capture hors-ecran → page A4 (orientation selon le ratio),
 // image ajustee a la page en conservant les proportions, titre en en-tete.
 function pertExportPDF() {
-  const res = pertRenderToCanvas();
+  // #29 Rendu a 2x pour une meilleure definition une fois l'image ajustee a l'A4.
+  const res = pertRenderToCanvas(2);
   if (!res) { showToast("Rien a exporter (planning vide)"); return; }
 
   const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
@@ -102,7 +109,9 @@ function pertExportPDF() {
 
   const dataUrl = res.canvas.toDataURL("image/png");
   const orientation = res.w >= res.h ? "landscape" : "portrait";
-  const pdf = new jsPDFCtor({ orientation, unit: "pt", format: "a4" });
+  // #29 compress:true → flux image deflate (sans perte) : reduit drastiquement le
+  // poids du PDF (jsPDF stockait l'image non compressee, d'ou des fichiers ~1,5 Mo).
+  const pdf = new jsPDFCtor({ orientation, unit: "pt", format: "a4", compress: true });
 
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
