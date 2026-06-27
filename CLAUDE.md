@@ -307,8 +307,8 @@ onDrawForeground(ctx) {
 > correctifs/quick wins **avant** le chantier métier ; chantier « regroupement WP »
 > **découpé en 2 temps** (S6 dimension+couleur, S7 filtre+coût) ; **doc en dernier**.
 >
-> Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 (en
-> cours) → S5 (correctifs & quick wins) → S6/S7 (regroupement métier WP) → S8
+> Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 ✅
+> → S5 (correctifs & quick wins) → S6/S7 (regroupement métier WP) → S8
 > (propriétés & jalons enrichis) → S9 (exports avancés) → S10 (liens & layout) → Doc (fin)**.
 
 ### Session 0 — Mise en place du dépôt GitHub ✅ TERMINÉE
@@ -486,17 +486,21 @@ valide) → export PDF (`%PDF-`) → copier/coller (6→12) → Label `updateSiz
 
 ---
 
-### Session 4 — Finitions UX et packaging ⏳ EN COURS
+### Session 4 — Finitions UX et packaging ✅ TERMINÉE (27/06/2026)
 **Objectifs** :
 - [x] **Undo/Redo** (26/06/2026) — historique par snapshots (`src/history.js`)
-- [ ] Menu contextuel clic droit
-- [ ] Snap-to-grid (optionnel)
-- [ ] Gestion des erreurs UI
-- [ ] Toolbar avec icônes
-- [ ] HTML standalone bundlé
+- [x] **Menu contextuel clic droit** (27/06/2026) — menus francisés recentrés PERT
+  (fond + nœud) ; couvre #27/#45 (nettoyage) et #28 (searchbox neutralisée)
+- [x] **Snap-to-grid** (27/06/2026) — toggle toolbar, grille visible seulement si activée
+- [x] **Gestion des erreurs UI** (27/06/2026) — toast d'erreur rouge, `guardUI`, filet global
+- [x] **Toolbar avec icônes** (27/06/2026) — glyphes Unicode homogènes (techno actuelle)
+- [x] **HTML standalone bundlé** (27/06/2026) — `scripts/build-bundle.js` → `dist/pertflow.html`
 
 **Critère de validation** :
 Test utilisateur métier sans assistance.
+**Validé** : smoke test existant sans régression + `tools/smoke-s4.js` (menus, searchbox,
+snap, toast d'erreur, duplication) + vérif du bundle généré (init OK, 0 requête non-`file://`,
+libs inlinées) — tous en navigateur réel (Playwright/Chromium, `file://`), 0 erreur console.
 
 > Note : la « Guide utilisateur 1 page » initialement prévue ici est **déplacée et
 > étoffée dans la session Doc finale** (manuel utilisateur complet), décision du
@@ -533,6 +537,37 @@ Test utilisateur métier sans assistance.
   le fichier bundlé dans un répertoire **`./dist`**. La **structure actuelle est
   conservée** (`index.html` + `src/` + `lib/`) pour poursuivre les développements ;
   le bundle n'est qu'un artefact de livraison, pas le format de travail.
+
+**Implémentation — décisions notables (27/06/2026)** :
+- **Menus contextuels = `getMenuOptions` / `getNodeMenuOptions` surchargés** sur
+  l'instance `LGraphCanvas` (PAS `getExtraMenuOptions`, qui ne fait qu'ajouter au menu
+  natif). On **remplace** ainsi intégralement les menus natifs anglais (Add Node/Group,
+  Inputs/Outputs/Properties/Title/Mode/Resize/Collapse/Pin/Colors/Shapes) par des items
+  français recentrés PERT. Menu de fond = ajout des 3 types de nœuds + Réorganiser +
+  Tout afficher ; menu de nœud = Dupliquer + Supprimer.
+- **Position d'ajout sous le curseur** : `processContextMenu` est wrappé pour mémoriser
+  `convertEventToCanvasOffset(event)` (coords graphe) **avant** que LiteGraph ne construise
+  le menu ; `getMenuOptions` lit cette position pour poser le nœud là où on a cliqué.
+- **#28 searchbox** : `lgCanvas.allow_searchbox = false` neutralise la barre de recherche
+  qui s'ouvrait au double-clic sur le fond (sans valeur pour un usage PERT).
+- **Snap-to-grid** : `lgCanvas.align_to_grid` (natif) pour l'alignement au déplacement ;
+  grille dessinée à la main dans `lgCanvas.onDrawBackground` (espace graphe, ctx déjà
+  transformé) **uniquement si `pertSnapEnabled`** — et **omise si `GRID_STEP*scale < 6 px`**
+  (illisible au zoom arrière). Pas de réalignement rétroactif des nœuds existants
+  (l'alignement se fait au prochain déplacement).
+- **Gestion d'erreurs** : `showToast(msg, isError)` + helper `showError` (toast rouge),
+  `guardUI(context, fn)` enrobant les actions risquées (sauvegarde/ouverture/export/import),
+  et un filet global (`window.error` / `unhandledrejection`) — indispensable en `file://`
+  où l'utilisateur métier n'a pas accès à la console.
+- **Bundle** (`scripts/build-bundle.js`, Node natif, aucune dépendance) : inline des
+  `<link rel=stylesheet>` → `<style>` et des `<script src>` → `<script>` par regex sur
+  `index.html`, avec échappement défensif de `</script>`/`</style>` dans les contenus
+  minifiés et **garde-fou** qui échoue s'il reste une référence `lib/`/`src/`/`css/`.
+  Sortie `dist/pertflow.html` (~1,6 Mo), `dist/` gitignoré (artefact). `scripts/` est
+  suivi par git (contrairement à `tools/`, outillage de validation gitignoré).
+- **Icônes toolbar** : glyphes Unicode monochromes pour les 3 boutons d'ajout
+  (▭ Activité / ◈ Jalon / ❏ Label) + bouton ▦ Grille, homogènes avec le reste de la
+  toolbar (emoji/Unicode), sans dépendance ni fichier externe.
 
 ---
 
@@ -734,7 +769,7 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   réel (Playwright/Chromium) sur `C_PERT_exemple.xlsm` couvrant import/sauvegarde/rechargement/
   export PNG+PDF/copier-coller/Label, 0 erreur console + validation visuelle utilisateur
 
-### Session 4 (26/06/2026) — en cours
+### Session 4 (26-27/06/2026) — terminée
 - Reprise après crash PC en plein travail sur l'undo/redo (récupération du travail
   non commité : `src/history.js` intact, câblage `index.html`/`ui.js` présent)
 - **Undo/Redo livré** : `src/history.js` (historique par snapshots, coalescence des
@@ -749,5 +784,11 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   grille visible seulement si activée ; icônes sur techno actuelle, SVG inline en
   évolution future possible ; bundle généré à la demande dans `./dist`, structure
   conservée) — détail dans la section Session 4 plus haut
-- **Reste à faire** : menu contextuel clic droit, snap-to-grid, gestion erreurs UI,
-  icônes toolbar, bundle HTML standalone
+- **Finitions livrées (27/06/2026)** : menus contextuels francisés recentrés PERT
+  (`getMenuOptions`/`getNodeMenuOptions` surchargés, ajout de nœud sous le curseur),
+  searchbox neutralisée (#28) ; snap-to-grid en toggle (grille visible si activée) ;
+  gestion d'erreurs UI (toast rouge `showError`, `guardUI`, filet global `window.error`) ;
+  icônes Unicode homogènes sur la toolbar ; bundle standalone `scripts/build-bundle.js`
+  → `dist/pertflow.html` (libs+sources inlinés, 0 requête externe, `dist/` gitignoré)
+- Validé en navigateur réel (Playwright/Chromium, `file://`) : `tools/smoke.js` sans
+  régression + nouveau `tools/smoke-s4.js` + vérification du bundle, 0 erreur console

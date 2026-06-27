@@ -16,3 +16,6 @@ node_modules/
 
 # Outillage de validation/captures (Playwright local, hors livraison)
 tools/
+
+# Bundle HTML standalone genere a la demande (artefact de livraison, cf. scripts/)
+dist/

@@ -231,7 +231,7 @@ PDF (en-tête `%PDF-` valide) → copier/coller (6→12) → Label `updateSize`.
 Rendu PNG inspecté visuellement (fond blanc, chemin critique rouge, nœuds custom). Critère de
 validation S3 atteint.
 
-### Session 4 — Finitions UX, puis intégration d'un 2e retour utilisateur (⏳ en cours, 26–27/06/2026)
+### Session 4 — Finitions UX, puis intégration d'un 2e retour utilisateur (✅ terminée, 26–27/06/2026)
 
 **Undo/Redo (26/06/2026).** Historique par **snapshots sérialisés** (`meta` +
 `graph.serialize()`, restaurés par `configure()` — même mécanisme que la persistance
@@ -240,6 +240,37 @@ validation S3 atteint.
 baseline réinitialisée au démarrage **et** après chargement `.pert`. Pur JS, `<script src>`,
 zéro dépendance (contrainte `file://`). Récupéré après un crash PC en plein travail (le code
 non commité — `src/history.js` + câblage — était intact). Validé en navigateur réel.
+
+**Finitions UX & packaging (27/06/2026).** Bouclage des cinq dernières tâches de la session :
+- **Menus contextuels recentrés PERT.** Les menus natifs LiteGraph (anglais, pleins
+  d'options sans objet ici : Inputs/Outputs/Mode/Pin/Shapes…) sont **remplacés** en
+  surchargeant `getMenuOptions` (fond) et `getNodeMenuOptions` (nœud) — pas en *ajoutant*
+  via `getExtraMenuOptions`. Menu de fond = ajouter Activité/Jalon/Label **à l'endroit
+  cliqué** (position mémorisée en interceptant `processContextMenu`), Réorganiser, Tout
+  afficher ; menu de nœud = Dupliquer / Supprimer. La barre de recherche parasite au
+  double-clic (#28) est neutralisée (`allow_searchbox = false`).
+- **Snap-to-grid en option.** Toggle toolbar : alignement natif au déplacement
+  (`align_to_grid`) + grille dessinée à la main dans `onDrawBackground` **seulement quand
+  l'option est active** (et masquée au zoom arrière où elle deviendrait illisible).
+- **Gestion d'erreurs UI.** Toast rouge (`showError`), enrobage `guardUI` des actions
+  risquées (sauvegarde / ouverture / export / import) et filet global
+  (`window.error` / `unhandledrejection`) — crucial en `file://`, où l'utilisateur métier
+  n'a pas de console pour voir une exception silencieuse.
+- **Icônes toolbar** homogènes (glyphes Unicode, techno actuelle conservée).
+- **Bundle standalone** : `scripts/build-bundle.js` (Node natif, zéro dépendance) inline
+  CSS + libs + sources dans un unique `dist/pertflow.html` ouvrable par double-clic, avec
+  un garde-fou qui échoue s'il subsiste une référence externe. `dist/` est gitignoré
+  (artefact de livraison) ; la structure de travail (`index.html` + `src/` + `lib/`) reste
+  le format de développement.
+
+> **🎙️ Restitution — « finir » un outil métier, c'est retirer les aspérités de la lib
+> sous-jacente.** Aucune de ces cinq tâches n'ajoute de fonction PERT ; toutes rendent
+> l'outil *présentable* à un utilisateur non technique. Le fil conducteur des contraintes
+> `file://`/DSI se retrouve jusque dans les finitions : pas de console pour l'utilisateur →
+> on rend les erreurs visibles ; pas de serveur ni de build toléré → le bundle est un simple
+> script Node qui produit un HTML autoportant. Le menu contextuel illustre un piège récurrent
+> du dev assisté : une librairie tierce (LiteGraph) impose ses défauts (menu anglais, barre de
+> recherche) qu'il faut *surcharger* au bon point d'extension, pas contourner.
 
 **2e retour utilisateur structuré (27/06/2026).** L'utilisateur métier (« Mickael ») a
 transmis **32 remarques**, qu'il avait lui-même **pré-classées en catégories** (à
