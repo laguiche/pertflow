@@ -681,6 +681,10 @@ arbitrage utilisateur). Temps 1 = modèle de données + restitution visuelle.
   (registre `pertMeta.groups` persistant dans le `.pert`, réutilisable rapidement)
 - [x] **#4** Harmonisation visuelle : les activités d'un même groupe partagent une teinte
   → zones par WP/métier lisibles « de loin » sur un PERT chargé
+- [x] **Propagation du groupe par couleur** (ajout en cours de session, demande utilisateur) :
+  bouton « Appliquer ce groupe aux tâches de même couleur » → tague d'un clic tout un lot
+  importé (une couleur = un lot). Choix utilisateur : **bouton explicite** (pas d'automatisme,
+  pour éviter de tagger en masse le bleu par défaut des nouvelles tâches)
 
 **Décisions de conception figées en début de session (arbitrage utilisateur)** :
 - **Modèle du groupe = combobox enrichissable** (texte libre + `<datalist>` des valeurs
@@ -728,6 +732,14 @@ v0.6** (même schéma que S4/S5).
   groupe (couleur d'import individuelle) ; l'utilisateur les affecte à un groupe ensuite s'il
   le souhaite, et l'héritage prend le relais. `IMPORT_COLOR_PALETTE`/`pickDefaultImportColor`
   inchangés.
+- **Propagation du groupe par couleur** (`pertApplyGroupToSameColor`, bouton `.panel-action`
+  dans le panneau Activité) : affecte le groupe courant à toutes les autres Activités de
+  **même couleur** (`color` comparé en minuscules). Pensé pour les lots importés (1 couleur =
+  1 lot) → tag d'un clic. **Bouton explicite** (et non un automatisme à la saisie du groupe) :
+  décision utilisateur pour éviter de propager en masse sur le bleu par défaut des nouvelles
+  tâches. Les tâches déjà dans ce groupe sont ignorées ; les autres voient leur groupe écrasé
+  (action délibérée, annulable par Ctrl+Z). Le groupe est d'abord enregistré (`pertApplyGroup`)
+  pour rester cohérent avec le registre. Toast récapitulatif (n tâches rattachées).
 
 ---
 

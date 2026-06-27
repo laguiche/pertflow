@@ -489,6 +489,15 @@ function showProperties(node) {
         node.setDirtyCanvas(true, true);
       });
 
+    // Action explicite : rattacher au groupe courant toutes les taches de meme couleur
+    // (pratique pour tagger un lot importe entier). Lit le groupe au moment du clic.
+    const sameColorBtn = document.createElement("button");
+    sameColorBtn.className = "panel-action";
+    sameColorBtn.textContent = "Appliquer ce groupe aux tâches de même couleur";
+    sameColorBtn.title = "Affecte le groupe courant à toutes les autres activités de même couleur";
+    sameColorBtn.addEventListener("click", () => pertApplyGroupToSameColor(node));
+    content.appendChild(sameColorBtn);
+
     buildCalcSection(content, node);
 
   } else if (node.type === "pert/milestone") {
@@ -615,6 +624,35 @@ function pertApplyGroup(node) {
   const reg = pertGroups();
   if (reg[g]) { node.properties.color = reg[g]; node.color = reg[g]; }
   else { reg[g] = node.properties.color; }
+}
+
+// Action explicite (bouton du panneau) : affecte le groupe courant a toutes les autres
+// Activites de MEME couleur. Pensee pour les lots importes (une couleur = un lot) : on
+// tague une tache et on rattache tout le lot d'un clic. Choix "bouton explicite" (pas
+// d'automatisme) pour eviter les surprises avec le bleu par defaut des nouvelles taches.
+// Les taches deja dans ce groupe sont ignorees ; les autres voient leur groupe ecrase
+// (action deliberee, annulable par Ctrl+Z).
+function pertApplyGroupToSameColor(node) {
+  const g = (node.properties.group || "").trim();
+  if (!g) { showToast("Renseignez d'abord un groupe pour cette activité"); return; }
+  const color = (node.properties.color || "").toLowerCase();
+  const graph = window.pertGraph;
+  if (!graph || !graph._nodes) return;
+  // S'assure que le groupe est enregistre (premier-venu) avant de propager.
+  pertApplyGroup(node);
+  let n = 0;
+  graph._nodes.forEach(other => {
+    if (other === node || other.type !== "pert/activity" || !other.properties) return;
+    if ((other.properties.color || "").toLowerCase() !== color) return;
+    if ((other.properties.group || "").trim() === g) return; // deja ce groupe
+    other.properties.group = g;
+    other.setDirtyCanvas(true);
+    n++;
+  });
+  if (n > 0) pertHistoryMark();
+  showToast(n > 0
+    ? n + " tâche(s) de même couleur rattachée(s) au groupe « " + g + " »"
+    : "Aucune autre tâche de cette couleur à rattacher");
 }
 
 // Propage une couleur a toutes les Activites d'un groupe (changement de couleur d'un

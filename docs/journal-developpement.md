@@ -399,6 +399,14 @@ modèle de données et la restitution visuelle, S7 ajoutera le filtre et le coû
   ne sert qu'à mémoriser (persisté dans le `.pert`) et à propager. Le point « propagation au
   changement » (laissé ouvert à la décision) a été tranché côté implémentation : changer la
   couleur d'un membre recolore tout le groupe, sinon l'harmonisation #4 se déliterait.
+- **Propagation du groupe par couleur (ajout en cours de session).** Après validation de la
+  propagation *couleur*, l'utilisateur a demandé la réciproque : « quand on saisit un groupe,
+  toutes les tâches de même couleur pourraient porter ce groupe ? ». Très utile pour les lots
+  importés (une couleur = un lot → on tague tout d'un clic). Le piège soulevé en réponse : le
+  **bleu par défaut** des nouvelles tâches rendrait une propagation automatique dangereuse
+  (taggage de masse involontaire). L'utilisateur a tranché pour un **bouton explicite**
+  « Appliquer ce groupe aux tâches de même couleur » plutôt qu'un automatisme — convenance sans
+  surprise, et de toute façon annulable (Ctrl+Z).
 
 > **🎙️ Restitution — l'utilisateur choisit le bon *modèle*, pas seulement la couleur du bouton.**
 > Les deux décisions soumises en début de session étaient structurantes (modèle de saisie du
