@@ -40,7 +40,16 @@ document.addEventListener("DOMContentLoaded", () => {
   lgCanvas.processContextMenu = function (node, event) {
     try { lastCtxGraphPos = this.convertEventToCanvasOffset(event); }
     catch (e) { lastCtxGraphPos = null; }
-    return origProcessContextMenu.call(this, node, event);
+    const ret = origProcessContextMenu.call(this, node, event);
+    // #25 LiteGraph met node.type ("pert/activity"…) comme TITRE du menu de nœud
+    // (cf. options.title = node.type dans processContextMenu). On le remplace, apres
+    // creation du menu, par le libelle FR du type (ActivityNode.title = "Activité"…).
+    if (node) {
+      const titles = document.querySelectorAll(".litemenu-title");
+      const el = titles[titles.length - 1]; // le menu qu'on vient d'ouvrir
+      if (el) el.textContent = (node.constructor && node.constructor.title) || node.type;
+    }
+    return ret;
   };
 
   // Ajoute un nœud du type donné à la position graphe fournie (ou au centre).

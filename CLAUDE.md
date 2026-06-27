@@ -609,9 +609,12 @@ utilisateur à confirmer avant merge** (même schéma que S4).
   dans `renderLink`), ce qui **masquait** le rouge sur le dernier lien d'un jalon sélectionné.
   Corrigé en vidant `highlighted_links` dans notre `onDrawBackground` (appelé juste avant
   `drawConnections` dans `drawBackCanvas`) → nos couleurs de lien priment, sans patcher la lib.
-- **#25** : les menus contextuels étaient déjà francisés en S4 ; restaient deux entrées
-  natives anglaises — le **panneau de nœud** au double-clic (`onShowNodePanel` → no-op) et
-  le **menu de lien** au clic droit (`showLinkMenu` remplacé par un menu FR « Supprimer le lien »).
+- **#25** : les menus contextuels étaient déjà francisés en S4 ; restaient des entrées
+  natives anglaises — le **panneau de nœud** au double-clic (`onShowNodePanel` → no-op), le
+  **menu de lien** au clic droit (`showLinkMenu` remplacé par un menu FR « Supprimer le lien »),
+  et (post-validation) le **titre du menu de nœud** : LiteGraph y met `node.type`
+  (« pert/activity »…) via `processContextMenu` ; notre wrapper le remplace après création
+  par `node.constructor.title` (« Activité »/« Jalon »/« Label »), sans patcher la lib.
 - **#29** : le poids venait de l'absence de compression jsPDF (image stockée brute), pas de
   la résolution. `compress:true` = gain sans perte ; le 2× est un bonus de netteté.
   `pertRenderToCanvas(renderScale)` accepte un facteur de suréchantillonnage (PNG reste à 1×).
