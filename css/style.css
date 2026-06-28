@@ -409,6 +409,117 @@ body {
   cursor: pointer;
 }
 
+/* Champ Groupe du dialogue d'import (S7 A) + note dynamique */
+.dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #aab4c8;
+}
+.dialog-field input[type="text"] {
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  color: #dde3ec;
+  padding: 6px 9px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.dialog-field input[type="text"]:focus { outline: none; border-color: #5a8fd8; }
+.dialog-note {
+  margin: -4px 0 0;
+  font-size: 11px;
+  color: #8b97ad;
+  line-height: 1.35;
+}
+/* Couleur verrouillee (groupe existant) : pastilles + selecteur grises */
+.color-swatches.locked { opacity: 0.4; pointer-events: none; }
+.dialog input[type="color"]:disabled { opacity: 0.45; cursor: default; }
+
+/* ─── Contrôle de filtre custom (toolbar, S7 C) ──────────────────────────────── */
+/* Menu déroulant maison : les <option> natives n'affichent pas de couleur de fond
+   sous Firefox → on dessine nos propres lignes avec pastilles de couleur. */
+#filter-control { position: relative; display: inline-flex; }
+
+#filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  background: #1a2a4a;
+  color: #ccd6f0;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+#filter-trigger:hover { background: #243a6a; border-color: #6a9fd8; color: #fff; }
+#filter-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 170px;
+  overflow: hidden;
+}
+.filter-caret { opacity: 0.7; font-size: 10px; }
+
+.filter-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.35);
+  flex: 0 0 auto;
+}
+/* Pastille "aucun" : petit damier neutre */
+.filter-swatch.none {
+  background: repeating-linear-gradient(45deg, #6a7390, #6a7390 3px, #aab2c8 3px, #aab2c8 6px);
+}
+
+.filter-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 200px;
+  max-height: 340px;
+  overflow-y: auto;
+  background: #16183a;
+  border: 1px solid #2a3a7a;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  z-index: 1000;
+  padding: 4px;
+}
+.filter-menu[hidden] { display: none; }
+
+.filter-menu-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7b88a8;
+  padding: 6px 8px 2px;
+}
+
+.filter-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #dde3ec;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.filter-menu-row:hover { background: #243a6a; }
+.filter-menu-row.active { background: #1a4a9a; }
+.filter-row-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* ─── Toast ─────────────────────────────────────────────────────────────────── */
 #toast {
   position: fixed;

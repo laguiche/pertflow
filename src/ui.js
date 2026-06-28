@@ -264,6 +264,23 @@ document.addEventListener("DOMContentLoaded", () => {
       : "Grille aimantée désactivée");
   });
 
+  // S7 (C) — Filtre / mise en evidence par groupe ou couleur. Menu deroulant CUSTOM
+  // (les <option> natives n'affichent pas de couleur de fond sous Firefox) : pastilles
+  // de couleur garanties dans tous les navigateurs. La liste est reconstruite a chaque
+  // ouverture pour refleter l'etat courant (groupes/couleurs presents).
+  const filterTrigger = document.getElementById("filter-trigger");
+  if (filterTrigger) {
+    updateFilterTrigger();
+    filterTrigger.addEventListener("click", (e) => { e.stopPropagation(); toggleFilterMenu(); });
+    // Clic hors du controle → ferme le menu.
+    document.addEventListener("click", (e) => {
+      const ctrl = document.getElementById("filter-control");
+      if (ctrl && !ctrl.contains(e.target)) closeFilterMenu();
+    });
+    // Echap → ferme le menu.
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeFilterMenu(); });
+  }
+
   // Undo / Redo (Session 4)
   document.getElementById("btn-undo").addEventListener("click", () => pertUndo());
   document.getElementById("btn-redo").addEventListener("click", () => pertRedo());
@@ -276,6 +293,12 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("excel-input").addEventListener("change", (e) => {
     const file = e.target.files && e.target.files[0];
     if (file) handleExcelFile(file);
+  });
+
+  // Bouton « À propos » : auteur, licence, date de génération du bundle et tag main.
+  document.getElementById("btn-info").addEventListener("click", openAbout);
+  document.getElementById("about-close").addEventListener("click", () => {
+    document.getElementById("about-dialog").style.display = "none";
   });
 
   document.getElementById("btn-settings").addEventListener("click", openSettings);
@@ -669,6 +692,172 @@ function pertRecolorGroup(groupName, color) {
   });
 }
 
+// ─── #16 Filtre / mise en évidence (par groupe ou couleur) — S7 (C) ──────────────
+//
+// Le filtre est un etat de VUE (window.pertFilter), non serialise dans le .pert :
+//   null                         → aucun filtre (tout en pleine intensite)
+//   { type:"group", value:"WP1" } → seules les Activites du groupe restent vives
+//   { type:"color", value:"#.." } → seules les Activites de cette couleur restent vives
+// Les nœuds non concernes sont ESTOMPES (voile translucide dessine dans nodes.js,
+// pertDrawDimVeil). On ne cache rien (les liens et la structure restent lisibles),
+// on attire l'œil sur l'ensemble selectionne. Couvre import (couleur d'un lot) et
+// regroupement metier (groupe). Decision du 28/06/2026 : filtre apres socle A+B.
+
+// Couleurs distinctes effectivement portees par des Activites du graphe.
+function collectActivityColors() {
+  const seen = new Set();
+  const colors = [];
+  const g = window.pertGraph;
+  if (g && g._nodes) g._nodes.forEach(n => {
+    if (n.type === "pert/activity" && n.properties && n.properties.color) {
+      const c = n.properties.color.toLowerCase();
+      if (!seen.has(c)) { seen.add(c); colors.push(n.properties.color); }
+    }
+  });
+  return colors;
+}
+
+// Libelle parlant d'une couleur dans le filtre : le(s) groupe(s) du registre qui
+// portent cette teinte, ou "Sans groupe" (typiquement un lot importe non rattache).
+function pertColorGroupLabel(color) {
+  const reg = pertGroups();
+  const lc = String(color || "").toLowerCase();
+  const names = Object.keys(reg).filter(k => String(reg[k] || "").toLowerCase() === lc);
+  return names.length ? names.join(", ") : "Sans groupe";
+}
+
+// Egalite de deux descripteurs de filtre (null compris ; couleur insensible casse).
+function filterEquals(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.type === b.type
+    && String(a.value).toLowerCase() === String(b.value).toLowerCase();
+}
+
+// Le filtre courant correspond-il encore a un groupe/couleur existant ? (un groupe
+// supprime ou une couleur disparue doit invalider le filtre, sinon tout reste estompe).
+function pertFilterStillValid() {
+  const f = window.pertFilter;
+  if (!f) return true;
+  if (f.type === "group") return collectGroupNames().indexOf(f.value) !== -1;
+  if (f.type === "color") {
+    const lc = String(f.value).toLowerCase();
+    return collectActivityColors().some(c => c.toLowerCase() === lc);
+  }
+  return false;
+}
+
+// ── Menu déroulant custom (pastilles de couleur, compatible Firefox) ────────────
+
+function openFilterMenu() {
+  refreshFilterOptions();
+  const m = document.getElementById("filter-menu");
+  const t = document.getElementById("filter-trigger");
+  if (m) m.hidden = false;
+  if (t) t.setAttribute("aria-expanded", "true");
+}
+function closeFilterMenu() {
+  const m = document.getElementById("filter-menu");
+  const t = document.getElementById("filter-trigger");
+  if (m) m.hidden = true;
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+function toggleFilterMenu() {
+  const m = document.getElementById("filter-menu");
+  if (!m) return;
+  if (m.hidden) openFilterMenu(); else closeFilterMenu();
+}
+
+// Crée une pastille de couleur (carré). color null → motif hachuré "aucun".
+function buildFilterSwatch(color) {
+  const sw = document.createElement("span");
+  sw.className = "filter-swatch" + (color ? "" : " none");
+  if (color) sw.style.background = color;
+  return sw;
+}
+
+// En-tête de section dans le menu (Groupes / Couleurs).
+function buildFilterHeader(text) {
+  const h = document.createElement("div");
+  h.className = "filter-menu-header";
+  h.textContent = text;
+  return h;
+}
+
+// Une ligne cliquable du menu : pastille + libellé. filter = descripteur (ou null
+// pour "aucun"). color = teinte de la pastille (ou null → motif "aucun").
+function buildFilterRow(filter, label, color) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "filter-menu-row" + (filterEquals(window.pertFilter, filter) ? " active" : "");
+  row.appendChild(buildFilterSwatch(color));
+  const txt = document.createElement("span");
+  txt.className = "filter-row-label";
+  txt.textContent = label;
+  row.appendChild(txt);
+  row.addEventListener("click", (e) => {
+    e.stopPropagation();
+    applyFilter(filter);
+    updateFilterTrigger();
+    closeFilterMenu();
+  });
+  return row;
+}
+
+// (Re)construit le contenu du menu de filtre (aucun + groupes + couleurs).
+function refreshFilterOptions() {
+  // Invalide d'abord un filtre devenu obsolete (groupe/couleur disparu).
+  if (!pertFilterStillValid()) { applyFilter(null); updateFilterTrigger(); }
+
+  const menu = document.getElementById("filter-menu");
+  if (!menu) return;
+  menu.innerHTML = "";
+
+  menu.appendChild(buildFilterRow(null, "Aucun filtre", null));
+
+  const reg = pertGroups();
+  const groups = collectGroupNames();
+  if (groups.length) {
+    menu.appendChild(buildFilterHeader("Groupes"));
+    groups.forEach(g => menu.appendChild(buildFilterRow({ type: "group", value: g }, g, reg[g] || null)));
+  }
+
+  const colors = collectActivityColors();
+  if (colors.length) {
+    menu.appendChild(buildFilterHeader("Couleurs"));
+    colors.forEach(c => menu.appendChild(buildFilterRow({ type: "color", value: c }, pertColorGroupLabel(c), c)));
+  }
+}
+
+// Met à jour l'affichage du déclencheur (pastille + libellé du filtre courant).
+function updateFilterTrigger() {
+  const cur = document.getElementById("filter-current");
+  if (!cur) return;
+  cur.innerHTML = "";
+  const f = window.pertFilter;
+  if (!f) { cur.textContent = "🔎 Filtre : aucun"; return; }
+  const color = f.type === "group" ? (pertGroups()[f.value] || null) : f.value;
+  const label = f.type === "group" ? f.value : pertColorGroupLabel(f.value);
+  cur.appendChild(buildFilterSwatch(color));
+  const txt = document.createElement("span");
+  txt.className = "filter-row-label";
+  txt.textContent = label;
+  cur.appendChild(txt);
+}
+
+// Active un filtre (ou null), redessine et informe l'utilisateur.
+function applyFilter(filter) {
+  window.pertFilter = filter;
+  if (window.pertGraph) window.pertGraph.setDirtyCanvas(true, true);
+  if (!filter) { showToast("Filtre désactivé"); return; }
+  const label = filter.type === "group"
+    ? "groupe « " + filter.value + " »"
+    : "couleur de « " + pertColorGroupLabel(filter.value) + " »";
+  showToast("Filtre actif : " + label + " mis en évidence");
+}
+window.refreshFilterOptions = refreshFilterOptions;
+window.updateFilterTrigger = updateFilterTrigger;
+
 function buildTextarea(parent, labelText, value, onChange) {
   const label = document.createElement("label");
   label.textContent = labelText;
@@ -742,6 +931,23 @@ function fillCalcSection(node) {
       buildReadonly(sec, "Cible", "✓ tenue");
     }
   }
+}
+
+// ─── À propos (auteur, licence, version) ────────────────────────────────────────
+//
+// La date de génération du bundle et le tag de la branche main sont injectés par
+// scripts/build-bundle.js dans `window.PERTFLOW_BUILD` au moment du build. En mode
+// développement (sources non bundlées), cet objet est absent → on l'indique.
+function openAbout() {
+  const c = document.getElementById("about-content");
+  if (!c) return;
+  c.innerHTML = "";
+  const b = window.PERTFLOW_BUILD || {};
+  buildReadonly(c, "Auteur", "© Stéphane Guichard");
+  buildReadonly(c, "Licence", "MIT");
+  buildReadonly(c, "Version (tag main)", b.tag || "développement (non bundlée)");
+  buildReadonly(c, "Bundle généré le", b.date || "—");
+  document.getElementById("about-dialog").style.display = "flex";
 }
 
 // ─── Paramètres ───────────────────────────────────────────────────────────────
@@ -888,19 +1094,28 @@ function pickDefaultImportColor() {
   return free || IMPORT_COLOR_PALETTE[0];
 }
 
-// Demande la couleur des taches importees (presel. = 1re couleur libre) puis
-// concatene le modele. Point de passage commun aux deux chemins d'import.
+// Demande le GROUPE (et la couleur qui en decoule) des taches importees, puis
+// concatene le modele. Point de passage commun aux deux chemins d'import. S7 (A) :
+// le dialogue est desormais centre groupe (cf. promptImportGroup).
 function finishExcelImport(model) {
   if (!model || !model.nodes || !model.nodes.length) {
     showToast("Aucun nœud à importer");
     return;
   }
-  promptImportColor(pickDefaultImportColor(), (color) => applyImportModel(model, color));
+  promptImportGroup(pickDefaultImportColor(),
+    (color, group) => applyImportModel(model, color, group));
 }
 
-// Dialogue de choix de la couleur des taches importees : selecteur libre + pastilles
-// de la palette (clic = selection rapide). La pastille presel. est mise en exergue.
-function promptImportColor(defaultColor, onChoose) {
+// S7 (A) — Dialogue d'import CENTRE GROUPE. Un seul groupe par lot d'import, avec
+// 3 chemins (decision utilisateur du 28/06/2026) :
+//   1. Groupe EXISTANT (deja dans pertMeta.groups) → couleur HERITEE et verrouillee
+//      (lue dans le registre, selecteur de couleur desactive) — coherent avec #4/#14.
+//   2. NOUVEAU groupe (nom non connu) → on choisit la couleur, qui DEVIENT celle du
+//      groupe ("premier venu", coherent avec S6).
+//   3. AUCUN groupe (champ laisse vide) → on choisit juste une couleur, taches
+//      importees SANS groupe (comportement historique preserve).
+// Le rattachement effectif au groupe est fait par applyImportModel via pertApplyGroup.
+function promptImportGroup(defaultColor, onChoose) {
   let dlg = document.getElementById("color-dialog");
   if (dlg) dlg.remove();
   dlg = document.createElement("div");
@@ -911,20 +1126,43 @@ function promptImportColor(defaultColor, onChoose) {
   const box = document.createElement("div");
   box.className = "dialog";
   const h = document.createElement("h3");
-  h.textContent = "Couleur des tâches importées";
+  h.textContent = "Groupe et couleur des tâches importées";
   box.appendChild(h);
 
-  let current = defaultColor;
+  let current = defaultColor; // couleur courante (modifiable sauf groupe existant)
 
+  // ── Champ Groupe (combobox enrichissable : datalist des groupes connus) ──────
+  const groupLabel = document.createElement("label");
+  groupLabel.className = "dialog-field";
+  groupLabel.textContent = "Groupe (WP / métier / service) — laisser vide pour aucun";
+  const groupInput = document.createElement("input");
+  groupInput.type = "text";
+  groupInput.setAttribute("autocomplete", "off");
+  groupInput.setAttribute("list", "dl-import-group");
+  groupInput.placeholder = "Aucun groupe";
+  const dl = document.createElement("datalist");
+  dl.id = "dl-import-group";
+  collectGroupNames().forEach(g => {
+    const opt = document.createElement("option");
+    opt.value = g;
+    dl.appendChild(opt);
+  });
+  groupLabel.appendChild(groupInput);
+  groupLabel.appendChild(dl);
+  box.appendChild(groupLabel);
+
+  // Note dynamique : indique le chemin actif (heritee / nouvelle / aucune).
+  const note = document.createElement("p");
+  note.className = "dialog-note";
+  box.appendChild(note);
+
+  // ── Choix de couleur (pastilles + selecteur libre) ───────────────────────────
   const swatches = document.createElement("div");
   swatches.className = "color-swatches";
-
-  // Selecteur de couleur libre, pre-rempli sur la 1re couleur non utilisee.
   const picker = document.createElement("input");
   picker.type = "color";
   picker.value = current;
 
-  // Synchronise l'exergue des pastilles avec la couleur courante.
   const syncSelected = () => {
     swatches.querySelectorAll(".color-swatch").forEach(e =>
       e.classList.toggle("selected", e.title.toLowerCase() === current.toLowerCase()));
@@ -935,14 +1173,40 @@ function promptImportColor(defaultColor, onChoose) {
     sw.className = "color-swatch";
     sw.style.background = c;
     sw.title = c;
-    sw.onclick = () => { current = c; picker.value = c; syncSelected(); };
+    sw.onclick = () => { if (picker.disabled) return; current = c; picker.value = c; syncSelected(); };
     swatches.appendChild(sw);
   });
   picker.addEventListener("input", () => { current = picker.value; syncSelected(); });
-  syncSelected();
 
   box.appendChild(swatches);
   box.appendChild(picker);
+
+  // Reagit a la saisie du groupe : verrouille la couleur si le groupe existe deja.
+  const refreshColorState = () => {
+    const g = groupInput.value.trim();
+    const reg = pertGroups();
+    if (g && reg[g]) {
+      // Chemin 1 : groupe existant → couleur heritee, verrouillee.
+      current = reg[g];
+      picker.value = current;
+      picker.disabled = true;
+      swatches.classList.add("locked");
+      note.textContent = "Couleur héritée du groupe « " + g + " » (verrouillée).";
+    } else if (g) {
+      // Chemin 2 : nouveau groupe → on fixe sa couleur.
+      picker.disabled = false;
+      swatches.classList.remove("locked");
+      note.textContent = "Nouveau groupe « " + g + " » : la couleur choisie deviendra sa couleur.";
+    } else {
+      // Chemin 3 : aucun groupe → couleur libre, taches non groupees.
+      picker.disabled = false;
+      swatches.classList.remove("locked");
+      note.textContent = "Aucun groupe : les tâches importées prendront simplement cette couleur.";
+    }
+    syncSelected();
+  };
+  groupInput.addEventListener("input", refreshColorState);
+  refreshColorState();
 
   const btns = document.createElement("div");
   btns.className = "dialog-buttons";
@@ -952,18 +1216,24 @@ function promptImportColor(defaultColor, onChoose) {
   const ok = document.createElement("button");
   ok.textContent = "Importer";
   ok.className = "primary";
-  ok.onclick = () => { dlg.remove(); onChoose(current); };
+  ok.onclick = () => {
+    const g = groupInput.value.trim();
+    dlg.remove();
+    onChoose(current, g);
+  };
   btns.appendChild(cancel);
   btns.appendChild(ok);
   box.appendChild(btns);
 
   dlg.appendChild(box);
   document.body.appendChild(dlg);
+  groupInput.focus();
 }
 
-// Concatene le modele d'import dans le graphe courant. importColor (optionnel) =
-// couleur appliquee a toutes les Activites importees (cf. promptImportColor).
-function applyImportModel(model, importColor) {
+// Concatene le modele d'import dans le graphe courant. importColor = couleur
+// appliquee aux Activites importees ; importGroup (optionnel) = groupe auquel les
+// rattacher (S7 A) → l'heritage/premier-venu de pertApplyGroup prend le relais.
+function applyImportModel(model, importColor, importGroup) {
   const graph = window.pertGraph;
   if (!model || !model.nodes || !model.nodes.length) {
     showToast("Aucun nœud à importer");
@@ -1004,6 +1274,15 @@ function applyImportModel(model, importColor) {
         node.properties.color = importColor;
         node.color = importColor;
       }
+      // S7 (A) : rattachement au groupe choisi a l'import. pertApplyGroup applique
+      // l'heritage (groupe existant → couleur du registre) ou le "premier venu"
+      // (nouveau groupe → la couleur d'import devient celle du groupe). Sans groupe,
+      // on ne touche pas a la couleur d'import (comportement historique).
+      if (importGroup) {
+        node.properties.group = importGroup;
+        pertApplyGroup(node);
+        node.color = node.properties.color;
+      }
     }
     if (node.updateSize) node.updateSize();
     node.pos = [n.off.x / EMU + dx, n.off.y / EMU + dy];
@@ -1027,6 +1306,7 @@ function applyImportModel(model, importColor) {
 
   pertRecalc();
   updateStatus();
+  refreshFilterOptions();   // S7 (C) : nouveaux groupes/couleurs dispo dans le filtre
   pertZoomToFit();
   showToast(model.nodes.length + " nœud(s) et " + nbLinks + " lien(s) importés"
     + (model.sheet ? " (feuille « " + model.sheet + " »)" : ""));

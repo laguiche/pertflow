@@ -420,6 +420,65 @@ modèle de données et la restitution visuelle, S7 ajoutera le filtre et le coû
 
 ---
 
+### Session 7 — Le couple couleur/groupe au cœur des fonctions de base (✅ 28/06/2026)
+
+Deuxième temps du chantier métier. **Redéfinie en ouverture de session** (28/06) : plutôt
+que d'enchaîner directement sur le filtre, l'utilisateur a demandé que les **fonctions déjà
+acquises** (import, réorganisation) **exploitent d'abord** le concept couleur/groupe posé en
+S6. La séance livre donc, dans l'ordre : un socle (A+B) puis le filtre (C). **#3 (estimation
+de coût) a été retiré** du périmètre — « pas indispensable pour un outil PERT KISS » → long terme.
+
+- **A — Import Excel conscient du groupe.** Le dialogue d'import, jusqu'ici un simple choix de
+  couleur, devient **centré groupe** : un combobox enrichissable (datalist des groupes connus)
+  pilote trois chemins. *Groupe existant* → la couleur est **héritée du registre et verrouillée**
+  (sélecteur grisé) ; *nouveau groupe* → la couleur choisie **devient** celle du groupe
+  (« premier venu », cohérent avec S6) ; *champ vide* → couleur libre, tâches **sans groupe**
+  (comportement historique intact). Le rattachement réutilise `pertApplyGroup` (aucun 2e système
+  de couleur). La cohérence avec S6 a permis de **ne rien réécrire** côté modèle : l'import ne
+  fait que *poser* groupe + couleur, l'héritage/premier-venu prend le relais.
+- **B — Réorganisation cohésive (couloirs groupés).** L'arbitrage utilisateur du 28/06 est précis :
+  l'**abscisse ∝ ES reste inchangée** (le calage temporel façon Gantt est intouchable), seule
+  l'**affectation des couloirs verticaux** devient consciente du groupe. Implémenté par un packing
+  qui partitionne par groupe et empile une **bande verticale contiguë par groupe** (triées par ES
+  minimal, sans-groupe en dernier). Quand aucun groupe n'est utilisé, tout retombe dans une bande
+  unique → comportement **strictement identique** à l'ancien layout (non-régression garantie par
+  construction). Pas de bandes *horizontales* par groupe : le temps prime, le groupe ne joue que
+  sur Y.
+- **C — #16 Filtrer / mettre en évidence.** Arrivé **après** A+B (qui l'ont rendu pertinent).
+  Un menu déroulant dans la toolbar liste les groupes **et** les couleurs présentes ; sélectionner
+  une entrée **estompe** (voile translucide) tous les nœuds qui n'y correspondent pas, concentrant
+  l'œil sur l'ensemble visé. Choix « mise en évidence par estompage » plutôt que masquage : la
+  structure (liens, jalons) reste lisible. Le filtre est un **état de vue**, non sérialisé.
+- **C (correctif 29/06, retour utilisateur).** Première version avec un `<select>` natif dont les
+  options affichaient le **code hexa** des couleurs (« ne parle à personne ») ; on a d'abord tenté
+  de peindre les `<option>` à leur couleur — mais **Firefox** (navigateur par défaut de l'utilisateur)
+  **n'affiche pas la couleur de fond des `<option>`**. Décision du concepteur : passer à un **menu
+  déroulant custom** (DOM/CSS pur, sans dépendance, `file://`). Chaque ligne porte une **vraie
+  pastille de couleur** + un libellé parlant (le groupe associé, ou « Sans groupe » pour un lot
+  importé non rattaché) ; le déclencheur reflète la sélection courante. Rendu désormais **identique
+  sur tous les navigateurs**.
+
+> **🎙️ Restitution — connaître l'environnement réel d'usage prime sur le « standard ».**
+> Le `<select>` natif est la solution canonique, accessible et sans code — mais une limitation
+> concrète (Firefox n'applique pas la couleur de fond aux `<option>`) la rendait inopérante *pour
+> cet utilisateur précis, sur son navigateur*. L'outil étant d'abord le sien, son arbitrage (« menu
+> custom, c'est obligatoire ») a tranché net : on ne livre pas un compromis dégradé sur la cible
+> réelle au nom d'une bonne pratique générique. Le surcoût (une centaine de lignes JS/CSS) est
+> assumé et reste dans les clous (`file://`, zéro dépendance).
+
+> **🎙️ Restitution — « faire d'abord exploiter l'acquis avant d'empiler du neuf ».**
+> La redéfinition de S7 par l'utilisateur est un enseignement de méthode : une donnée nouvelle
+> (le groupe, posé en S6) ne prend sa valeur que si les fonctions *existantes* la reconnaissent.
+> Brancher le groupe sur l'import et la réorganisation **avant** de construire le filtre a évité
+> de livrer une fonctionnalité isolée et a fait converger trois remarques (#2/#4/#16) vers une
+> seule dimension cohérente. Le retrait de #3 (coût) au même moment relève du même principe KISS :
+> on n'ajoute pas un axe (le coût) tant que l'axe en cours (couleur/groupe) n'irrigue pas tout
+> l'outil. Côté technique, la non-régression du layout « par construction » (bande unique quand
+> pas de groupe) illustre une bonne pratique : faire du *nouveau comportement* une **généralisation**
+> de l'ancien, pas une branche parallèle.
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)

@@ -48,6 +48,14 @@
     <button id="btn-fit" title="Ajuster le zoom pour afficher tout le planning à l'écran">🔍 Tout afficher</button>
     <button id="btn-snap" title="Activer / désactiver la grille aimantée (alignement des nœuds)">▦ Grille</button>
     <div class="tb-sep"></div>
+    <div id="filter-control" title="Mettre en évidence un groupe (WP/métier) ou une couleur ; les autres tâches sont estompées">
+      <button id="filter-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+        <span id="filter-current">🔎 Filtre : aucun</span>
+        <span class="filter-caret">▾</span>
+      </button>
+      <div id="filter-menu" class="filter-menu" hidden></div>
+    </div>
+    <div class="tb-sep"></div>
     <button id="btn-settings" title="Paramètres du projet">⚙ Paramètres</button>
     <div class="tb-sep"></div>
     <button id="btn-import" title="Importer un planning Excel legacy (.xlsm) et le concaténer">📥 Importer Excel</button>
@@ -59,6 +67,19 @@
     <div class="tb-sep"></div>
     <button id="btn-undo" title="Annuler (Ctrl+Z)" disabled>↶ Annuler</button>
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
+    <div class="tb-sep"></div>
+    <button id="btn-info" title="À propos de PertFlow (auteur, licence, version)">ℹ À propos</button>
+  </div>
+
+  <!-- ── Dialogue À propos ────────────────────────────────────────────────── -->
+  <div id="about-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog">
+      <h3>À propos de PertFlow</h3>
+      <div id="about-content"></div>
+      <div class="dialog-buttons">
+        <button id="about-close" class="primary">Fermer</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Zone principale ──────────────────────────────────────────────────── -->
