@@ -315,7 +315,7 @@ onDrawForeground(ctx) {
 > roadmap planifiée → long terme (outil PERT KISS). Détail dans la section S7.
 >
 > Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 ✅
-> → S5 ✅ (correctifs & quick wins) → S6 ✅ (regroupement métier WP, temps 1) → S7
+> → S5 ✅ (correctifs & quick wins) → S6 ✅ (regroupement métier WP, temps 1) → S7 ✅
 > (couleur/groupe : import + réorg conscients du groupe, puis filtre) → S8 (propriétés &
 > jalons enrichis) → S9 (exports avancés) → S10 (liens & layout) → Doc (fin)**.
 
@@ -573,8 +573,10 @@ libs inlinées) — tous en navigateur réel (Playwright/Chromium, `file://`), 0
   `<link rel=stylesheet>` → `<style>` et des `<script src>` → `<script>` par regex sur
   `index.html`, avec échappement défensif de `</script>`/`</style>` dans les contenus
   minifiés et **garde-fou** qui échoue s'il reste une référence `lib/`/`src/`/`css/`.
-  Sortie `dist/pertflow.html` (~1,6 Mo), `dist/` gitignoré (artefact). `scripts/` est
-  suivi par git (contrairement à `tools/`, outillage de validation gitignoré).
+  Sortie `dist/pertflow.html` (~1,6 Mo). `scripts/` est suivi par git (contrairement à
+  `tools/`, outillage de validation gitignoré). **MàJ 29/06 :** `dist/pertflow.html` est
+  désormais **versionné** (plus gitignoré) et régénéré en fin de session (cf. « Rituel de
+  fin de session »).
 - **Icônes toolbar** : glyphes Unicode monochromes pour les 3 boutons d'ajout
   (▭ Activité / ◈ Jalon / ❏ Label) + bouton ▦ Grille, homogènes avec le reste de la
   toolbar (emoji/Unicode), sans dépendance ni fichier externe.
@@ -750,13 +752,13 @@ v0.6** (même schéma que S4/S5).
 
 ---
 
-### Session 7 — Le couple couleur/groupe au cœur des fonctions de base ⏳ À VENIR
+### Session 7 — Le couple couleur/groupe au cœur des fonctions de base ✅ TERMINÉE (28/06/2026)
 Suite de S6 sur la même dimension « groupe ». **Redéfinie le 28/06/2026** (cf. ci-dessous) :
 avant de bâtir le filtre, on fait d'abord exploiter le concept couleur/groupe par les
 fonctions de base déjà acquises (import, réorganisation). **#3 (coût) retiré** du périmètre
 S7 → reporté en long terme (décision utilisateur : pas indispensable pour un outil PERT KISS).
 **Objectifs** :
-- [ ] **A — Import Excel conscient du groupe** : le dialogue d'import devient **centré
+- [x] **A — Import Excel conscient du groupe** : le dialogue d'import devient **centré
   groupe** (combobox enrichissable + `<datalist>` des groupes existants), avec 3 chemins :
   (1) **groupe existant** sélectionné → couleur **héritée et verrouillée** (affichée, lue
   dans `pertMeta.groups`) ; (2) **nouveau groupe** (nom non connu) → on choisit sa couleur,
@@ -764,16 +766,16 @@ S7 → reporté en long terme (décision utilisateur : pas indispensable pour un
   groupe** (champ laissé vide) → on choisit juste une couleur, tâches importées **sans
   groupe** (comportement actuel préservé). **Un seul groupe par lot** d'import (retag
   possible après coup via le bouton « Appliquer ce groupe aux tâches de même couleur » de S6).
-  Remplace/étend `promptImportColor` ; les Activités importées sont rattachées au groupe via
-  `pertApplyGroup` (héritage/premier-venu), pas un 2e système de couleur.
-- [ ] **B — Réorganisation cohésive (couloirs groupés)** : `pertAutoLayout` conserve
+  Remplace `promptImportColor` par `promptImportGroup` ; les Activités importées sont
+  rattachées au groupe via `pertApplyGroup` (héritage/premier-venu), pas un 2e système de couleur.
+- [x] **B — Réorganisation cohésive (couloirs groupés)** : `pertAutoLayout` conserve
   **l'abscisse ∝ ES inchangée** (cohérence temporelle façon Gantt intacte) ; seule
   **l'affectation des couloirs verticaux** devient **consciente du groupe** → les tâches
   d'un même WP/groupe se posent sur des **couloirs voisins** (zones de couleur lisibles
   « de loin », objectif #4 préservé après réorg). Best-effort : la non-superposition reste
   prioritaire. Tâches **sans groupe** packées normalement. Pas de bandes horizontales par
   groupe (calage temporel conservé — décision utilisateur du 28/06).
-- [ ] **C — #16 Filtrer / mettre en évidence** par WP/métier/service **ou par couleur** —
+- [x] **C — #16 Filtrer / mettre en évidence** par WP/métier/service **ou par couleur** —
   arrive **après** A+B (qui l'ont rendu pertinent), même session (périmètre S7 confirmé
   « tout dans S7 » le 28/06).
 
@@ -790,6 +792,46 @@ S7 → reporté en long terme (décision utilisateur : pas indispensable pour un
 À l'import, on choisit/crée un groupe (ou pas) et la couleur en découle ; après
 « Réorganiser », les zones par WP/couleur restent groupées visuellement ; l'utilisateur
 isole/met en évidence un WP ou une couleur via le filtre.
+**État** : implémenté et validé par test headless navigateur (`tools/smoke-s7.js` : import
+3 chemins A, bandes de groupe disjointes + X∝ES préservé B, estompage groupe/couleur C) +
+smoke existant sans régression + captures de contrôle (couloirs groupés orange/turquoise,
+filtre estompant le hors-groupe). **Validation visuelle utilisateur à confirmer avant
+merge/tag** (même schéma que S4/S5/S6).
+
+**Implémentation — décisions notables (28/06/2026)** :
+- **A — `promptImportGroup` remplace `promptImportColor`** : combobox groupe + `<datalist>`
+  (`collectGroupNames`) au-dessus du sélecteur de couleur existant. Une note dynamique et le
+  verrouillage du sélecteur (`picker.disabled` + `.color-swatches.locked`) reflètent le chemin
+  actif en temps réel (lecture de `pertGroups()[nom]` à chaque frappe). `applyImportModel(model,
+  importColor, importGroup)` : si un groupe est fourni, chaque Activité reçoit `group` puis
+  `pertApplyGroup` tranche la couleur (héritée si groupe connu, fixée sinon) — **l'héritage prime
+  sur `importColor`** (un groupe existant impose toujours sa teinte). Sans groupe : couleur libre,
+  aucune écriture dans le registre.
+- **B — `pertPackLanesGrouped` + `pertGroupKey`** (dans `pert_engine.js`) : remplace l'appel
+  direct à `pertPackLanes` pour le bloc `rest`. Partitionne par groupe, **empile une bande de
+  couloirs par groupe** (triées par X min = ES min, puis nom ; bande « sans groupe » `""` en
+  dernier). `xOf` (∝ ES) **jamais modifié** → seul Y change. **Non-régression par construction** :
+  sans groupe, une seule bande `""` → packing identique à l'ancien. Les jalons terminaux restent
+  dans leur bande haute séparée (inchangé) ; les jalons intermédiaires tombent dans la bande `""`.
+- **C — filtre = état de vue `window.pertFilter`** (`null | {type:"group"|"color", value}`),
+  **non sérialisé**. Rendu : `pertNodeDimmed(node)` + `pertDrawDimVeil(ctx, node)` dans `nodes.js`,
+  **voile translucide dessiné en `onDrawForeground`** (donc par-dessus contenu ET slots, l'avant-plan
+  étant rendu en dernier par LiteGraph). Seules les Activités peuvent « correspondre » ; Jalons et
+  Labels sont estompés dès qu'un filtre est actif (ils ne portent pas la dimension groupe/couleur).
+  Comparaison couleur insensible à la casse.
+- **C — menu déroulant CUSTOM à pastilles de couleur** (retour utilisateur, 29/06) : un code hexa
+  ne parle à personne ET **les `<option>` natives n'affichent pas de couleur de fond sous Firefox**
+  (navigateur par défaut de l'utilisateur) → le `<select>` est remplacé par un menu maison
+  (`#filter-trigger` + `#filter-menu` dans la toolbar). Chaque ligne (`buildFilterRow`) porte une
+  **vraie pastille de couleur** (`buildFilterSwatch`, `<span>` au fond coloré, motif hachuré pour
+  « aucun ») + un **libellé parlant** : nom du groupe, ou pour une couleur le(s) groupe(s) qui la
+  portent (ou « Sans groupe » pour un lot importé, `pertColorGroupLabel`). 100% DOM/CSS → rendu
+  identique sur tous les navigateurs (Firefox inclus), sans dépendance (`file://`). Le déclencheur
+  reflète le filtre courant (pastille + libellé, `updateFilterTrigger`). Ouverture/fermeture :
+  `toggleFilterMenu`/`closeFilterMenu` (clic extérieur + Échap) ; `refreshFilterOptions` reconstruit
+  les lignes à chaque ouverture et après import, et **invalide un filtre obsolète**
+  (`pertFilterStillValid` : groupe supprimé / couleur disparue → retour à « aucun »). Le toast de
+  filtre est aussi « parlant » (plus de hexa).
 
 ---
 
@@ -892,6 +934,34 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
 
 ---
 
+## RITUEL DE FIN DE SESSION (obligatoire, décision utilisateur 29/06/2026)
+
+À appliquer **systématiquement** à la clôture de chaque session, **avant** le commit final :
+
+1. **Régénérer le bundle** standalone avec le tag de la session :
+   ```bash
+   node scripts/build-bundle.js --tag vX.Y
+   ```
+   (`vX.Y` = le tag qui sera posé à la fin de CETTE session ; rappel numérotation décalée
+   vN ≠ SN — voir l'historique des tags. Le tag est créé après le commit, d'où `--tag`.)
+2. **Committer ET pousser le bundle** (`dist/pertflow.html`) **avec le reste** du code.
+   Le bundle est **versionné** (plus gitignoré depuis le 29/06) : il fait partie de la livraison.
+3. Le bundle **embarque un bouton « À propos »** (toolbar) ouvrant une popup qui rappelle :
+   - le **copyright auteur** : « © Stéphane Guichard » ;
+   - la **licence** : MIT ;
+   - la **date de génération** du bundle ;
+   - le **tag de la branche main** correspondant.
+
+   Ces deux dernières valeurs sont injectées par `scripts/build-bundle.js` dans
+   `window.PERTFLOW_BUILD = { date, tag }` (lu par `openAbout()` dans `src/ui.js`). En mode
+   développement (sources non bundlées), l'objet est absent → la popup affiche « développement
+   (non bundlée) ». **Ne jamais coder en dur** date/tag dans les sources : seul le build les fixe.
+
+> Ordre type de clôture : finaliser le code/doc → **régénérer le bundle** (`--tag`) →
+> committer (source + bundle) → pousser → merger sur `main` → taguer `vX.Y` → pousser le tag.
+
+---
+
 ## HISTORIQUE DES SESSIONS
 
 ### Session 0
@@ -959,7 +1029,7 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   searchbox neutralisée (#28) ; snap-to-grid en toggle (grille visible si activée) ;
   gestion d'erreurs UI (toast rouge `showError`, `guardUI`, filet global `window.error`) ;
   icônes Unicode homogènes sur la toolbar ; bundle standalone `scripts/build-bundle.js`
-  → `dist/pertflow.html` (libs+sources inlinés, 0 requête externe, `dist/` gitignoré)
+  → `dist/pertflow.html` (libs+sources inlinés, 0 requête externe ; versionné depuis le 29/06)
 - Validé en navigateur réel (Playwright/Chromium, `file://`) : `tools/smoke.js` sans
   régression + nouveau `tools/smoke-s4.js` + vérification du bundle, 0 erreur console
 - **Mergé sur `main`, tagué `v0.5`, poussé** après validation visuelle utilisateur (Firefox).
@@ -1000,3 +1070,30 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   propagation couleur, round-trip `.pert`), smoke existant sans régression, contrôle du
   panneau (combobox + datalists). **Validation visuelle utilisateur à confirmer avant
   merge/tag v0.6**
+
+### Session 7 (28/06/2026) — couleur/groupe au cœur des fonctions de base (retour Mickael)
+- Sur la branche `session/7-couleur-groupe`. 3 volets livrés (A import conscient du groupe,
+  B réorganisation à couloirs groupés, C filtre #16). Détail et décisions dans la section
+  Session 7 plus haut. **Redéfinition de la session par l'utilisateur en ouverture (28/06)** :
+  faire exploiter le couple couleur/groupe par les fonctions déjà acquises (import, réorg)
+  **avant** de bâtir le filtre ; **#3 (coût) retiré** → long terme.
+- `src/ui.js` : `promptImportGroup` (remplace `promptImportColor`, 3 chemins groupe) +
+  `applyImportModel(model, color, group)` ; section filtre (`collectActivityColors`,
+  `refreshFilterOptions`, `setFilterFromSelect`, `applyFilter`, `window.pertFilter`) + câblage
+  du `<select>`. `src/pert_engine.js` : `pertGroupKey` + `pertPackLanesGrouped` (bandes
+  verticales par groupe, X∝ES conservé, non-régression par construction). `src/nodes.js` :
+  `pertNodeDimmed` + `pertDrawDimVeil` + `onDrawForeground` (voile d'estompage) sur Activité/
+  Jalon/Label. `index.html` : menu de filtre custom (`#filter-trigger` + `#filter-menu`) dans
+  la toolbar. `css/style.css` : styles du champ groupe d'import, de la note, du verrou couleur
+  et du menu de filtre custom (pastilles). **Correctif 29/06 (retour user)** : le `<select>`
+  natif a été remplacé par un menu déroulant custom à pastilles de couleur (les `<option>`
+  natives n'affichent pas de fond coloré sous Firefox, navigateur par défaut de l'utilisateur).
+- Validé : `tools/smoke-s7.js` (A 3 chemins, B bandes disjointes + X∝ES, C estompage groupe/
+  couleur), smoke existant sans régression, captures de contrôle.
+- **Ajouts de fin de session (29/06/2026, décision utilisateur)** : instauration du **« Rituel de
+  fin de session »** (cf. section dédiée) — bundle régénéré + versionné à chaque clôture. Bouton
+  **« À propos »** (`#btn-info` → `openAbout`, popup `#about-dialog`) rappelant © Stéphane Guichard,
+  licence MIT, date de génération et tag main. `scripts/build-bundle.js` injecte
+  `window.PERTFLOW_BUILD = {date, tag}` (option `--tag`, sinon dernier tag git). `.gitignore` :
+  `dist/` n'est plus ignoré (bundle versionné). Bundle v0.8 régénéré et vérifié (À propos affiche
+  v0.8 + date, 0 requête externe).

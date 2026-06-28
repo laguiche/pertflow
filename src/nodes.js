@@ -66,6 +66,38 @@ function ellipsize(ctx, text, maxWidth) {
   return t + "…";
 }
 
+// ─── #16 Filtre / mise en évidence (S7) ─────────────────────────────────────────
+//
+// window.pertFilter (defini dans ui.js, etat de vue non serialise) :
+//   null | { type:"group", value } | { type:"color", value }
+// Un nœud "estompe" recoit un voile translucide (pertDrawDimVeil), dessine en
+// onDrawForeground → par-dessus le contenu ET les slots (l'avant-plan est rendu en
+// dernier par LiteGraph). Sans filtre actif, rien n'est estompe. Seules les
+// Activites peuvent "correspondre" a un filtre groupe/couleur ; les Jalons et
+// Labels sont donc estompes des qu'un filtre est actif (ils ne portent ni groupe
+// ni couleur de groupe), ce qui concentre l'œil sur l'ensemble selectionne.
+
+function pertNodeDimmed(node) {
+  const f = window.pertFilter;
+  if (!f) return false;
+  const isAct = node.type === "pert/activity" && node.properties;
+  if (f.type === "group") {
+    return !(isAct && (node.properties.group || "").trim() === f.value);
+  }
+  if (f.type === "color") {
+    return !(isAct && (node.properties.color || "").toLowerCase() === String(f.value).toLowerCase());
+  }
+  return false;
+}
+
+function pertDrawDimVeil(ctx, node) {
+  if (!pertNodeDimmed(node)) return;
+  ctx.save();
+  ctx.fillStyle = "rgba(248,249,251,0.78)"; // voile clair : estompe sans masquer
+  ctx.fillRect(0, 0, node.size[0], node.size[1]);
+  ctx.restore();
+}
+
 // ─── Nœud Activité ────────────────────────────────────────────────────────────
 
 function ActivityNode() {
@@ -244,6 +276,12 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
   }
 };
 
+// #16 Voile d'estompage si un filtre est actif et que cette Activite n'y correspond
+// pas (dessine en avant-plan → recouvre contenu et slots).
+ActivityNode.prototype.onDrawForeground = function(ctx) {
+  pertDrawDimVeil(ctx, this);
+};
+
 // ─── Nœud Jalon ───────────────────────────────────────────────────────────────
 //
 // Session 2.5 (#5) : refonte de la forme. Le losange etait trop exigu pour le
@@ -397,6 +435,11 @@ MilestoneNode.prototype.onDrawBackground = function(ctx) {
   }
 };
 
+// #16 Voile d'estompage (un Jalon est estompe des qu'un filtre groupe/couleur est actif).
+MilestoneNode.prototype.onDrawForeground = function(ctx) {
+  pertDrawDimVeil(ctx, this);
+};
+
 // ─── Nœud Label ───────────────────────────────────────────────────────────────
 
 function LabelNode() {
@@ -446,6 +489,9 @@ LabelNode.prototype.onDrawForeground = function(ctx) {
   lines.forEach((line, i) => {
     ctx.fillText(line, 10, 18 + i * 16, w - 20);
   });
+
+  // #16 Voile d'estompage (un Label est estompe des qu'un filtre est actif).
+  pertDrawDimVeil(ctx, this);
 };
 
 // ─── Slots d'entrée dynamiques ────────────────────────────────────────────────

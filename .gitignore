@@ -17,5 +17,5 @@ node_modules/
 # Outillage de validation/captures (Playwright local, hors livraison)
 tools/
 
-# Bundle HTML standalone genere a la demande (artefact de livraison, cf. scripts/)
-dist/
+# Le bundle HTML standalone (dist/pertflow.html) EST versionne : il est regenere et
+# committe a chaque fin de session (cf. CLAUDE.md « Rituel de fin de session »).

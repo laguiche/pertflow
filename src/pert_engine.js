@@ -312,7 +312,12 @@ function pertAutoLayout() {
 
   const topLanes = pertPackLanes(top, PERT_LAYOUT_MARGIN_Y, rowH, xOf);
   const restTop = PERT_LAYOUT_MARGIN_Y + (top.length ? topLanes * rowH : 0);
-  pertPackLanes(rest, restTop, rowH, xOf);
+  // S7 (B) : packing conscient du groupe. L'abscisse (∝ ES) reste inchangee
+  // (coherence temporelle facon Gantt) ; seule l'affectation des couloirs verticaux
+  // tient compte du groupe → les taches d'un meme WP/groupe se posent sur des
+  // couloirs voisins (bande verticale contigue) pour rester lisibles "de loin" (#4)
+  // apres reorganisation. Les taches sans groupe sont packees normalement.
+  pertPackLanesGrouped(rest, restTop, rowH, xOf);
 
   // #15 Les Labels n'ont pas de ES → ils ne sont pas places par le layout et
   // peuvent se retrouver sous une activite/jalon repositionne. On reloge ceux qui
@@ -362,6 +367,48 @@ function pertPackLanes(list, topY, rowH, xOf) {
     lanes[lane] = x + n.size[0];
   }
   return lanes.length;
+}
+
+// Cle de groupe d'un nœud pour le layout : nom du groupe d'une Activite, sinon ""
+// (sans groupe). Les Jalons intermediaires n'ont pas de groupe → bande "".
+function pertGroupKey(n) {
+  return (n.type === "pert/activity" && n.properties && n.properties.group)
+    ? String(n.properties.group).trim() : "";
+}
+
+// S7 (B) : packing par couloirs CONSCIENT DU GROUPE. On partitionne la liste par
+// groupe et on empile les bandes verticalement (une bande contigue de couloirs par
+// groupe), de sorte que les taches d'un meme groupe restent voisines a l'ecran.
+// L'abscisse (xOf, ∝ ES) n'est jamais modifiee → le calage temporel facon Gantt est
+// preserve ; le groupe ne joue que sur la dimension verticale. La non-superposition
+// reste prioritaire (chaque bande est packee par pertPackLanes). Quand aucun groupe
+// n'est utilise, tout retombe dans une seule bande "" → comportement identique a
+// l'ancien packing (best-effort, decision utilisateur du 28/06/2026).
+function pertPackLanesGrouped(list, topY, rowH, xOf) {
+  if (!list.length) return 0;
+
+  const buckets = new Map();
+  for (const n of list) {
+    const k = pertGroupKey(n);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(n);
+  }
+
+  // Ordre des bandes : groupes nommes d'abord, tries par ES min croissant (lecture
+  // dans le sens du temps) puis par nom ; la bande "sans groupe" ("") en dernier.
+  const minX = k => buckets.get(k).reduce((m, n) => Math.min(m, xOf[n.id]), Infinity);
+  const keys = Array.from(buckets.keys()).sort((a, b) => {
+    if (a === "") return 1;
+    if (b === "") return -1;
+    return (minX(a) - minX(b)) || a.localeCompare(b, "fr");
+  });
+
+  let laneTop = topY;
+  for (const k of keys) {
+    const used = pertPackLanes(buckets.get(k), laneTop, rowH, xOf);
+    laneTop += used * rowH; // bande suivante posee sous la precedente
+  }
+  return keys.length;
 }
 
 // ─── #7 Tracé du chemin critique (coloration des connexions) ─────────────────────
