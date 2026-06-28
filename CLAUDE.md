@@ -305,12 +305,19 @@ onDrawForeground(ctx) {
 > « Long terme / écarté » en fin de section. Le numéro `#NN` des objectifs S5+ renvoie
 > à la ligne correspondante de `remarques_mickael`. Arbitrages utilisateur du 27/06 :
 > correctifs/quick wins **avant** le chantier métier ; chantier « regroupement WP »
-> **découpé en 2 temps** (S6 dimension+couleur, S7 filtre+coût) ; **doc en dernier**.
+> **découpé en 2 temps** (S6 dimension+couleur, S7 socle+filtre) ; **doc en dernier**.
+>
+> **Redéfinition de S7 (28/06/2026)** — S7 n'est plus « filtre + coût » mais « le couple
+> couleur/groupe au cœur des fonctions de base » : on fait d'abord exploiter le concept
+> couleur/groupe par l'**import Excel** (choix/création de groupe au lieu d'une simple
+> couleur) et la **réorganisation** (conserver le regroupement par couleur), **avant** de
+> bâtir le **filtre #16** (le tout dans S7). **#3 (estimation de coût) retiré** de la
+> roadmap planifiée → long terme (outil PERT KISS). Détail dans la section S7.
 >
 > Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 ✅
 > → S5 ✅ (correctifs & quick wins) → S6 ✅ (regroupement métier WP, temps 1) → S7
-> (regroupement WP, temps 2) → S8 (propriétés & jalons enrichis) → S9 (exports avancés)
-> → S10 (liens & layout) → Doc (fin)**.
+> (couleur/groupe : import + réorg conscients du groupe, puis filtre) → S8 (propriétés &
+> jalons enrichis) → S9 (exports avancés) → S10 (liens & layout) → Doc (fin)**.
 
 ### Session 0 — Mise en place du dépôt GitHub ✅ TERMINÉE
 **Objectifs** :
@@ -668,8 +675,8 @@ utilisateur à confirmer avant merge** (même schéma que S4).
 
 ### Session 6 — Regroupement métier (WP/service), temps 1 : dimension + couleur ✅ TERMINÉE (27/06/2026)
 Chantier transversal majeur du retour Mickael — une seule fonctionnalité de fond
-derrière 5 remarques (#2, #3, #4, #14, #16), **découpée en 2 temps** (S6 puis S7,
-arbitrage utilisateur). Temps 1 = modèle de données + restitution visuelle.
+derrière 5 remarques (#2, #4, #14, #16 ; #3 retiré le 28/06), **découpée en 2 temps**
+(S6 puis S7, arbitrage utilisateur). Temps 1 = modèle de données + restitution visuelle.
 **Objectifs** :
 - [x] **#34** Identifiant unique par Activité — brique de fondation (micro-jalonnement,
   exports Excel/Gantt). **Précision utilisateur : uid AUTOMATIQUE, ni visible ni éditable
@@ -743,15 +750,46 @@ v0.6** (même schéma que S4/S5).
 
 ---
 
-### Session 7 — Regroupement métier (WP/service), temps 2 : filtre + coût ⏳ À VENIR
-Suite de S6 sur la même dimension « groupe ».
+### Session 7 — Le couple couleur/groupe au cœur des fonctions de base ⏳ À VENIR
+Suite de S6 sur la même dimension « groupe ». **Redéfinie le 28/06/2026** (cf. ci-dessous) :
+avant de bâtir le filtre, on fait d'abord exploiter le concept couleur/groupe par les
+fonctions de base déjà acquises (import, réorganisation). **#3 (coût) retiré** du périmètre
+S7 → reporté en long terme (décision utilisateur : pas indispensable pour un outil PERT KISS).
 **Objectifs** :
-- [ ] **#16** Filtrer / mettre en évidence par WP/métier/service ou par couleur
-- [ ] **#3** Estimation rapide du coût d'une activité ou d'un groupe d'un même WP/métier
-  (agrégation) — **périmètre à confirmer** : l'utilisateur le note « peut-être hors scope »
+- [ ] **A — Import Excel conscient du groupe** : le dialogue d'import devient **centré
+  groupe** (combobox enrichissable + `<datalist>` des groupes existants), avec 3 chemins :
+  (1) **groupe existant** sélectionné → couleur **héritée et verrouillée** (affichée, lue
+  dans `pertMeta.groups`) ; (2) **nouveau groupe** (nom non connu) → on choisit sa couleur,
+  qui **devient** la couleur du groupe (« premier venu », cohérent avec S6) ; (3) **aucun
+  groupe** (champ laissé vide) → on choisit juste une couleur, tâches importées **sans
+  groupe** (comportement actuel préservé). **Un seul groupe par lot** d'import (retag
+  possible après coup via le bouton « Appliquer ce groupe aux tâches de même couleur » de S6).
+  Remplace/étend `promptImportColor` ; les Activités importées sont rattachées au groupe via
+  `pertApplyGroup` (héritage/premier-venu), pas un 2e système de couleur.
+- [ ] **B — Réorganisation cohésive (couloirs groupés)** : `pertAutoLayout` conserve
+  **l'abscisse ∝ ES inchangée** (cohérence temporelle façon Gantt intacte) ; seule
+  **l'affectation des couloirs verticaux** devient **consciente du groupe** → les tâches
+  d'un même WP/groupe se posent sur des **couloirs voisins** (zones de couleur lisibles
+  « de loin », objectif #4 préservé après réorg). Best-effort : la non-superposition reste
+  prioritaire. Tâches **sans groupe** packées normalement. Pas de bandes horizontales par
+  groupe (calage temporel conservé — décision utilisateur du 28/06).
+- [ ] **C — #16 Filtrer / mettre en évidence** par WP/métier/service **ou par couleur** —
+  arrive **après** A+B (qui l'ont rendu pertinent), même session (périmètre S7 confirmé
+  « tout dans S7 » le 28/06).
+
+**Décisions de conception figées le 28/06/2026 (arbitrage utilisateur, avant implémentation)** :
+- **Ordre du chantier** : socle (import + réorg conscients du groupe) **avant** le filtre.
+  L'utilisateur veut que les fonctions déjà acquises exploitent couleur/groupe d'abord.
+- **Import centré groupe** (pas centré couleur) mais avec **échappatoire « aucun groupe »**
+  (couleur seule) **et** création de groupe à la volée — les 3 chemins ci-dessus.
+- **Réorganisation = couloirs groupés**, X = temps **conservé** (pas de relâchement du
+  calage temporel pour faire des bandes). Le groupe ne joue que sur la dimension verticale.
+- **#3 (estimation de coût) retiré** de S7 → long terme (cf. bloc « Long terme / écarté »).
 
 **Critère de validation** :
-L'utilisateur isole visuellement un WP et obtient une estimation agrégée.
+À l'import, on choisit/crée un groupe (ou pas) et la couleur en découle ; après
+« Réorganiser », les zones par WP/couleur restent groupées visuellement ; l'utilisateur
+isole/met en évidence un WP ou une couleur via le filtre.
 
 ---
 
@@ -832,6 +870,9 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   est conservé
 - **#5** Incrément auto du n° de version — rattaché à S9 mais marqué « à rediscuter »
   (cf. ci-dessus), l'utilisateur doutant lui-même de l'intérêt
+- **#3** Estimation rapide du coût d'une activité ou d'un groupe (agrégation) — **retiré
+  de S7 le 28/06/2026** : pas indispensable pour un outil PERT KISS, reporté « beaucoup
+  plus tard » (décision utilisateur)
 
 ---
 
