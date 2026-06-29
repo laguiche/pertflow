@@ -15,16 +15,43 @@
 
 // ─── Conversion unités ⇄ dates calendaires ──────────────────────────────────────
 //
-// Choix de conception : facteur fixe « jours par unité » (j=1, sem=7, mois=30).
-// Garantit que offset→date et date→offset sont exactement inverses, ce qui est
-// indispensable pour comparer une date-cible de jalon (calendaire) à une valeur
-// calculée (en unités). Les mois sont donc approximés à 30 jours — acceptable
-// pour un planning prévisionnel au long cours ; raffinable plus tard.
+// Choix de conception : les MOIS sont comptés en mois CALENDAIRES réels (via les
+// méthodes de Date), pas approximés à 30 jours. Une tâche de N mois depuis T0 tombe
+// exactement N mois calendaires plus loin (longueurs de mois et années bissextiles
+// gérées nativement) → plus aucune dérive cumulée sur les projets longs (le bug du
+// facteur fixe 30 j décalait de ~6 jours par an). Les jours (j=1) et les semaines
+// (sem=7 j, exactes) restaient justes : seul le mois posait problème.
+//
+// Invariant conservé : offset→date et date→offset restent exactement inverses pour
+// un offset entier de mois, ce qui est indispensable pour comparer une date-cible de
+// jalon (calendaire) à une valeur calculée (en unités). On convertit toujours
+// l'offset CUMULÉ depuis T0 (jamais pas-à-pas) → pas d'accumulation d'erreur.
+//
+// Le calcul interne du moteur reste 100% en unités abstraites : seule cette frontière
+// unités↔dates change (chemin critique, marges et layout sont inchangés).
 
-function pertDaysPerUnit(unit) {
-  if (unit === "sem") return 7;
-  if (unit === "mois") return 30;
-  return 1; // "j"
+// Nombre de jours du mois calendaire de la date d (1..31).
+function pertDaysInMonth(d) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+}
+
+// Ajoute un décalage exprimé en unités à une date de référence (objet Date).
+// "mois" → arithmétique calendaire (setMonth) ; partie fractionnaire au prorata des
+// jours du mois atteint. "sem"/"j" → multiple de jours exact.
+function pertAddUnits(refDate, offsetUnits, unit) {
+  const d = new Date(refDate.getTime());
+  if (unit === "mois") {
+    const whole = Math.trunc(offsetUnits);
+    const frac = offsetUnits - whole;
+    d.setMonth(d.getMonth() + whole);
+    if (Math.abs(frac) > 1e-9) {
+      d.setDate(d.getDate() + Math.round(frac * pertDaysInMonth(d)));
+    }
+    return d;
+  }
+  const daysPerUnit = unit === "sem" ? 7 : 1;
+  d.setDate(d.getDate() + Math.round(offsetUnits * daysPerUnit));
+  return d;
 }
 
 // Décalage en unités (depuis T0) → objet Date, ou null si T0 non défini.
@@ -34,21 +61,28 @@ function pertOffsetToDate(offsetUnits) {
   if (!meta.t0) return null;
   const t0 = new Date(meta.t0 + "T00:00:00");
   if (isNaN(t0.getTime())) return null;
-  const days = offsetUnits * pertDaysPerUnit(meta.unit);
-  const d = new Date(t0.getTime());
-  d.setDate(d.getDate() + Math.round(days));
-  return d;
+  return pertAddUnits(t0, offsetUnits, meta.unit);
 }
 
 // Date calendaire (string "YYYY-MM-DD") → décalage en unités depuis T0, ou null.
+// Inverse exact de pertOffsetToDate pour un offset entier de mois ; pour une date
+// quelconque, partie entière = mois calendaires complets, fraction = part du mois
+// courant (jour atteint / longueur du mois) → cohérent avec pertAddUnits.
 function pertDateToOffset(dateStr) {
   const meta = window.pertMeta || {};
   if (!dateStr || !meta.t0) return null;
   const t0 = new Date(meta.t0 + "T00:00:00");
   const d = new Date(dateStr + "T00:00:00");
   if (isNaN(t0.getTime()) || isNaN(d.getTime())) return null;
-  const days = (d.getTime() - t0.getTime()) / 86400000;
-  return days / pertDaysPerUnit(meta.unit);
+  if (meta.unit === "mois") {
+    let months = (d.getFullYear() - t0.getFullYear()) * 12 + (d.getMonth() - t0.getMonth());
+    const base = pertAddUnits(t0, months, "mois"); // T0 + months mois calendaires
+    const dayDiff = (d.getTime() - base.getTime()) / 86400000;
+    if (Math.abs(dayDiff) > 1e-9) months += dayDiff / pertDaysInMonth(base);
+    return months;
+  }
+  const daysPerUnit = meta.unit === "sem" ? 7 : 1;
+  return (d.getTime() - t0.getTime()) / 86400000 / daysPerUnit;
 }
 
 // ─── Accès au modèle de graphe ──────────────────────────────────────────────────
@@ -177,6 +211,19 @@ function pertRecalc() {
     for (const p of preds[id]) {
       const efPred = byId[p].ef;
       if (efPred !== null && efPred > es) es = efPred;
+    }
+    // Jalon ENTRANT : un jalon sans prédécesseur mais avec un successeur et une
+    // date-cible représente une contrainte externe (livraison d'un prototype, jalon
+    // client/fournisseur…) qui retarde le démarrage de la chaîne en aval — la tâche
+    // suivante ne part donc pas automatiquement à T0 mais à cette date. La topologie
+    // (aucun lien entrant + un lien sortant) distingue ce cas du jalon terminal
+    // (échéance à tenir) et du checkpoint intermédiaire (qui, eux, gardent ES = max
+    // des prédécesseurs ; la date-cible n'y borne que le LF, cf. backward pass).
+    // Plancher à T0 : une contrainte antérieure à T0 est déjà levée au démarrage.
+    if (node.type === "pert/milestone" && preds[id].length === 0
+        && succs[id].length > 0 && node.properties.due_date) {
+      const dueOff = pertDateToOffset(node.properties.due_date);
+      if (dueOff !== null) es = Math.max(0, dueOff);
     }
     node.es = es;
     node.ef = es + pertDuration(node);

@@ -119,7 +119,6 @@
     });
 
     var t0 = config.t0 || null;
-    var startGroups = {}; // noms des noeuds "E" (non materialises)
     var nodes = [];
 
     rawGroups.forEach(function (g) {
@@ -128,12 +127,24 @@
       var labelText = (subs[0] && subs[0].text) || g.name;
 
       if (type === "start") {
-        // Noeud E : ne cree pas de noeud, sert de source pour T0 (fallback config).
-        startGroups[g.name] = true;
-        if (!t0) {
-          var dt = findDateText(subs);
-          if (dt) t0 = frDateToISO(dt);
-        }
+        // Noeud E = JALON ENTRANT (contrainte externe : "Jalon entree" dans C-PERT).
+        // Il sert toujours de source T0 de secours (si la config MANUEL n'a pas de T0),
+        // mais on le MATERIALISE desormais en Jalon avec sa date-cible et on CONSERVE
+        // ses aretes sortantes (cf. plus bas) : la tache en aval ne demarre plus a T0
+        // mais a cette date. Avec la regle "jalon entrant" du moteur (aucun lien
+        // entrant + un lien sortant + date-cible → ES = date), la contrainte est
+        // restituee automatiquement. Un E pose exactement a T0 donne un jalon a T0
+        // (legere redondance assumee : il documente la contrainte d'entree).
+        var eDt = findDateText(subs);
+        var eDate = eDt ? frDateToISO(eDt) : null;
+        if (!t0 && eDate) t0 = eDate;
+        var ml = parseMilestoneLabel(labelText);
+        nodes.push({
+          srcName: g.name, type: "milestone", off: g.off || { x: 0, y: 0 },
+          label: ml.label || labelText.trim(),
+          // date-cible : celle encodee dans le libelle (E=(...)), sinon la date du noeud
+          due_date: ml.due_date || eDate
+        });
         return;
       }
 
@@ -142,21 +153,22 @@
         node.label = labelText.trim();
         node.duration = parseDurationField(findValueText(subs));
       } else { // milestone
-        var ml = parseMilestoneLabel(labelText);
-        node.label = ml.label;
-        node.due_date = ml.due_date;
+        var ml2 = parseMilestoneLabel(labelText);
+        node.label = ml2.label;
+        node.due_date = ml2.due_date;
       }
       nodes.push(node);
     });
 
-    // Aretes : on resout via id2group, on ignore celles qui touchent un noeud E
-    // (le successeur demarre naturellement a T0, sans predecesseur materialise).
+    // Aretes : on resout via id2group. Les noeuds E etant desormais materialises en
+    // Jalons entrants, leurs aretes sortantes sont CONSERVEES (la contrainte d'entree
+    // se propage a la tache en aval). On ne retire que les self-loops et les liens
+    // dont une extremite ne resout pas vers un groupe connu.
     var edges = [];
     (rawCxns || []).forEach(function (c) {
       var from = id2group[c.st];
       var to = id2group[c.end];
       if (from === undefined || to === undefined) return;
-      if (startGroups[from] || startGroups[to]) return;
       if (from === to) return;
       edges.push({ from: from, to: to });
     });

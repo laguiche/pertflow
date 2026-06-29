@@ -477,6 +477,41 @@ de coût) a été retiré** du périmètre — « pas indispensable pour un outi
 > pas de groupe) illustre une bonne pratique : faire du *nouveau comportement* une **généralisation**
 > de l'ancien, pas une branche parallèle.
 
+### Correctifs pré-Session 8 — Jalons entrants & mois calendaires (29/06/2026)
+
+Deux bugs de fond signalés par l'utilisateur avant d'ouvrir la S8, sur la branche
+`fix/jalons-entrants-mois-calendaires`.
+
+- **Jalons entrants.** Un planning réel comporte des contraintes externes (livraison
+  d'un prototype, jalon client/fournisseur) : une tâche qui en dépend ne doit pas
+  démarrer à T0 mais à la date de la contrainte. La fonctionnalité manquait, et l'import
+  legacy *perdait* ces jalons (nœuds `E` « Jalon entrée » ignorés, arêtes supprimées).
+  Solution proposée par l'utilisateur et retenue : **réutiliser le Jalon existant** avec
+  une règle topologique — *aucun lien entrant + un lien sortant + date-cible → le jalon
+  démarre à sa date*. Élégant car aucun nouveau type de nœud, et la topologie distingue
+  proprement les trois usages du Jalon (entrant / checkpoint intermédiaire / terminal).
+  Côté import, les nœuds `E` sont désormais matérialisés en Jalons (date-cible = leur
+  date) avec arêtes conservées ; la règle du moteur fait le reste.
+
+- **Mois calendaires réels.** L'unité « mois » convertissait via un facteur fixe de 30
+  jours → dérive de ~6 jours/an, problématique sur des projets s'étalant sur plusieurs
+  années. Correctif : conversion unité↔date refondue en **mois calendaires** (`Date.setMonth`,
+  longueurs de mois et bissextiles gérées). Diagnostic clé : le moteur travaille en
+  *unités abstraites* et ne convertit jamais en interne — le bug était entièrement
+  localisé à la frontière d'affichage (2 fonctions). Les jours et semaines (7 j exacts)
+  n'étaient pas concernés : seul le mois dérivait.
+
+> **Apport méthode/IA.** L'IA a d'abord *instruit la décision* : lecture du moteur pour
+> confirmer que la règle jalon entrant tenait en ~6 lignes et que le bug mois était
+> circonscrit à 2 fonctions, inspection du `.xlsm` d'exemple pour identifier le nœud
+> `E1020` « Jalon entrée » et son traitement actuel. Deux points de conception ont été
+> remontés à l'utilisateur avant d'écrire le code (matérialisation des `E` à T0 ;
+> plancher à T0 pour une cible antérieure). Validation par test headless pur (28
+> assertions) couvrant les cas limites — un filet utile vu qu'aucun navigateur n'était
+> disponible en environnement de dev. Enseignement transverse : *un correctif bien
+> diagnostiqué est petit* — le travail de compréhension en amont a transformé deux « bugs
+> majeurs » en changements chirurgicaux à faible risque.
+
 ---
 
 ## Backlog réorienté (à partir du 22/06/2026)
