@@ -844,7 +844,7 @@ merge/tag** (même schéma que S4/S5/S6).
 
 ---
 
-### Correctifs pré-Session 8 — Jalons entrants & mois calendaires (29/06/2026) ⏳ EN COURS
+### Correctifs pré-Session 8 — Jalons entrants & mois calendaires ✅ TERMINÉS (29/06/2026, tag v0.9)
 Deux bugs majeurs traités avant d'ouvrir la S8 (branche `fix/jalons-entrants-mois-calendaires`).
 **Objectifs** :
 - [x] **Jalons entrants** : un Jalon sans lien entrant + avec lien sortant + date-cible
@@ -863,8 +863,9 @@ entrants (y compris celui à T0) ; date-cible antérieure à T0 = **plancher à 
 **État** : implémenté, validé par test headless pur Node (28 assertions : conversion mois
 calendaire + round-trip exact, semaines/jours inchangés ; règle jalon entrant avec cas
 limites — terminal/sans-date/date<T0/checkpoint ; matérialisation E + non-régression import).
-**Validation visuelle navigateur à confirmer** (import réel `C_PERT_exemple.xlsm` qui contient
-le nœud `E1020` « Jalon entrée », + planning mois sur plusieurs années). Merge/tag après validation.
+**Validation visuelle navigateur confirmée** (import réel `C_PERT_exemple.xlsm` avec le nœud
+`E1020` « Jalon entrée » + planning mois sur plusieurs années). **Mergé sur `main`, tagué `v0.9`,
+poussé** (rituel de fin de session : bundle régénéré `--tag v0.9` et versionné).
 
 **Implémentation — décisions notables** :
 - **Localisation chirurgicale** : bug mois = 2 fonctions (`pertOffsetToDate`/`pertDateToOffset`
