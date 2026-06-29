@@ -122,7 +122,7 @@ pertflow/
 ### Conventions
 - **T0** = date de début du projet (saisie dans le panneau paramètres)
 - **Durée** exprimée en jours, semaines ou mois (selon `meta.unit` : `"j"` | `"sem"` | `"mois"`)
-- **Calcul interne en unités** (offset depuis T0) ; conversion en dates calendaires à l'affichage (facteur fixe : j=1, sem=7, mois=30 jours, inversible)
+- **Calcul interne en unités** (offset depuis T0) ; conversion en dates calendaires à l'affichage. Jours (j=1) et semaines (sem=7 j) = facteurs exacts ; **mois = mois CALENDAIRES réels** (via `Date.setMonth`, longueurs de mois et bissextiles gérées) — PAS un facteur fixe 30 j (corrigé pré-S8 : le facteur 30 dérivait de ~6 j/an, gênant sur les projets longs). On convertit toujours l'offset cumulé depuis T0 (jamais pas-à-pas) → conversions inversibles et sans dérive. Implémentation : `pertAddUnits` / `pertOffsetToDate` / `pertDateToOffset` dans `pert_engine.js`.
 - **ES** du premier nœud = T0
 - **EF** = ES + durée
 - **ES** d'un nœud = max(EF de tous ses prédécesseurs)
@@ -134,7 +134,9 @@ pertflow/
 
 ### Cas particuliers
 - Nœud sans prédécesseur → ES = T0
+- **Jalon ENTRANT** (corrigé pré-S8) : un Jalon **sans lien entrant + avec lien sortant + due_date** modélise une contrainte externe (livraison prototype, jalon client/fournisseur…) → son `ES = EF = offset(due_date)` (planché à T0 si la cible est antérieure), au lieu de démarrer à T0. La tâche en aval ne part donc pas automatiquement à T0. La topologie (aucun entrant + un sortant) distingue ce cas du jalon terminal et du checkpoint intermédiaire. Implémenté dans le forward pass de `pertRecalc`.
 - Jalon avec due_date → LF = min(due_date calculée, LF propagée)
+- Checkpoint intermédiaire (Jalon avec prédécesseur(s)) : la due_date ne borne que le LF, elle ne force PAS l'ES (qui reste = max EF des prédécesseurs)
 - Cycle détecté → afficher une erreur dans l'UI, ne pas calculer
 - Nœud isolé (sans connexion) → calculé indépendamment depuis T0
 
@@ -454,12 +456,19 @@ valide) → export PDF (`%PDF-`) → copier/coller (6→12) → Label `updateSiz
   est la **feuille de config** de l'outil C-PERT : `K2`=feuille PERT cible, `K5`=T0 (date
   série Excel), `J10`=unité (1=mois, 2=sem). L'import lit ces paramètres ; le choix de
   feuille manuel est un fallback.
-- Convention de nommage : groupe `<lettre><id>` → `A`=activité, `S`=jalon, `E`=nœud T0
-  (non matérialisé → règle `meta.t0`). Sous-formes `.1`=libellé, `.2`=`durée/marge`
+- Convention de nommage : groupe `<lettre><id>` → `A`=activité, `S`=jalon, `E`=**jalon
+  entrant** (« Jalon entrée » C-PERT). Sous-formes `.1`=libellé, `.2`=`durée/marge`
   (virgule décimale FR ; on garde la durée), `.3`/`.4`=date. Jalon : date-cible encodée
   `E=(jj/mm/aaaa)` dans le libellé → `due_date`.
+- **Nœud `E` (corrigé pré-S8)** : auparavant non matérialisé (seulement source T0 de
+  secours, arêtes supprimées) → le jalon entrant et sa contrainte étaient **perdus à
+  l'import**. Désormais **matérialisé en Jalon** (`due_date` = sa date) **avec ses arêtes
+  sortantes conservées** ; couplé à la règle « jalon entrant » du moteur, la contrainte
+  d'entrée est restituée. Le rôle de source T0 de secours est conservé (si MANUEL n'a pas
+  de T0). Un `E` posé à T0 donne un jalon à T0 (redondance assumée, documente l'entrée).
 - Connecteurs : `stCxn`/`endCxn` pointent une **sous-forme** → map `id sous-forme→groupe`
-  pour résoudre. Arêtes touchant un nœud `E` ignorées (le successeur démarre à T0).
+  pour résoudre. On ne retire plus que les self-loops et les liens non résolus (les arêtes
+  des nœuds `E` sont conservées).
 - **Contrainte `file://`** : dézip par **fflate** (`lib/fflate.min.js`, MIT, global
   non-module), `<input type="file">` + `FileReader.readAsArrayBuffer`, parsing `DOMParser`,
   **jamais `fetch`**. `src/import_excel.js` sépare transforms purs (testables Node) et
@@ -834,6 +843,39 @@ merge/tag** (même schéma que S4/S5/S6).
   filtre est aussi « parlant » (plus de hexa).
 
 ---
+
+### Correctifs pré-Session 8 — Jalons entrants & mois calendaires (29/06/2026) ⏳ EN COURS
+Deux bugs majeurs traités avant d'ouvrir la S8 (branche `fix/jalons-entrants-mois-calendaires`).
+**Objectifs** :
+- [x] **Jalons entrants** : un Jalon sans lien entrant + avec lien sortant + date-cible
+  fixe le démarrage de la chaîne aval (contrainte externe) au lieu de partir à T0.
+  Règle réutilisant le Jalon existant (pas de nouveau type), branchée dans le forward pass.
+  **+ Import legacy** : les nœuds `E` (« Jalon entrée »), auparavant ignorés et leurs arêtes
+  supprimées, sont matérialisés en Jalons entrants avec arêtes conservées.
+- [x] **Calcul en mois calendaires réels** : l'unité « mois » calculait en jours avec
+  l'approximation 30 j → dérive importante sur projets longs. Conversion unité↔date
+  refondue (`pertAddUnits`, `Date.setMonth`) ; jours/semaines déjà exacts, seul le mois
+  était fautif. Moteur interne inchangé (toujours en unités abstraites).
+
+**Décisions utilisateur (29/06)** : import des `E` = **tous matérialisés** en jalons
+entrants (y compris celui à T0) ; date-cible antérieure à T0 = **plancher à T0** (ES=0).
+
+**État** : implémenté, validé par test headless pur Node (28 assertions : conversion mois
+calendaire + round-trip exact, semaines/jours inchangés ; règle jalon entrant avec cas
+limites — terminal/sans-date/date<T0/checkpoint ; matérialisation E + non-régression import).
+**Validation visuelle navigateur à confirmer** (import réel `C_PERT_exemple.xlsm` qui contient
+le nœud `E1020` « Jalon entrée », + planning mois sur plusieurs années). Merge/tag après validation.
+
+**Implémentation — décisions notables** :
+- **Localisation chirurgicale** : bug mois = 2 fonctions (`pertOffsetToDate`/`pertDateToOffset`
+  + helper `pertAddUnits`/`pertDaysInMonth`) ; règle jalon entrant = ~6 lignes dans le forward
+  pass ; import E = uniquement la fonction pure `buildImportModel` (`applyImportModel` gère déjà
+  le type `milestone` + ses arêtes de façon générique → aucun changement UI).
+- **Invariant conservé** : `offset→date` et `date→offset` restent exacts inverses pour un offset
+  entier de mois (indispensable à la comparaison `due_date` ↔ valeur calculée).
+- **Effet de bord assumé** : un jalon entrant a `EF = due_date` et son LF est borné à cette même
+  date → marge 0 → marqué critique (un point d'entrée à date fixe ne peut pas glisser). Pas de
+  fausse alerte `target_missed` (EF == due_date).
 
 ### Session 8 — Propriétés & jalons enrichis ⏳ À VENIR
 **Objectifs** :
