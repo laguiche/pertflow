@@ -878,18 +878,59 @@ poussé** (rituel de fin de session : bundle régénéré `--tag v0.9` et versio
   date → marge 0 → marqué critique (un point d'entrée à date fixe ne peut pas glisser). Pas de
   fausse alerte `target_missed` (EF == due_date).
 
-### Session 8 — Propriétés & jalons enrichis ⏳ À VENIR
+### Session 8 — Propriétés & jalons enrichis ✅ TERMINÉE (30/06/2026)
+Sur la branche `session/8-proprietes-jalons`. **Tags décalés : cette session sera `v0.10`**
+(v0.9 = correctifs pré-S8).
 **Objectifs** :
-- [ ] **#12** Champ texte libre dans les propriétés d'Activité (hypothèses de durée,
-  contenu réel de la tâche)
-- [ ] **#13** Liste des responsables déjà saisis, proposée à la sélection (orthographe
-  cohérente) — autocomplétion / `datalist` alimentée par les valeurs existantes du graphe
-- [ ] **#17** Tag de type sur les Jalons : aucun / DOTD / COTD / Ingénierie (affichage distinctif)
-- [ ] **#18** Largeur ∝ durée rendue **optionnelle** (toggle) — laisser le choix d'activer
-  ou non la proportionnalité (introduite en S2.5)
+- [x] **#12** Champ texte libre dans les propriétés d'Activité (hypothèses de durée,
+  contenu réel de la tâche) — `properties.notes`, **panneau uniquement** (jamais rendu
+  sur le nœud, décision utilisateur : la note peut être longue)
+- [x] **#13** Liste des responsables déjà saisis, proposée à la sélection (orthographe
+  cohérente) — **déjà livré en S6** via `buildCombobox` + `collectResponsibles` (datalist
+  alimentée par les valeurs existantes) ; confirmé et couvert par test en S8
+- [x] **#17** Tag de type sur les Jalons : aucun / DOTD / COTD / Ingénierie — **pastille
+  colorée + texte** sous le libellé (décision utilisateur), couleur propre par type
+  INDÉPENDANTE du code couleur de tenue de cible (#20)
+- [x] **#18** Largeur ∝ durée rendue **optionnelle** — case à cocher dans le dialogue
+  **Paramètres** (décision utilisateur), `meta.prop_width` (défaut true), sérialisée
 
 **Critère de validation** :
 Propriétés enrichies utilisables ; jalons taggables ; largeur proportionnelle désactivable.
+**État** : implémenté et validé par test headless navigateur (`tools/smoke-s8.js` : note par
+défaut/panneau-seul/round-trip, `collectResponsibles` dédoublonné+trié, tag défaut/lookup/
+taille/indépendance targetState/round-trip, prop_width on→off→on réversible + round-trip) +
+smoke existant sans régression + captures de contrôle (4 jalons taggés DOTD/COTD/Ingénierie/
+aucun, dialogue Paramètres avec la case). **Validation visuelle utilisateur à confirmer avant
+merge/tag v0.10** (même schéma que S4–S7).
+
+**Décisions de conception (arbitrage utilisateur, en ouverture de session)** :
+- **#17 affichage** = pastille colorée + texte (chip) sous le libellé — distincte du
+  rouge/vert/orange de tenue de cible (porté par corps/bordure/coin).
+- **#18 emplacement** = case à cocher dans le dialogue Paramètres (préférence projet
+  sérialisée, cohérent avec `layout_gap`), PAS un bouton toolbar.
+- **#12 portée** = panneau propriétés uniquement (jamais sur le nœud).
+
+**Implémentation — décisions notables (30/06/2026)** :
+- **#12** : `properties.notes` (défaut `""`), `buildTextarea` dans le panneau Activité. Pas
+  de `updateSize`/`setDirtyCanvas` dans le handler (la note n'affecte pas l'apparence du
+  nœud). `buildTextarea` appelle désormais `pertHistoryMark()` (coalescence) → la note ET
+  le texte de Label deviennent undoables par cran de saisie.
+- **#17** : registre `PERT_MILESTONE_TAGS` (nodes.js, source unique : `[{value,label,color}]`,
+  ordre = ordre du menu) + helper `pertMilestoneTag(value)` (null si vide/inconnu, robuste
+  aux anciens .pert). `properties.tag` (`"" | "DOTD" | "COTD" | "ING"` — codes ASCII, le label
+  accentué « Ingénierie » n'est qu'un libellé d'affichage). `MilestoneNode.updateSize` réserve
+  une ligne (~20px) et élargit le nœud si la pastille est plus large ; rendu dans
+  `onDrawBackground` (rectangle arrondi plein + texte blanc) entre le libellé et la ligne
+  « Fin ». Le panneau utilise `buildSelect` (nouveau helper) avec options dérivées de
+  `PERT_MILESTONE_TAGS`. **Le tag n'affecte ni le calcul PERT ni `targetState`** (vérifié par test).
+- **#18** : `meta.prop_width` (défaut true). `ActivityNode.updateSize` lit
+  `window.pertMeta.prop_width` : si `false`, largeur figée à `ACT_MIN_W` (boîtes uniformes) ;
+  sinon comportement S2.5 (∝ durée). **Le placement chronologique du layout (abscisse ∝ ES)
+  reste inchangé** — seule la largeur du nœud varie. `saveSettings` réapplique `updateSize` sur
+  tous les nœuds. Sérialisé dans `storage.js` (+ défaut true pour anciens fichiers) et restauré
+  par l'undo (`history.js`).
+- **`buildSelect(parent, label, value, options, onChange)`** : nouveau helper liste déroulante
+  simple (label + `<select>`), marque l'historique au changement. Réutilisable au-delà du tag.
 
 ---
 
@@ -1140,3 +1181,23 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   `window.PERTFLOW_BUILD = {date, tag}` (option `--tag`, sinon dernier tag git). `.gitignore` :
   `dist/` n'est plus ignoré (bundle versionné). Bundle v0.8 régénéré et vérifié (À propos affiche
   v0.8 + date, 0 requête externe).
+
+### Session 8 (30/06/2026) — propriétés & jalons enrichis (retour Mickael)
+- Sur la branche `session/8-proprietes-jalons`. 4 objectifs (#12, #13, #17, #18). Détail et
+  décisions dans la section Session 8 plus haut. Trois arbitrages utilisateur en ouverture :
+  **#17** = pastille colorée + texte ; **#18** = case à cocher dans Paramètres ; **#12** =
+  panneau uniquement. **#13** était déjà livré en S6 (combobox Responsable + datalist) —
+  confirmé et couvert par test.
+- `src/nodes.js` : `properties.notes` sur l'Activité (#12, panneau seul) ; `properties.tag`
+  + registre `PERT_MILESTONE_TAGS` + helper `pertMilestoneTag` + rendu pastille dans
+  `MilestoneNode.onDrawBackground`/`updateSize` (#17) ; `ActivityNode.updateSize` lit
+  `meta.prop_width` (#18, largeur figée à `ACT_MIN_W` si désactivé). `src/ui.js` : champ Notes
+  (`buildTextarea`, qui marque désormais l'historique), sélecteur Type Jalon (`buildSelect`,
+  nouveau helper), case `settings-propwidth` dans open/saveSettings, `pertMeta.prop_width`
+  par défaut. `index.html` : case à cocher dans le dialogue Paramètres. `css/style.css` :
+  `.settings-check` (checkbox inline). `src/storage.js` + `src/history.js` : sérialisation/
+  restauration de `prop_width`.
+- Validé : `tools/smoke-s8.js` (#12 défaut/panneau-seul/round-trip, #13 collectResponsibles,
+  #17 défaut/lookup/taille/indépendance targetState/round-trip, #18 toggle réversible +
+  round-trip), smoke existant sans régression, captures de contrôle (jalons taggés, dialogue
+  Paramètres). **Validation visuelle utilisateur à confirmer avant merge/tag v0.10**.

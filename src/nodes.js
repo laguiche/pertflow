@@ -23,6 +23,24 @@ const ACT_LABEL_LH = 18;       // hauteur de ligne du libelle (police bold 13px)
 // rouge si non tenue). Exprime dans l'unite courante (j / sem / mois).
 const MILESTONE_GREEN_MARGIN = 1;
 
+// #17 Tags de type de Jalon (importance contractuelle). La valeur stockee
+// (properties.tag) est un code ASCII court ("" = aucun) ; le rendu affiche une
+// PASTILLE coloree + texte sous le libelle. La couleur du tag est INDEPENDANTE du
+// code couleur de tenue de cible (#20 : rouge/vert/orange sur corps/bordure/coin) —
+// elle ne fait qu'identifier la nature du jalon. Ordre = ordre du menu deroulant.
+const PERT_MILESTONE_TAGS = [
+  { value: "DOTD", label: "DOTD",       color: "#3b6fb0" }, // bleu
+  { value: "COTD", label: "COTD",       color: "#8e44ad" }, // violet
+  { value: "ING",  label: "Ingénierie", color: "#0f8a8a" }  // turquoise fonce
+];
+
+// Retourne la definition du tag (label + couleur) pour un code donne, ou null si
+// aucun/inconnu (robuste aux anciens .pert sans tag ou a un code obsolete).
+function pertMilestoneTag(value) {
+  if (!value) return null;
+  return PERT_MILESTONE_TAGS.find(t => t.value === value) || null;
+}
+
 // ─── Mesure de texte (canvas offscreen partage) ───────────────────────────────
 
 let _offscreenCtx = null;
@@ -117,6 +135,10 @@ function ActivityNode() {
     // libre saisi via un combobox enrichissable (cf. ui.js). Couleur du groupe
     // memorisee dans pertMeta.groups (#14) ; harmonisation visuelle #4.
     group: "",
+    // #12 Note libre (hypotheses de duree, contenu reel de la tache). Saisie dans le
+    // panneau propriete uniquement, JAMAIS rendue sur le nœud (peut etre longue et ne
+    // doit pas agrandir/encombrer la boite). Serialisee nativement via properties.
+    notes: "",
     color: "#4A90D9"
   };
 
@@ -150,9 +172,16 @@ ActivityNode.prototype.onPropertyChanged = function(name, value) {
 
 // Recalcule largeur (∝ duree, bornee), libelle multi-lignes, hauteur et slots.
 ActivityNode.prototype.updateSize = function() {
-  // #2 largeur proportionnelle a la duree, bornee [MIN, MAX]
+  // #2 largeur proportionnelle a la duree, bornee [MIN, MAX].
+  // #18 La proportionnalite est OPTIONNELLE (meta.prop_width, defaut true) : quand elle
+  // est desactivee, toutes les Activites prennent la largeur plancher ACT_MIN_W (boites
+  // de taille uniforme, lecture facilitee quand la proportionnalite gene). Le placement
+  // chronologique du layout (abscisse ∝ ES) reste inchange — seule la largeur varie.
   const dur = parseFloat(this.properties.duration) || 0;
-  const width = Math.max(ACT_MIN_W, Math.min(ACT_MAX_W, dur * PERT_PX_PER_UNIT));
+  const propWidth = !(window.pertMeta && window.pertMeta.prop_width === false);
+  const width = propWidth
+    ? Math.max(ACT_MIN_W, Math.min(ACT_MAX_W, dur * PERT_PX_PER_UNIT))
+    : ACT_MIN_W;
 
   // #4 libelle multi-lignes si trop long pour la largeur
   this._labelLines = wrapText(this.properties.label, "bold 13px sans-serif", width - 20);
@@ -294,7 +323,11 @@ function MilestoneNode() {
 
   this.properties = {
     label: "Jalon",
-    due_date: ""
+    due_date: "",
+    // #17 Type de jalon (importance contractuelle) : "" | "DOTD" | "COTD" | "ING".
+    // Rendu en pastille coloree (cf. PERT_MILESTONE_TAGS) ; sans incidence sur le
+    // calcul PERT ni sur la couleur de tenue de cible.
+    tag: ""
   };
 
   this.ef = null; this.lf = null;
@@ -320,14 +353,19 @@ MilestoneNode.prototype.updateSize = function() {
   const efTxt  = this.ef !== null ? "Fin : 00/00/00" : "";
   const dueTxt = this.properties.due_date ? "Cible : 00/00/00" : "";
   const labelW = measureText("◆ " + this.properties.label, "bold 12px sans-serif");
-  const lineW  = Math.max(labelW, measureText(efTxt, "10px sans-serif"),
+  // #17 La pastille de tag (texte 10px gras + padding interne) elargit le nœud si besoin.
+  const tag = pertMilestoneTag(this.properties.tag);
+  const tagW = tag ? measureText(tag.label, "bold 10px sans-serif") + 16 : 0;
+  const lineW  = Math.max(labelW, tagW, measureText(efTxt, "10px sans-serif"),
                           measureText(dueTxt, "10px sans-serif"));
   // bord gauche reserve au slot d'entree (~24px) + marge droite
   const width = Math.max(160, Math.min(300, lineW + 44));
 
   this._labelLines = wrapText("◆ " + this.properties.label, "bold 12px sans-serif", width - 32);
   const nbExtra = (this.ef !== null ? 1 : 0) + (this.properties.due_date ? 1 : 0);
-  const textH = 14 + this._labelLines.length * 16 + nbExtra * 15 + 10;
+  // #17 ligne de pastille reservee (hauteur ~20px) quand un tag est present
+  const tagH = tag ? 20 : 0;
+  const textH = 14 + this._labelLines.length * 16 + tagH + nbExtra * 15 + 10;
 
   // Hauteur minimale pour loger TOUS les slots d'entree (sinon le Jalon plafonne
   // visuellement a ~3 liens entrants) : LiteGraph empile les slots a
@@ -416,6 +454,37 @@ MilestoneNode.prototype.onDrawBackground = function(ctx) {
     ctx.fillText(ln, 12, y);
     y += 16;
   });
+
+  // #17 Pastille de type (DOTD / COTD / Ingenierie) sous le libelle : rectangle
+  // arrondi a fond colore + texte blanc. Couleur propre au type, distincte du code
+  // couleur de tenue de cible (corps/bordure/coin).
+  const tag = pertMilestoneTag(this.properties.tag);
+  if (tag) {
+    ctx.font = "bold 10px sans-serif";
+    const txtW = ctx.measureText(tag.label).width;
+    const chipH = 15, padX = 6;
+    const chipW = txtW + padX * 2;
+    const chipR = 4;
+    const cx = 12, cy = y - 2;
+    ctx.beginPath();
+    ctx.moveTo(cx + chipR, cy);
+    ctx.lineTo(cx + chipW - chipR, cy);
+    ctx.arcTo(cx + chipW, cy, cx + chipW, cy + chipR, chipR);
+    ctx.lineTo(cx + chipW, cy + chipH - chipR);
+    ctx.arcTo(cx + chipW, cy + chipH, cx + chipW - chipR, cy + chipH, chipR);
+    ctx.lineTo(cx + chipR, cy + chipH);
+    ctx.arcTo(cx, cy + chipH, cx, cy + chipH - chipR, chipR);
+    ctx.lineTo(cx, cy + chipR);
+    ctx.arcTo(cx, cy, cx + chipR, cy, chipR);
+    ctx.closePath();
+    ctx.fillStyle = tag.color;
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "middle";
+    ctx.fillText(tag.label, cx + padX, cy + chipH / 2 + 0.5);
+    ctx.textBaseline = "alphabetic"; // restaure le defaut pour les lignes suivantes
+    y += 20;
+  }
 
   // Fin calculée (date au plus tôt d'atteinte du jalon)
   if (this.ef !== null) {

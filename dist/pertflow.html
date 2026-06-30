@@ -1004,6 +1004,21 @@ body {
   border-color: #5a8fd8;
 }
 
+/* #18 ligne de case a cocher : checkbox en ligne avec son libelle (et non empilee) */
+#settings-box label.settings-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+#settings-box label.settings-check input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
 .dialog-buttons {
   display: flex;
   justify-content: flex-end;
@@ -1250,7 +1265,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"29/06/2026 23:42","tag":"v0.9"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"30/06/2026 20:36","tag":"v0.10"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -1271,6 +1286,10 @@ body {
       </label>
       <label>Espacement horizontal entre tâches (px)
         <input type="number" id="settings-hgap" min="0" step="5">
+      </label>
+      <label class="settings-check">
+        <input type="checkbox" id="settings-propwidth">
+        Largeur des tâches proportionnelle à la durée
       </label>
       <div class="dialog-buttons">
         <button id="settings-cancel">Annuler</button>
@@ -36343,6 +36362,24 @@ const ACT_LABEL_LH = 18;       // hauteur de ligne du libelle (police bold 13px)
 // rouge si non tenue). Exprime dans l'unite courante (j / sem / mois).
 const MILESTONE_GREEN_MARGIN = 1;
 
+// #17 Tags de type de Jalon (importance contractuelle). La valeur stockee
+// (properties.tag) est un code ASCII court ("" = aucun) ; le rendu affiche une
+// PASTILLE coloree + texte sous le libelle. La couleur du tag est INDEPENDANTE du
+// code couleur de tenue de cible (#20 : rouge/vert/orange sur corps/bordure/coin) —
+// elle ne fait qu'identifier la nature du jalon. Ordre = ordre du menu deroulant.
+const PERT_MILESTONE_TAGS = [
+  { value: "DOTD", label: "DOTD",       color: "#3b6fb0" }, // bleu
+  { value: "COTD", label: "COTD",       color: "#8e44ad" }, // violet
+  { value: "ING",  label: "Ingénierie", color: "#0f8a8a" }  // turquoise fonce
+];
+
+// Retourne la definition du tag (label + couleur) pour un code donne, ou null si
+// aucun/inconnu (robuste aux anciens .pert sans tag ou a un code obsolete).
+function pertMilestoneTag(value) {
+  if (!value) return null;
+  return PERT_MILESTONE_TAGS.find(t => t.value === value) || null;
+}
+
 // ─── Mesure de texte (canvas offscreen partage) ───────────────────────────────
 
 let _offscreenCtx = null;
@@ -36437,6 +36474,10 @@ function ActivityNode() {
     // libre saisi via un combobox enrichissable (cf. ui.js). Couleur du groupe
     // memorisee dans pertMeta.groups (#14) ; harmonisation visuelle #4.
     group: "",
+    // #12 Note libre (hypotheses de duree, contenu reel de la tache). Saisie dans le
+    // panneau propriete uniquement, JAMAIS rendue sur le nœud (peut etre longue et ne
+    // doit pas agrandir/encombrer la boite). Serialisee nativement via properties.
+    notes: "",
     color: "#4A90D9"
   };
 
@@ -36470,9 +36511,16 @@ ActivityNode.prototype.onPropertyChanged = function(name, value) {
 
 // Recalcule largeur (∝ duree, bornee), libelle multi-lignes, hauteur et slots.
 ActivityNode.prototype.updateSize = function() {
-  // #2 largeur proportionnelle a la duree, bornee [MIN, MAX]
+  // #2 largeur proportionnelle a la duree, bornee [MIN, MAX].
+  // #18 La proportionnalite est OPTIONNELLE (meta.prop_width, defaut true) : quand elle
+  // est desactivee, toutes les Activites prennent la largeur plancher ACT_MIN_W (boites
+  // de taille uniforme, lecture facilitee quand la proportionnalite gene). Le placement
+  // chronologique du layout (abscisse ∝ ES) reste inchange — seule la largeur varie.
   const dur = parseFloat(this.properties.duration) || 0;
-  const width = Math.max(ACT_MIN_W, Math.min(ACT_MAX_W, dur * PERT_PX_PER_UNIT));
+  const propWidth = !(window.pertMeta && window.pertMeta.prop_width === false);
+  const width = propWidth
+    ? Math.max(ACT_MIN_W, Math.min(ACT_MAX_W, dur * PERT_PX_PER_UNIT))
+    : ACT_MIN_W;
 
   // #4 libelle multi-lignes si trop long pour la largeur
   this._labelLines = wrapText(this.properties.label, "bold 13px sans-serif", width - 20);
@@ -36614,7 +36662,11 @@ function MilestoneNode() {
 
   this.properties = {
     label: "Jalon",
-    due_date: ""
+    due_date: "",
+    // #17 Type de jalon (importance contractuelle) : "" | "DOTD" | "COTD" | "ING".
+    // Rendu en pastille coloree (cf. PERT_MILESTONE_TAGS) ; sans incidence sur le
+    // calcul PERT ni sur la couleur de tenue de cible.
+    tag: ""
   };
 
   this.ef = null; this.lf = null;
@@ -36640,14 +36692,19 @@ MilestoneNode.prototype.updateSize = function() {
   const efTxt  = this.ef !== null ? "Fin : 00/00/00" : "";
   const dueTxt = this.properties.due_date ? "Cible : 00/00/00" : "";
   const labelW = measureText("◆ " + this.properties.label, "bold 12px sans-serif");
-  const lineW  = Math.max(labelW, measureText(efTxt, "10px sans-serif"),
+  // #17 La pastille de tag (texte 10px gras + padding interne) elargit le nœud si besoin.
+  const tag = pertMilestoneTag(this.properties.tag);
+  const tagW = tag ? measureText(tag.label, "bold 10px sans-serif") + 16 : 0;
+  const lineW  = Math.max(labelW, tagW, measureText(efTxt, "10px sans-serif"),
                           measureText(dueTxt, "10px sans-serif"));
   // bord gauche reserve au slot d'entree (~24px) + marge droite
   const width = Math.max(160, Math.min(300, lineW + 44));
 
   this._labelLines = wrapText("◆ " + this.properties.label, "bold 12px sans-serif", width - 32);
   const nbExtra = (this.ef !== null ? 1 : 0) + (this.properties.due_date ? 1 : 0);
-  const textH = 14 + this._labelLines.length * 16 + nbExtra * 15 + 10;
+  // #17 ligne de pastille reservee (hauteur ~20px) quand un tag est present
+  const tagH = tag ? 20 : 0;
+  const textH = 14 + this._labelLines.length * 16 + tagH + nbExtra * 15 + 10;
 
   // Hauteur minimale pour loger TOUS les slots d'entree (sinon le Jalon plafonne
   // visuellement a ~3 liens entrants) : LiteGraph empile les slots a
@@ -36736,6 +36793,37 @@ MilestoneNode.prototype.onDrawBackground = function(ctx) {
     ctx.fillText(ln, 12, y);
     y += 16;
   });
+
+  // #17 Pastille de type (DOTD / COTD / Ingenierie) sous le libelle : rectangle
+  // arrondi a fond colore + texte blanc. Couleur propre au type, distincte du code
+  // couleur de tenue de cible (corps/bordure/coin).
+  const tag = pertMilestoneTag(this.properties.tag);
+  if (tag) {
+    ctx.font = "bold 10px sans-serif";
+    const txtW = ctx.measureText(tag.label).width;
+    const chipH = 15, padX = 6;
+    const chipW = txtW + padX * 2;
+    const chipR = 4;
+    const cx = 12, cy = y - 2;
+    ctx.beginPath();
+    ctx.moveTo(cx + chipR, cy);
+    ctx.lineTo(cx + chipW - chipR, cy);
+    ctx.arcTo(cx + chipW, cy, cx + chipW, cy + chipR, chipR);
+    ctx.lineTo(cx + chipW, cy + chipH - chipR);
+    ctx.arcTo(cx + chipW, cy + chipH, cx + chipW - chipR, cy + chipH, chipR);
+    ctx.lineTo(cx + chipR, cy + chipH);
+    ctx.arcTo(cx, cy + chipH, cx, cy + chipH - chipR, chipR);
+    ctx.lineTo(cx, cy + chipR);
+    ctx.arcTo(cx, cy, cx + chipR, cy, chipR);
+    ctx.closePath();
+    ctx.fillStyle = tag.color;
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "middle";
+    ctx.fillText(tag.label, cx + padX, cy + chipH / 2 + 0.5);
+    ctx.textBaseline = "alphabetic"; // restaure le defaut pour les lignes suivantes
+    y += 20;
+  }
 
   // Fin calculée (date au plus tôt d'atteinte du jalon)
   if (this.ef !== null) {
@@ -38015,6 +38103,8 @@ window.pertHighlightCriticalPath = pertHighlightCriticalPath;
         global.pertMeta.t0 = data.meta.t0;
         global.pertMeta.unit = data.meta.unit;
         global.pertMeta.layout_gap = data.meta.layout_gap;
+        // #18 largeur ∝ duree (defaut true si snapshot anterieur sans la cle)
+        global.pertMeta.prop_width = data.meta.prop_width !== false;
         // #14 registre des couleurs de groupes (capte dans le snapshot via pertMeta)
         global.pertMeta.groups = data.meta.groups || {};
       }
@@ -38081,6 +38171,8 @@ function pertSerializeProject() {
       t0: meta.t0 || "",
       unit: meta.unit || "j",
       layout_gap: meta.layout_gap != null ? meta.layout_gap : 30,
+      // #18 largeur des taches ∝ duree (defaut true si absent : anciens .pert)
+      prop_width: meta.prop_width !== false,
       // #14 registre des couleurs de groupes (WP/metier/service)
       groups: meta.groups || {}
     },
@@ -38148,6 +38240,8 @@ function pertApplyProject(data) {
   window.pertMeta.t0 = meta.t0 || "";
   window.pertMeta.unit = meta.unit || "j";
   window.pertMeta.layout_gap = meta.layout_gap != null ? meta.layout_gap : 30;
+  // #18 largeur ∝ duree (defaut true pour les fichiers anterieurs sans la cle)
+  window.pertMeta.prop_width = meta.prop_width !== false;
   // #14 registre des couleurs de groupes (robuste aux fichiers anterieurs : {})
   window.pertMeta.groups = meta.groups || {};
 
@@ -38337,7 +38431,9 @@ window.pertRenderToCanvas = pertRenderToCanvas;
 
 // groups : registre des couleurs memorisees par groupe (WP/metier/service), #14.
 // { "<nom du groupe>": "<couleur>" } — serialise dans le .pert, capte par l'undo.
-window.pertMeta = { title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, groups: {} };
+// prop_width (#18) : largeur des Activites proportionnelle a la duree (defaut true).
+// Optionnel — desactivable via le dialogue Parametres ; serialise dans le .pert.
+window.pertMeta = { title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true, groups: {} };
 window.pertGraph = null;
 window.pertCanvas = null;
 
@@ -38856,6 +38952,13 @@ function showProperties(node) {
     sameColorBtn.addEventListener("click", () => pertApplyGroupToSameColor(node));
     content.appendChild(sameColorBtn);
 
+    // #12 Note libre (hypotheses de duree, contenu reel de la tache). Panneau
+    // uniquement — jamais rendue sur le nœud (cf. nodes.js). Pas de updateSize ni de
+    // setDirtyCanvas : la note n'affecte pas l'apparence du nœud.
+    buildTextarea(content, "Notes (hypothèses, contenu réel)", node.properties.notes, v => {
+      node.properties.notes = v;
+    });
+
     buildCalcSection(content, node);
 
   } else if (node.type === "pert/milestone") {
@@ -38869,6 +38972,16 @@ function showProperties(node) {
       node.setDirtyCanvas(true);
       pertRecalc();
       fillCalcSection(node);
+    });
+    // #17 Type de jalon (importance contractuelle) : aucun / DOTD / COTD / Ingenierie.
+    // Options derivees de PERT_MILESTONE_TAGS (nodes.js) → source unique. La pastille
+    // peut changer la taille du nœud → updateSize.
+    const tagOptions = [{ value: "", label: "Aucun" }].concat(
+      PERT_MILESTONE_TAGS.map(t => ({ value: t.value, label: t.label })));
+    buildSelect(content, "Type", node.properties.tag, tagOptions, v => {
+      node.properties.tag = v;
+      node.updateSize();
+      node.setDirtyCanvas(true, true);
     });
 
     buildCalcSection(content, node);
@@ -39199,9 +39312,30 @@ function buildTextarea(parent, labelText, value, onChange) {
   const ta = document.createElement("textarea");
   ta.rows = 5;
   ta.value = value || "";
-  ta.addEventListener("input", e => onChange(e.target.value));
+  // pertHistoryMark coalesce la saisie (un seul cran d'undo par edition de zone)
+  ta.addEventListener("input", e => { onChange(e.target.value); pertHistoryMark(); });
   label.appendChild(ta);
   parent.appendChild(label);
+  return ta;
+}
+
+// Liste deroulante simple (label + <select>). options = [{value, label}]. Sert au
+// type de Jalon (#17). Marque l'historique a chaque changement.
+function buildSelect(parent, labelText, value, options, onChange) {
+  const label = document.createElement("label");
+  label.textContent = labelText;
+  const sel = document.createElement("select");
+  options.forEach(o => {
+    const opt = document.createElement("option");
+    opt.value = o.value;
+    opt.textContent = o.label;
+    if (o.value === (value || "")) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", e => { onChange(e.target.value); pertHistoryMark(); });
+  label.appendChild(sel);
+  parent.appendChild(label);
+  return sel;
 }
 
 function buildReadonly(parent, labelText, value, cls) {
@@ -39293,6 +39427,9 @@ function openSettings() {
   document.getElementById("settings-unit").value = window.pertMeta.unit || "j";
   document.getElementById("settings-hgap").value =
     window.pertMeta.layout_gap != null ? window.pertMeta.layout_gap : 30;
+  // #18 case cochee par defaut (proportionnalite active sauf desactivation explicite)
+  document.getElementById("settings-propwidth").checked =
+    window.pertMeta.prop_width !== false;
   document.getElementById("settings-dialog").style.display = "flex";
 }
 
@@ -39302,6 +39439,8 @@ function saveSettings() {
   window.pertMeta.unit = document.getElementById("settings-unit").value;
   const hgap = parseFloat(document.getElementById("settings-hgap").value);
   window.pertMeta.layout_gap = isNaN(hgap) ? 30 : Math.max(0, hgap);
+  // #18 largeur ∝ duree (re-applique par updateSize sur tous les nœuds ci-dessous)
+  window.pertMeta.prop_width = document.getElementById("settings-propwidth").checked;
   document.getElementById("settings-dialog").style.display = "none";
   document.getElementById("project-title").textContent = window.pertMeta.title || "PertFlow";
   // Recalculer les tailles (l'unité affectée dans les nœuds Activité)
