@@ -1019,6 +1019,25 @@ body {
   cursor: pointer;
 }
 
+/* S8.5 groupe de paramètres d'estimation de coût */
+#settings-box fieldset.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #2a3a6a;
+  border-radius: 6px;
+  padding: 10px 12px 12px;
+  margin: 0;
+}
+
+#settings-box fieldset.settings-group legend {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7eb8f7;
+  padding: 0 6px;
+}
+
 .dialog-buttons {
   display: flex;
   justify-content: flex-end;
@@ -1265,7 +1284,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"30/06/2026 20:36","tag":"v0.10"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"30/06/2026 22:54","tag":"v0.11"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -1291,6 +1310,18 @@ body {
         <input type="checkbox" id="settings-propwidth">
         Largeur des tâches proportionnelle à la durée
       </label>
+      <fieldset class="settings-group">
+        <legend>Estimation des coûts</legend>
+        <label>Heures par mois
+          <input type="number" id="settings-hpm" min="0" step="1">
+        </label>
+        <label>Heures par jour (semaine = 5×)
+          <input type="number" id="settings-hpd" min="0" step="0.5">
+        </label>
+        <label>Taux horaire moyen (€/h)
+          <input type="number" id="settings-rate" min="0" step="1">
+        </label>
+      </fieldset>
       <div class="dialog-buttons">
         <button id="settings-cancel">Annuler</button>
         <button id="settings-ok" class="primary">Valider</button>
@@ -1365,9 +1396,11 @@ body {
     <span class="st-sep">|</span>
     <span id="status-unit">Unité : mois</span>
     <span class="st-sep">|</span>
-    <span id="status-nodes">0 nœud(s)</span>
+    <span id="status-nodes">0 tâche(s)</span>
     <span class="st-sep">|</span>
     <span id="status-pert">Aucun nœud à calculer</span>
+    <span class="st-sep">|</span>
+    <span id="status-cost">Coût total : 0 k€ · Chemin critique : 0 k€</span>
     <span class="st-sep">|</span>
     <span id="status-hint">Clic droit sur le canvas pour ajouter un nœud · Suppr pour effacer · Ctrl+A pour tout sélectionner</span>
   </div>
@@ -36469,6 +36502,11 @@ function ActivityNode() {
     uid: pertGenUid(),
     label: "Nouvelle activité",
     duration: 1,
+    // Estimation de coût (Session 8.5) : nombre d'ETP (Equivalent Temps Plein) estime
+    // pour realiser la tache. Modifiable (panneau). Le cout financier en decoule
+    // (cf. pertActivityCost) mais N'est PAS stocke (recalcule, comme es/ef). Affiches
+    // dans le panneau lateral uniquement — JAMAIS sur le nœud (PERT != outil de chiffrage).
+    etp: 1,
     responsible: "",
     // #2 Dimension "groupe" (WP / metier / service) au-dela du responsable. Texte
     // libre saisi via un combobox enrichissable (cf. ui.js). Couleur du groupe
@@ -37172,6 +37210,7 @@ function pertRecalc() {
   nodes.forEach(pertResetNode);
 
   if (nodes.length === 0) {
+    window.pertCriticalPathIds = new Set(); // plus de chemin critique a agreger
     pertPublishStatus({ ok: true, nbNodes: 0, nbCritical: 0, projectEnd: null });
     graph.setDirtyCanvas(true, true);
     return { ok: true, nbNodes: 0, nbCritical: 0 };
@@ -37179,6 +37218,7 @@ function pertRecalc() {
 
   // — Cycle → on s'arrête, valeurs laissées à null —
   if (pertDetectCycle(nodes, succs)) {
+    window.pertCriticalPathIds = new Set(); // pas de chemin critique sur un cycle
     const res = { ok: false, error: "cycle", nbNodes: nodes.length };
     pertPublishStatus(res);
     graph.setDirtyCanvas(true, true);
@@ -37445,14 +37485,20 @@ function pertPackLanesGrouped(list, topY, rowH, xOf) {
 
 // ─── #7 Tracé du chemin critique (coloration des connexions) ─────────────────────
 //
-// Remonte les predecesseurs "contraignants" (ceux dont le EF cale le ES du nœud
-// courant) depuis une cible jusqu'a l'origine, et colore les liens traverses en
-// rouge. La cible est le nœud passe en argument (selection utilisateur) ou, a
-// defaut, le nœud le plus eloigne de T0 (EF max). Les autres liens repassent au
-// gris par defaut.
+// Deux modes selon la presence d'une selection (targetId) :
+//   - SANS selection : LE chemin critique du projet = chemin de marge MINIMALE
+//     (nœuds is_critical). On colore les liens contraignants entre nœuds critiques.
+//   - AVEC selection : chemin CONTRAIGNANT passant par le nœud selectionne — on
+//     remonte les predecesseurs contraignants (EF cale le ES) jusqu'a T0 et on
+//     descend les successeurs contraints jusqu'au terminal (#26).
+// Dans les deux cas, l'ensemble des nœuds du chemin mis en evidence est memorise
+// dans window.pertCriticalPathIds → la barre d'etat (cout + nombre de TACHES) reflete
+// exactement le trace rouge affiche (S8.5, correctif d'incoherence cout/chemin). Les
+// autres liens repassent au gris.
 
 function pertHighlightCriticalPath(targetId) {
   const graph = window.pertGraph;
+  window.pertCriticalPathIds = new Set(); // nœuds du chemin actuellement mis en evidence
   if (!graph) return;
 
   // Reinitialiser toutes les couleurs de lien (retour au gris par defaut)
@@ -37461,81 +37507,92 @@ function pertHighlightCriticalPath(targetId) {
   }
 
   const { nodes, preds, succs } = pertBuildAdjacency(graph);
-  if (!nodes.length) return;
+  if (!nodes.length) { if (window.updateStatus) window.updateStatus(); return; }
   const byId = {};
   nodes.forEach(n => { byId[n.id] = n; });
 
-  // Cible : nœud demande s'il est calcule, sinon le plus eloigne de T0 (EF max).
-  // A EF egal, on prefere un nœud terminal (sans successeur) — typiquement le
-  // jalon de fin — plutot que la derniere activite qui le precede.
-  let target = (targetId != null && byId[targetId] && byId[targetId].ef !== null)
+  // Nœud selectionne (s'il est calcule), sinon mode "chemin critique par defaut".
+  const selected = (targetId != null && byId[targetId] && byId[targetId].ef !== null)
     ? byId[targetId] : null;
-  if (!target) {
+
+  const pathIds = new Set();
+
+  if (!selected) {
+    // — SANS selection : chemin de marge minimale (is_critical). On memorise tous les
+    //   nœuds critiques et on colore les liens contraignants entre eux (gere aussi les
+    //   branches paralleles a marge minimale).
+    for (const n of nodes) if (n.is_critical) pathIds.add(n.id);
     for (const n of nodes) {
-      if (n.ef === null) continue;
-      if (!target) { target = n; continue; }
-      const nTerminal = succs[n.id].length === 0;
-      const tTerminal = succs[target.id].length === 0;
-      if (n.ef > target.ef + PERT_EPS
-          || (Math.abs(n.ef - target.ef) < PERT_EPS && nTerminal && !tTerminal)) {
-        target = n;
-      }
-    }
-  }
-  if (!target || target.ef === null) return;
-
-  // Remontee du chemin contraignant (cible → T0, vers l'amont)
-  const seen = new Set();
-  let current = target;
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id);
-    let binding = null;
-    for (const pid of preds[current.id]) {
-      const p = byId[pid];
-      if (p.ef === null) continue;
-      // predecesseur contraignant : son EF cale le ES du nœud courant
-      if (Math.abs(p.ef - current.es) < PERT_EPS) {
-        // preferer un predecesseur critique, puis celui de plus grand EF
-        if (!binding || (p.is_critical && !binding.is_critical) || p.ef > binding.ef) {
-          binding = p;
+      if (!n.is_critical || n.es === null) continue;
+      for (const pid of preds[n.id]) {
+        const p = byId[pid];
+        if (p && p.is_critical && p.ef !== null && Math.abs(p.ef - n.es) < PERT_EPS) {
+          pertColorLink(graph, p.id, n.id, "#cc0000");
         }
       }
     }
-    if (!binding) break;
-    pertColorLink(graph, binding.id, current.id, "#cc0000");
-    current = binding;
-  }
+  } else {
+    // — AVEC selection : chemin contraignant passant par le nœud selectionne.
+    const target = selected;
+    pathIds.add(target.id);
 
-  // Descente vers le nœud terminal (cible → fin de projet, vers l'aval) — #26.
-  // Symetrique de la remontee : sans elle, selectionner un nœud intermediaire
-  // laissait le ou les liens en aval (jusqu'au jalon de fin) en gris, donc le
-  // "dernier lien" du chemin critique n'etait pas colore. On suit les successeurs
-  // que le nœud courant contraint (son EF cale le ES du successeur), en preferant
-  // les successeurs critiques, jusqu'a un nœud terminal. Sans effet quand la cible
-  // est deja le nœud terminal (cas du clic sur le fond) : la boucle s'arrete
-  // immediatement (aucun successeur), donc le comportement par defaut est inchange.
-  const seenFwd = new Set();
-  current = target;
-  while (current && !seenFwd.has(current.id)) {
-    seenFwd.add(current.id);
-    let binding = null;
-    for (const sid of succs[current.id]) {
-      const s = byId[sid];
-      if (s.es === null) continue;
-      // successeur contraint : son ES est cale par le EF du nœud courant
-      if (Math.abs(current.ef - s.es) < PERT_EPS) {
-        // preferer un successeur critique, puis celui de plus grand EF (plus loin)
-        if (!binding || (s.is_critical && !binding.is_critical) || s.ef > binding.ef) {
-          binding = s;
+    // Remontee du chemin contraignant (cible → T0, vers l'amont)
+    const seen = new Set();
+    let current = target;
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id);
+      let binding = null;
+      for (const pid of preds[current.id]) {
+        const p = byId[pid];
+        if (p.ef === null) continue;
+        // predecesseur contraignant : son EF cale le ES du nœud courant
+        if (Math.abs(p.ef - current.es) < PERT_EPS) {
+          // preferer un predecesseur critique, puis celui de plus grand EF
+          if (!binding || (p.is_critical && !binding.is_critical) || p.ef > binding.ef) {
+            binding = p;
+          }
         }
       }
+      if (!binding) break;
+      pertColorLink(graph, binding.id, current.id, "#cc0000");
+      pathIds.add(binding.id);
+      current = binding;
     }
-    if (!binding) break;
-    pertColorLink(graph, current.id, binding.id, "#cc0000");
-    current = binding;
+
+    // Descente vers le nœud terminal (cible → fin de projet, vers l'aval) — #26.
+    // Symetrique de la remontee : sans elle, selectionner un nœud intermediaire
+    // laissait le ou les liens en aval (jusqu'au jalon de fin) en gris, donc le
+    // "dernier lien" du chemin critique n'etait pas colore. On suit les successeurs
+    // que le nœud courant contraint (son EF cale le ES du successeur), en preferant
+    // les successeurs critiques, jusqu'a un nœud terminal.
+    const seenFwd = new Set();
+    current = target;
+    while (current && !seenFwd.has(current.id)) {
+      seenFwd.add(current.id);
+      let binding = null;
+      for (const sid of succs[current.id]) {
+        const s = byId[sid];
+        if (s.es === null) continue;
+        // successeur contraint : son ES est cale par le EF du nœud courant
+        if (Math.abs(current.ef - s.es) < PERT_EPS) {
+          // preferer un successeur critique, puis celui de plus grand EF (plus loin)
+          if (!binding || (s.is_critical && !binding.is_critical) || s.ef > binding.ef) {
+            binding = s;
+          }
+        }
+      }
+      if (!binding) break;
+      pertColorLink(graph, current.id, binding.id, "#cc0000");
+      pathIds.add(binding.id);
+      current = binding;
+    }
   }
 
+  window.pertCriticalPathIds = pathIds;
   graph.setDirtyCanvas(true, true);
+  // Rafraichit immediatement les agregats de cout/chemin critique (la barre d'etat
+  // suit la selection sans attendre le tick periodique de updateStatus).
+  if (window.updateStatus) window.updateStatus();
 }
 
 // Colore le(s) lien(s) origin→target dans graph.links.
@@ -37563,17 +37620,64 @@ function pertPublishStatus(res) {
     el.textContent = "Aucun nœud à calculer";
     return;
   }
-  let txt = "Chemin critique : " + res.nbCritical + " nœud(s)";
+  // Le nombre de tâches du chemin critique (conscient de la sélection) est affiché
+  // dans #status-cost par updateStatus ; ici on garde la fin de projet (invariante).
+  let txt;
   if (res.projectEnd !== null && res.projectEnd !== undefined) {
     const unit = (window.pertMeta && window.pertMeta.unit) || "j";
-    txt += " · Fin projet : " + res.projectEnd + " " + unit;
+    txt = "Fin projet : " + res.projectEnd + " " + unit;
     const d = pertOffsetToDate(res.projectEnd);
     if (d) txt += " (" + pertFormatDate(d) + ")";
+  } else {
+    txt = "Projet non daté";
   }
   el.textContent = txt;
 }
 
+// ─── Estimation de coût (Session 8.5) ───────────────────────────────────────────
+//
+// Cout d'une Activite = (duree convertie en heures) × ETP × taux horaire moyen.
+// La conversion duree→heures depend de l'unite courante (meta.unit) :
+//   - jour    : duree × heures_par_jour
+//   - semaine : duree × 5 × heures_par_jour   (semaine = 5 jours ouvres)
+//   - mois    : duree × heures_par_mois        (parametre independant, non derive du jour)
+// Les parametres (heures/mois, heures/jour, taux) sont dans meta, modifiables dans le
+// dialogue Parametres. pertActivityCost renvoie des EUROS ; l'affichage convertit en k€.
+// Les Jalons et Labels n'ont pas de cout (pas de duree/ETP).
+
+const PERT_DEFAULT_HOURS_MONTH = 135;  // defaut entreprise
+const PERT_DEFAULT_HOURS_DAY   = 8;    // semaine = 5 × 8 = 40 h
+const PERT_DEFAULT_RATE        = 136;  // taux horaire moyen charge (€/h)
+
+function pertDurationToHours(duration, unit, meta) {
+  const hpm = (meta && meta.hours_per_month != null) ? meta.hours_per_month : PERT_DEFAULT_HOURS_MONTH;
+  const hpd = (meta && meta.hours_per_day   != null) ? meta.hours_per_day   : PERT_DEFAULT_HOURS_DAY;
+  if (unit === "mois") return duration * hpm;
+  if (unit === "sem")  return duration * 5 * hpd;
+  return duration * hpd; // "j" (jours) par defaut
+}
+
+// Cout estime d'une Activite en euros (0 pour tout autre type de nœud).
+function pertActivityCost(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return 0;
+  const meta = window.pertMeta || {};
+  const dur = parseFloat(node.properties.duration) || 0;
+  const etpRaw = parseFloat(node.properties.etp);
+  const etp = isNaN(etpRaw) ? 0 : etpRaw;
+  const rate = (meta.hourly_rate != null) ? meta.hourly_rate : PERT_DEFAULT_RATE;
+  const hours = pertDurationToHours(dur, meta.unit || "j", meta);
+  return hours * etp * rate;
+}
+
+// Formatage d'un montant (euros) en k€, notation FR (1 decimale max). Ex. "137,7 k€".
+function pertFormatCost(euros) {
+  const k = (euros || 0) / 1000;
+  return k.toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " k€";
+}
+
 // Exposition globale (appelée depuis ui.js sur les événements de graphe)
+window.pertActivityCost = pertActivityCost;
+window.pertFormatCost = pertFormatCost;
 window.pertRecalc = pertRecalc;
 window.pertOffsetToDate = pertOffsetToDate;
 window.pertDateToOffset = pertDateToOffset;
@@ -38105,6 +38209,10 @@ window.pertHighlightCriticalPath = pertHighlightCriticalPath;
         global.pertMeta.layout_gap = data.meta.layout_gap;
         // #18 largeur ∝ duree (defaut true si snapshot anterieur sans la cle)
         global.pertMeta.prop_width = data.meta.prop_width !== false;
+        // S8.5 parametres d'estimation de cout (defauts si snapshot anterieur)
+        global.pertMeta.hours_per_month = data.meta.hours_per_month != null ? data.meta.hours_per_month : 135;
+        global.pertMeta.hours_per_day = data.meta.hours_per_day != null ? data.meta.hours_per_day : 8;
+        global.pertMeta.hourly_rate = data.meta.hourly_rate != null ? data.meta.hourly_rate : 136;
         // #14 registre des couleurs de groupes (capte dans le snapshot via pertMeta)
         global.pertMeta.groups = data.meta.groups || {};
       }
@@ -38173,6 +38281,10 @@ function pertSerializeProject() {
       layout_gap: meta.layout_gap != null ? meta.layout_gap : 30,
       // #18 largeur des taches ∝ duree (defaut true si absent : anciens .pert)
       prop_width: meta.prop_width !== false,
+      // S8.5 parametres d'estimation de cout (defauts si absents : anciens .pert)
+      hours_per_month: meta.hours_per_month != null ? meta.hours_per_month : 135,
+      hours_per_day: meta.hours_per_day != null ? meta.hours_per_day : 8,
+      hourly_rate: meta.hourly_rate != null ? meta.hourly_rate : 136,
       // #14 registre des couleurs de groupes (WP/metier/service)
       groups: meta.groups || {}
     },
@@ -38242,6 +38354,10 @@ function pertApplyProject(data) {
   window.pertMeta.layout_gap = meta.layout_gap != null ? meta.layout_gap : 30;
   // #18 largeur ∝ duree (defaut true pour les fichiers anterieurs sans la cle)
   window.pertMeta.prop_width = meta.prop_width !== false;
+  // S8.5 parametres d'estimation de cout (defauts pour les fichiers anterieurs)
+  window.pertMeta.hours_per_month = meta.hours_per_month != null ? meta.hours_per_month : 135;
+  window.pertMeta.hours_per_day = meta.hours_per_day != null ? meta.hours_per_day : 8;
+  window.pertMeta.hourly_rate = meta.hourly_rate != null ? meta.hourly_rate : 136;
   // #14 registre des couleurs de groupes (robuste aux fichiers anterieurs : {})
   window.pertMeta.groups = meta.groups || {};
 
@@ -38433,7 +38549,13 @@ window.pertRenderToCanvas = pertRenderToCanvas;
 // { "<nom du groupe>": "<couleur>" } — serialise dans le .pert, capte par l'undo.
 // prop_width (#18) : largeur des Activites proportionnelle a la duree (defaut true).
 // Optionnel — desactivable via le dialogue Parametres ; serialise dans le .pert.
-window.pertMeta = { title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true, groups: {} };
+// hours_per_month / hours_per_day / hourly_rate (S8.5) : parametres d'estimation de
+// cout (cf. pertActivityCost) ; defauts entreprise, modifiables dans Parametres.
+window.pertMeta = {
+  title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true,
+  hours_per_month: 135, hours_per_day: 8, hourly_rate: 136,
+  groups: {}
+};
 window.pertGraph = null;
 window.pertCanvas = null;
 
@@ -38911,6 +39033,14 @@ function showProperties(node) {
       pertRecalc();
       fillCalcSection(node);
     }, { min: 0, step: 0.5 });
+    // Estimation de cout (S8.5) : ETP modifiable. Le cout en decoule (affiche en lecture
+    // seule dans la section calculs via fillCalcSection). Pas de pertRecalc : l'ETP
+    // n'affecte pas l'ordonnancement, seulement le cout → on rafraichit juste le cout.
+    buildField(content, "ETP (équivalent temps plein)", "number", node.properties.etp, v => {
+      node.properties.etp = parseFloat(v) || 0;
+      node.setDirtyCanvas(true);
+      fillCalcSection(node);
+    }, { min: 0, step: 0.1 });
     // Responsable : combobox enrichissable (#13 amorce) — texte libre + reproposition
     // des responsables deja saisis (datalist) pour une orthographe coherente.
     buildCombobox(content, "Responsable", node.properties.responsible, collectResponsibles(), v => {
@@ -39380,6 +39510,8 @@ function fillCalcSection(node) {
     buildReadonly(sec, "Fin t.tard (LF)", asDate(node.lf));
     buildReadonly(sec, "Marge", pertFormatSlack(node.slack) + " " + unit,
       node.is_critical ? "ro-critical" : "");
+    // Estimation de cout (S8.5) — non modifiable, derive de duree × ETP × taux.
+    buildReadonly(sec, "Coût estimé", pertFormatCost(pertActivityCost(node)));
 
   } else if (node.type === "pert/milestone") {
     if (node.ef === null) {
@@ -39430,6 +39562,13 @@ function openSettings() {
   // #18 case cochee par defaut (proportionnalite active sauf desactivation explicite)
   document.getElementById("settings-propwidth").checked =
     window.pertMeta.prop_width !== false;
+  // S8.5 parametres d'estimation de cout
+  document.getElementById("settings-hpm").value =
+    window.pertMeta.hours_per_month != null ? window.pertMeta.hours_per_month : 135;
+  document.getElementById("settings-hpd").value =
+    window.pertMeta.hours_per_day != null ? window.pertMeta.hours_per_day : 8;
+  document.getElementById("settings-rate").value =
+    window.pertMeta.hourly_rate != null ? window.pertMeta.hourly_rate : 136;
   document.getElementById("settings-dialog").style.display = "flex";
 }
 
@@ -39441,6 +39580,13 @@ function saveSettings() {
   window.pertMeta.layout_gap = isNaN(hgap) ? 30 : Math.max(0, hgap);
   // #18 largeur ∝ duree (re-applique par updateSize sur tous les nœuds ci-dessous)
   window.pertMeta.prop_width = document.getElementById("settings-propwidth").checked;
+  // S8.5 parametres de cout (planches a 0 ; defaut si champ vide/invalide)
+  const hpm = parseFloat(document.getElementById("settings-hpm").value);
+  const hpd = parseFloat(document.getElementById("settings-hpd").value);
+  const rate = parseFloat(document.getElementById("settings-rate").value);
+  window.pertMeta.hours_per_month = isNaN(hpm) ? 135 : Math.max(0, hpm);
+  window.pertMeta.hours_per_day   = isNaN(hpd) ? 8   : Math.max(0, hpd);
+  window.pertMeta.hourly_rate     = isNaN(rate) ? 136 : Math.max(0, rate);
   document.getElementById("settings-dialog").style.display = "none";
   document.getElementById("project-title").textContent = window.pertMeta.title || "PertFlow";
   // Recalculer les tailles (l'unité affectée dans les nœuds Activité)
@@ -39459,13 +39605,37 @@ function saveSettings() {
 
 function updateStatus() {
   const g = window.pertGraph;
-  const nodes = g ? g._nodes.length : 0;
   const unit = window.pertMeta.unit === "sem" ? "semaines"
     : (window.pertMeta.unit === "mois" ? "mois" : "jours");
-  document.getElementById("status-nodes").textContent = nodes + " nœud(s)";
+  // Nombre de TÂCHES (Activités) — les jalons ne sont pas comptés (ce sont des
+  // contraintes/sorties de chemin, pas des actions ; décision utilisateur S8.5).
+  let nbTasks = 0;
+  if (g && g._nodes) g._nodes.forEach(n => { if (n.type === "pert/activity") nbTasks++; });
+  document.getElementById("status-nodes").textContent = nbTasks + " tâche(s)";
   document.getElementById("status-unit").textContent = "Unité : " + unit;
   document.getElementById("status-t0").textContent =
     window.pertMeta.t0 ? "T0 : " + window.pertMeta.t0 : "T0 non défini";
+
+  // S8.5 Coût agrégé + chemin critique. Total = somme des Activités VISIBLES (hors-filtre
+  // estompé exclu si un filtre est actif). Chemin critique = Activités du chemin
+  // ACTUELLEMENT mis en évidence (window.pertCriticalPathIds) → SUIT la sélection (le même
+  // chemin que le tracé rouge) ; sans sélection, c'est le chemin de marge minimale. On ne
+  // compte que les tâches (jalons exclus). Appelé périodiquement (setInterval 600 ms) ET
+  // par pertHighlightCriticalPath → reflète en continu sélection, ETP, paramètres, filtre.
+  const costEl = document.getElementById("status-cost");
+  if (costEl) {
+    const critIds = window.pertCriticalPathIds || new Set();
+    let total = 0, crit = 0, critTasks = 0;
+    if (g && g._nodes) g._nodes.forEach(n => {
+      if (n.type !== "pert/activity") return;
+      const c = pertActivityCost(n);
+      if (!window.pertFilter || !pertNodeDimmed(n)) total += c; // visible
+      if (critIds.has(n.id)) { crit += c; critTasks++; }
+    });
+    const totalLabel = window.pertFilter ? "Coût visible" : "Coût total";
+    costEl.textContent = totalLabel + " : " + pertFormatCost(total)
+      + " · Chemin critique : " + critTasks + " tâche(s), " + pertFormatCost(crit);
+  }
 }
 
 // ─── Toast notification ───────────────────────────────────────────────────────
