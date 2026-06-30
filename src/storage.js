@@ -22,6 +22,8 @@ function pertSerializeProject() {
       t0: meta.t0 || "",
       unit: meta.unit || "j",
       layout_gap: meta.layout_gap != null ? meta.layout_gap : 30,
+      // #18 largeur des taches ∝ duree (defaut true si absent : anciens .pert)
+      prop_width: meta.prop_width !== false,
       // #14 registre des couleurs de groupes (WP/metier/service)
       groups: meta.groups || {}
     },
@@ -89,6 +91,8 @@ function pertApplyProject(data) {
   window.pertMeta.t0 = meta.t0 || "";
   window.pertMeta.unit = meta.unit || "j";
   window.pertMeta.layout_gap = meta.layout_gap != null ? meta.layout_gap : 30;
+  // #18 largeur ∝ duree (defaut true pour les fichiers anterieurs sans la cle)
+  window.pertMeta.prop_width = meta.prop_width !== false;
   // #14 registre des couleurs de groupes (robuste aux fichiers anterieurs : {})
   window.pertMeta.groups = meta.groups || {};
 

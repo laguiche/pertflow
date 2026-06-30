@@ -2,7 +2,9 @@
 
 // groups : registre des couleurs memorisees par groupe (WP/metier/service), #14.
 // { "<nom du groupe>": "<couleur>" } — serialise dans le .pert, capte par l'undo.
-window.pertMeta = { title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, groups: {} };
+// prop_width (#18) : largeur des Activites proportionnelle a la duree (defaut true).
+// Optionnel — desactivable via le dialogue Parametres ; serialise dans le .pert.
+window.pertMeta = { title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true, groups: {} };
 window.pertGraph = null;
 window.pertCanvas = null;
 
@@ -521,6 +523,13 @@ function showProperties(node) {
     sameColorBtn.addEventListener("click", () => pertApplyGroupToSameColor(node));
     content.appendChild(sameColorBtn);
 
+    // #12 Note libre (hypotheses de duree, contenu reel de la tache). Panneau
+    // uniquement — jamais rendue sur le nœud (cf. nodes.js). Pas de updateSize ni de
+    // setDirtyCanvas : la note n'affecte pas l'apparence du nœud.
+    buildTextarea(content, "Notes (hypothèses, contenu réel)", node.properties.notes, v => {
+      node.properties.notes = v;
+    });
+
     buildCalcSection(content, node);
 
   } else if (node.type === "pert/milestone") {
@@ -534,6 +543,16 @@ function showProperties(node) {
       node.setDirtyCanvas(true);
       pertRecalc();
       fillCalcSection(node);
+    });
+    // #17 Type de jalon (importance contractuelle) : aucun / DOTD / COTD / Ingenierie.
+    // Options derivees de PERT_MILESTONE_TAGS (nodes.js) → source unique. La pastille
+    // peut changer la taille du nœud → updateSize.
+    const tagOptions = [{ value: "", label: "Aucun" }].concat(
+      PERT_MILESTONE_TAGS.map(t => ({ value: t.value, label: t.label })));
+    buildSelect(content, "Type", node.properties.tag, tagOptions, v => {
+      node.properties.tag = v;
+      node.updateSize();
+      node.setDirtyCanvas(true, true);
     });
 
     buildCalcSection(content, node);
@@ -864,9 +883,30 @@ function buildTextarea(parent, labelText, value, onChange) {
   const ta = document.createElement("textarea");
   ta.rows = 5;
   ta.value = value || "";
-  ta.addEventListener("input", e => onChange(e.target.value));
+  // pertHistoryMark coalesce la saisie (un seul cran d'undo par edition de zone)
+  ta.addEventListener("input", e => { onChange(e.target.value); pertHistoryMark(); });
   label.appendChild(ta);
   parent.appendChild(label);
+  return ta;
+}
+
+// Liste deroulante simple (label + <select>). options = [{value, label}]. Sert au
+// type de Jalon (#17). Marque l'historique a chaque changement.
+function buildSelect(parent, labelText, value, options, onChange) {
+  const label = document.createElement("label");
+  label.textContent = labelText;
+  const sel = document.createElement("select");
+  options.forEach(o => {
+    const opt = document.createElement("option");
+    opt.value = o.value;
+    opt.textContent = o.label;
+    if (o.value === (value || "")) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", e => { onChange(e.target.value); pertHistoryMark(); });
+  label.appendChild(sel);
+  parent.appendChild(label);
+  return sel;
 }
 
 function buildReadonly(parent, labelText, value, cls) {
@@ -958,6 +998,9 @@ function openSettings() {
   document.getElementById("settings-unit").value = window.pertMeta.unit || "j";
   document.getElementById("settings-hgap").value =
     window.pertMeta.layout_gap != null ? window.pertMeta.layout_gap : 30;
+  // #18 case cochee par defaut (proportionnalite active sauf desactivation explicite)
+  document.getElementById("settings-propwidth").checked =
+    window.pertMeta.prop_width !== false;
   document.getElementById("settings-dialog").style.display = "flex";
 }
 
@@ -967,6 +1010,8 @@ function saveSettings() {
   window.pertMeta.unit = document.getElementById("settings-unit").value;
   const hgap = parseFloat(document.getElementById("settings-hgap").value);
   window.pertMeta.layout_gap = isNaN(hgap) ? 30 : Math.max(0, hgap);
+  // #18 largeur ∝ duree (re-applique par updateSize sur tous les nœuds ci-dessous)
+  window.pertMeta.prop_width = document.getElementById("settings-propwidth").checked;
   document.getElementById("settings-dialog").style.display = "none";
   document.getElementById("project-title").textContent = window.pertMeta.title || "PertFlow";
   // Recalculer les tailles (l'unité affectée dans les nœuds Activité)

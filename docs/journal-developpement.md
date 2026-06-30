@@ -514,6 +514,38 @@ Deux bugs de fond signalés par l'utilisateur avant d'ouvrir la S8, sur la branc
 
 ---
 
+### Session 8 — Propriétés & jalons enrichis (✅ 30/06/2026)
+
+Quatre demandes du retour Mickael portant sur la richesse des propriétés et la lisibilité
+des jalons, sur la branche `session/8-proprietes-jalons`.
+
+- **#12 — Note libre sur l'Activité.** Une zone de texte (hypothèses de durée, contenu réel
+  de la tâche) dans le panneau propriétés. Décision utilisateur : **panneau uniquement**,
+  jamais affichée sur le nœud — une note peut être longue et n'a pas à encombrer le graphe.
+- **#13 — Responsables proposés à la saisie.** Déjà livré en Session 6 (le champ Responsable
+  est un combobox enrichissable alimenté par les valeurs déjà saisies). La S8 n'a fait que le
+  confirmer et le couvrir par un test ; rien à reconstruire.
+- **#17 — Type de jalon (DOTD / COTD / Ingénierie).** Tag d'importance contractuelle affiché
+  en **pastille colorée + texte** sous le libellé (choix utilisateur parmi trois maquettes).
+  Point de conception clé : la couleur du tag est **indépendante** du code couleur de tenue
+  de cible (rouge/vert/orange déjà porté par le corps, la bordure et le coin du jalon) — deux
+  informations distinctes ne doivent pas se disputer le même canal visuel.
+- **#18 — Largeur proportionnelle optionnelle.** La largeur ∝ durée (introduite en S2.5) est
+  utile mais peut gêner ; on la rend désactivable par une **case à cocher dans Paramètres**
+  (préférence projet sérialisée). Désactivée, toutes les tâches prennent une largeur uniforme.
+  Le placement chronologique du layout (abscisse ∝ date au plus tôt) reste, lui, inchangé.
+
+> **Apport méthode/IA.** Trois choix de présentation visibles (#17, #18, #12) ont été soumis
+> à l'utilisateur *avant* d'écrire la moindre ligne, maquettes ASCII à l'appui — l'arbitrage
+> en amont évite les allers-retours sur le rendu. La lecture préalable du code a aussi
+> raccourci le périmètre réel : #13 était déjà fait depuis S6, transformant « 4 features » en
+> 3. Implémentation guidée par les conventions maison (registre unique `PERT_MILESTONE_TAGS`
+> comme source des options du menu et du rendu ; défauts robustes aux anciens `.pert` ;
+> `prop_width` propagé dans persistance + undo). Validation par test headless (`smoke-s8.js`)
+> et captures de contrôle, faute de navigateur interactif en environnement de dev.
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)

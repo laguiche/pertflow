@@ -312,6 +312,21 @@ body {
   border-color: #5a8fd8;
 }
 
+/* #18 ligne de case a cocher : checkbox en ligne avec son libelle (et non empilee) */
+#settings-box label.settings-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+#settings-box label.settings-check input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
 .dialog-buttons {
   display: flex;
   justify-content: flex-end;
