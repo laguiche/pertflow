@@ -24,6 +24,10 @@ function pertSerializeProject() {
       layout_gap: meta.layout_gap != null ? meta.layout_gap : 30,
       // #18 largeur des taches ∝ duree (defaut true si absent : anciens .pert)
       prop_width: meta.prop_width !== false,
+      // S8.5 parametres d'estimation de cout (defauts si absents : anciens .pert)
+      hours_per_month: meta.hours_per_month != null ? meta.hours_per_month : 135,
+      hours_per_day: meta.hours_per_day != null ? meta.hours_per_day : 8,
+      hourly_rate: meta.hourly_rate != null ? meta.hourly_rate : 136,
       // #14 registre des couleurs de groupes (WP/metier/service)
       groups: meta.groups || {}
     },
@@ -93,6 +97,10 @@ function pertApplyProject(data) {
   window.pertMeta.layout_gap = meta.layout_gap != null ? meta.layout_gap : 30;
   // #18 largeur ∝ duree (defaut true pour les fichiers anterieurs sans la cle)
   window.pertMeta.prop_width = meta.prop_width !== false;
+  // S8.5 parametres d'estimation de cout (defauts pour les fichiers anterieurs)
+  window.pertMeta.hours_per_month = meta.hours_per_month != null ? meta.hours_per_month : 135;
+  window.pertMeta.hours_per_day = meta.hours_per_day != null ? meta.hours_per_day : 8;
+  window.pertMeta.hourly_rate = meta.hourly_rate != null ? meta.hourly_rate : 136;
   // #14 registre des couleurs de groupes (robuste aux fichiers anterieurs : {})
   window.pertMeta.groups = meta.groups || {};
 

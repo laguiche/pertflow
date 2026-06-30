@@ -4,7 +4,13 @@
 // { "<nom du groupe>": "<couleur>" } — serialise dans le .pert, capte par l'undo.
 // prop_width (#18) : largeur des Activites proportionnelle a la duree (defaut true).
 // Optionnel — desactivable via le dialogue Parametres ; serialise dans le .pert.
-window.pertMeta = { title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true, groups: {} };
+// hours_per_month / hours_per_day / hourly_rate (S8.5) : parametres d'estimation de
+// cout (cf. pertActivityCost) ; defauts entreprise, modifiables dans Parametres.
+window.pertMeta = {
+  title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true,
+  hours_per_month: 135, hours_per_day: 8, hourly_rate: 136,
+  groups: {}
+};
 window.pertGraph = null;
 window.pertCanvas = null;
 
@@ -482,6 +488,14 @@ function showProperties(node) {
       pertRecalc();
       fillCalcSection(node);
     }, { min: 0, step: 0.5 });
+    // Estimation de cout (S8.5) : ETP modifiable. Le cout en decoule (affiche en lecture
+    // seule dans la section calculs via fillCalcSection). Pas de pertRecalc : l'ETP
+    // n'affecte pas l'ordonnancement, seulement le cout → on rafraichit juste le cout.
+    buildField(content, "ETP (équivalent temps plein)", "number", node.properties.etp, v => {
+      node.properties.etp = parseFloat(v) || 0;
+      node.setDirtyCanvas(true);
+      fillCalcSection(node);
+    }, { min: 0, step: 0.1 });
     // Responsable : combobox enrichissable (#13 amorce) — texte libre + reproposition
     // des responsables deja saisis (datalist) pour une orthographe coherente.
     buildCombobox(content, "Responsable", node.properties.responsible, collectResponsibles(), v => {
@@ -951,6 +965,8 @@ function fillCalcSection(node) {
     buildReadonly(sec, "Fin t.tard (LF)", asDate(node.lf));
     buildReadonly(sec, "Marge", pertFormatSlack(node.slack) + " " + unit,
       node.is_critical ? "ro-critical" : "");
+    // Estimation de cout (S8.5) — non modifiable, derive de duree × ETP × taux.
+    buildReadonly(sec, "Coût estimé", pertFormatCost(pertActivityCost(node)));
 
   } else if (node.type === "pert/milestone") {
     if (node.ef === null) {
@@ -1001,6 +1017,13 @@ function openSettings() {
   // #18 case cochee par defaut (proportionnalite active sauf desactivation explicite)
   document.getElementById("settings-propwidth").checked =
     window.pertMeta.prop_width !== false;
+  // S8.5 parametres d'estimation de cout
+  document.getElementById("settings-hpm").value =
+    window.pertMeta.hours_per_month != null ? window.pertMeta.hours_per_month : 135;
+  document.getElementById("settings-hpd").value =
+    window.pertMeta.hours_per_day != null ? window.pertMeta.hours_per_day : 8;
+  document.getElementById("settings-rate").value =
+    window.pertMeta.hourly_rate != null ? window.pertMeta.hourly_rate : 136;
   document.getElementById("settings-dialog").style.display = "flex";
 }
 
@@ -1012,6 +1035,13 @@ function saveSettings() {
   window.pertMeta.layout_gap = isNaN(hgap) ? 30 : Math.max(0, hgap);
   // #18 largeur ∝ duree (re-applique par updateSize sur tous les nœuds ci-dessous)
   window.pertMeta.prop_width = document.getElementById("settings-propwidth").checked;
+  // S8.5 parametres de cout (planches a 0 ; defaut si champ vide/invalide)
+  const hpm = parseFloat(document.getElementById("settings-hpm").value);
+  const hpd = parseFloat(document.getElementById("settings-hpd").value);
+  const rate = parseFloat(document.getElementById("settings-rate").value);
+  window.pertMeta.hours_per_month = isNaN(hpm) ? 135 : Math.max(0, hpm);
+  window.pertMeta.hours_per_day   = isNaN(hpd) ? 8   : Math.max(0, hpd);
+  window.pertMeta.hourly_rate     = isNaN(rate) ? 136 : Math.max(0, rate);
   document.getElementById("settings-dialog").style.display = "none";
   document.getElementById("project-title").textContent = window.pertMeta.title || "PertFlow";
   // Recalculer les tailles (l'unité affectée dans les nœuds Activité)
@@ -1030,13 +1060,37 @@ function saveSettings() {
 
 function updateStatus() {
   const g = window.pertGraph;
-  const nodes = g ? g._nodes.length : 0;
   const unit = window.pertMeta.unit === "sem" ? "semaines"
     : (window.pertMeta.unit === "mois" ? "mois" : "jours");
-  document.getElementById("status-nodes").textContent = nodes + " nœud(s)";
+  // Nombre de TÂCHES (Activités) — les jalons ne sont pas comptés (ce sont des
+  // contraintes/sorties de chemin, pas des actions ; décision utilisateur S8.5).
+  let nbTasks = 0;
+  if (g && g._nodes) g._nodes.forEach(n => { if (n.type === "pert/activity") nbTasks++; });
+  document.getElementById("status-nodes").textContent = nbTasks + " tâche(s)";
   document.getElementById("status-unit").textContent = "Unité : " + unit;
   document.getElementById("status-t0").textContent =
     window.pertMeta.t0 ? "T0 : " + window.pertMeta.t0 : "T0 non défini";
+
+  // S8.5 Coût agrégé + chemin critique. Total = somme des Activités VISIBLES (hors-filtre
+  // estompé exclu si un filtre est actif). Chemin critique = Activités du chemin
+  // ACTUELLEMENT mis en évidence (window.pertCriticalPathIds) → SUIT la sélection (le même
+  // chemin que le tracé rouge) ; sans sélection, c'est le chemin de marge minimale. On ne
+  // compte que les tâches (jalons exclus). Appelé périodiquement (setInterval 600 ms) ET
+  // par pertHighlightCriticalPath → reflète en continu sélection, ETP, paramètres, filtre.
+  const costEl = document.getElementById("status-cost");
+  if (costEl) {
+    const critIds = window.pertCriticalPathIds || new Set();
+    let total = 0, crit = 0, critTasks = 0;
+    if (g && g._nodes) g._nodes.forEach(n => {
+      if (n.type !== "pert/activity") return;
+      const c = pertActivityCost(n);
+      if (!window.pertFilter || !pertNodeDimmed(n)) total += c; // visible
+      if (critIds.has(n.id)) { crit += c; critTasks++; }
+    });
+    const totalLabel = window.pertFilter ? "Coût visible" : "Coût total";
+    costEl.textContent = totalLabel + " : " + pertFormatCost(total)
+      + " · Chemin critique : " + critTasks + " tâche(s), " + pertFormatCost(crit);
+  }
 }
 
 // ─── Toast notification ───────────────────────────────────────────────────────

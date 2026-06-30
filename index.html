@@ -33,6 +33,18 @@
         <input type="checkbox" id="settings-propwidth">
         Largeur des tâches proportionnelle à la durée
       </label>
+      <fieldset class="settings-group">
+        <legend>Estimation des coûts</legend>
+        <label>Heures par mois
+          <input type="number" id="settings-hpm" min="0" step="1">
+        </label>
+        <label>Heures par jour (semaine = 5×)
+          <input type="number" id="settings-hpd" min="0" step="0.5">
+        </label>
+        <label>Taux horaire moyen (€/h)
+          <input type="number" id="settings-rate" min="0" step="1">
+        </label>
+      </fieldset>
       <div class="dialog-buttons">
         <button id="settings-cancel">Annuler</button>
         <button id="settings-ok" class="primary">Valider</button>
@@ -107,9 +119,11 @@
     <span class="st-sep">|</span>
     <span id="status-unit">Unité : mois</span>
     <span class="st-sep">|</span>
-    <span id="status-nodes">0 nœud(s)</span>
+    <span id="status-nodes">0 tâche(s)</span>
     <span class="st-sep">|</span>
     <span id="status-pert">Aucun nœud à calculer</span>
+    <span class="st-sep">|</span>
+    <span id="status-cost">Coût total : 0 k€ · Chemin critique : 0 k€</span>
     <span class="st-sep">|</span>
     <span id="status-hint">Clic droit sur le canvas pour ajouter un nœud · Suppr pour effacer · Ctrl+A pour tout sélectionner</span>
   </div>

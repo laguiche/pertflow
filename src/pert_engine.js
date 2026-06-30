@@ -187,6 +187,7 @@ function pertRecalc() {
   nodes.forEach(pertResetNode);
 
   if (nodes.length === 0) {
+    window.pertCriticalPathIds = new Set(); // plus de chemin critique a agreger
     pertPublishStatus({ ok: true, nbNodes: 0, nbCritical: 0, projectEnd: null });
     graph.setDirtyCanvas(true, true);
     return { ok: true, nbNodes: 0, nbCritical: 0 };
@@ -194,6 +195,7 @@ function pertRecalc() {
 
   // — Cycle → on s'arrête, valeurs laissées à null —
   if (pertDetectCycle(nodes, succs)) {
+    window.pertCriticalPathIds = new Set(); // pas de chemin critique sur un cycle
     const res = { ok: false, error: "cycle", nbNodes: nodes.length };
     pertPublishStatus(res);
     graph.setDirtyCanvas(true, true);
@@ -460,14 +462,20 @@ function pertPackLanesGrouped(list, topY, rowH, xOf) {
 
 // ─── #7 Tracé du chemin critique (coloration des connexions) ─────────────────────
 //
-// Remonte les predecesseurs "contraignants" (ceux dont le EF cale le ES du nœud
-// courant) depuis une cible jusqu'a l'origine, et colore les liens traverses en
-// rouge. La cible est le nœud passe en argument (selection utilisateur) ou, a
-// defaut, le nœud le plus eloigne de T0 (EF max). Les autres liens repassent au
-// gris par defaut.
+// Deux modes selon la presence d'une selection (targetId) :
+//   - SANS selection : LE chemin critique du projet = chemin de marge MINIMALE
+//     (nœuds is_critical). On colore les liens contraignants entre nœuds critiques.
+//   - AVEC selection : chemin CONTRAIGNANT passant par le nœud selectionne — on
+//     remonte les predecesseurs contraignants (EF cale le ES) jusqu'a T0 et on
+//     descend les successeurs contraints jusqu'au terminal (#26).
+// Dans les deux cas, l'ensemble des nœuds du chemin mis en evidence est memorise
+// dans window.pertCriticalPathIds → la barre d'etat (cout + nombre de TACHES) reflete
+// exactement le trace rouge affiche (S8.5, correctif d'incoherence cout/chemin). Les
+// autres liens repassent au gris.
 
 function pertHighlightCriticalPath(targetId) {
   const graph = window.pertGraph;
+  window.pertCriticalPathIds = new Set(); // nœuds du chemin actuellement mis en evidence
   if (!graph) return;
 
   // Reinitialiser toutes les couleurs de lien (retour au gris par defaut)
@@ -476,81 +484,92 @@ function pertHighlightCriticalPath(targetId) {
   }
 
   const { nodes, preds, succs } = pertBuildAdjacency(graph);
-  if (!nodes.length) return;
+  if (!nodes.length) { if (window.updateStatus) window.updateStatus(); return; }
   const byId = {};
   nodes.forEach(n => { byId[n.id] = n; });
 
-  // Cible : nœud demande s'il est calcule, sinon le plus eloigne de T0 (EF max).
-  // A EF egal, on prefere un nœud terminal (sans successeur) — typiquement le
-  // jalon de fin — plutot que la derniere activite qui le precede.
-  let target = (targetId != null && byId[targetId] && byId[targetId].ef !== null)
+  // Nœud selectionne (s'il est calcule), sinon mode "chemin critique par defaut".
+  const selected = (targetId != null && byId[targetId] && byId[targetId].ef !== null)
     ? byId[targetId] : null;
-  if (!target) {
+
+  const pathIds = new Set();
+
+  if (!selected) {
+    // — SANS selection : chemin de marge minimale (is_critical). On memorise tous les
+    //   nœuds critiques et on colore les liens contraignants entre eux (gere aussi les
+    //   branches paralleles a marge minimale).
+    for (const n of nodes) if (n.is_critical) pathIds.add(n.id);
     for (const n of nodes) {
-      if (n.ef === null) continue;
-      if (!target) { target = n; continue; }
-      const nTerminal = succs[n.id].length === 0;
-      const tTerminal = succs[target.id].length === 0;
-      if (n.ef > target.ef + PERT_EPS
-          || (Math.abs(n.ef - target.ef) < PERT_EPS && nTerminal && !tTerminal)) {
-        target = n;
-      }
-    }
-  }
-  if (!target || target.ef === null) return;
-
-  // Remontee du chemin contraignant (cible → T0, vers l'amont)
-  const seen = new Set();
-  let current = target;
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id);
-    let binding = null;
-    for (const pid of preds[current.id]) {
-      const p = byId[pid];
-      if (p.ef === null) continue;
-      // predecesseur contraignant : son EF cale le ES du nœud courant
-      if (Math.abs(p.ef - current.es) < PERT_EPS) {
-        // preferer un predecesseur critique, puis celui de plus grand EF
-        if (!binding || (p.is_critical && !binding.is_critical) || p.ef > binding.ef) {
-          binding = p;
+      if (!n.is_critical || n.es === null) continue;
+      for (const pid of preds[n.id]) {
+        const p = byId[pid];
+        if (p && p.is_critical && p.ef !== null && Math.abs(p.ef - n.es) < PERT_EPS) {
+          pertColorLink(graph, p.id, n.id, "#cc0000");
         }
       }
     }
-    if (!binding) break;
-    pertColorLink(graph, binding.id, current.id, "#cc0000");
-    current = binding;
-  }
+  } else {
+    // — AVEC selection : chemin contraignant passant par le nœud selectionne.
+    const target = selected;
+    pathIds.add(target.id);
 
-  // Descente vers le nœud terminal (cible → fin de projet, vers l'aval) — #26.
-  // Symetrique de la remontee : sans elle, selectionner un nœud intermediaire
-  // laissait le ou les liens en aval (jusqu'au jalon de fin) en gris, donc le
-  // "dernier lien" du chemin critique n'etait pas colore. On suit les successeurs
-  // que le nœud courant contraint (son EF cale le ES du successeur), en preferant
-  // les successeurs critiques, jusqu'a un nœud terminal. Sans effet quand la cible
-  // est deja le nœud terminal (cas du clic sur le fond) : la boucle s'arrete
-  // immediatement (aucun successeur), donc le comportement par defaut est inchange.
-  const seenFwd = new Set();
-  current = target;
-  while (current && !seenFwd.has(current.id)) {
-    seenFwd.add(current.id);
-    let binding = null;
-    for (const sid of succs[current.id]) {
-      const s = byId[sid];
-      if (s.es === null) continue;
-      // successeur contraint : son ES est cale par le EF du nœud courant
-      if (Math.abs(current.ef - s.es) < PERT_EPS) {
-        // preferer un successeur critique, puis celui de plus grand EF (plus loin)
-        if (!binding || (s.is_critical && !binding.is_critical) || s.ef > binding.ef) {
-          binding = s;
+    // Remontee du chemin contraignant (cible → T0, vers l'amont)
+    const seen = new Set();
+    let current = target;
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id);
+      let binding = null;
+      for (const pid of preds[current.id]) {
+        const p = byId[pid];
+        if (p.ef === null) continue;
+        // predecesseur contraignant : son EF cale le ES du nœud courant
+        if (Math.abs(p.ef - current.es) < PERT_EPS) {
+          // preferer un predecesseur critique, puis celui de plus grand EF
+          if (!binding || (p.is_critical && !binding.is_critical) || p.ef > binding.ef) {
+            binding = p;
+          }
         }
       }
+      if (!binding) break;
+      pertColorLink(graph, binding.id, current.id, "#cc0000");
+      pathIds.add(binding.id);
+      current = binding;
     }
-    if (!binding) break;
-    pertColorLink(graph, current.id, binding.id, "#cc0000");
-    current = binding;
+
+    // Descente vers le nœud terminal (cible → fin de projet, vers l'aval) — #26.
+    // Symetrique de la remontee : sans elle, selectionner un nœud intermediaire
+    // laissait le ou les liens en aval (jusqu'au jalon de fin) en gris, donc le
+    // "dernier lien" du chemin critique n'etait pas colore. On suit les successeurs
+    // que le nœud courant contraint (son EF cale le ES du successeur), en preferant
+    // les successeurs critiques, jusqu'a un nœud terminal.
+    const seenFwd = new Set();
+    current = target;
+    while (current && !seenFwd.has(current.id)) {
+      seenFwd.add(current.id);
+      let binding = null;
+      for (const sid of succs[current.id]) {
+        const s = byId[sid];
+        if (s.es === null) continue;
+        // successeur contraint : son ES est cale par le EF du nœud courant
+        if (Math.abs(current.ef - s.es) < PERT_EPS) {
+          // preferer un successeur critique, puis celui de plus grand EF (plus loin)
+          if (!binding || (s.is_critical && !binding.is_critical) || s.ef > binding.ef) {
+            binding = s;
+          }
+        }
+      }
+      if (!binding) break;
+      pertColorLink(graph, current.id, binding.id, "#cc0000");
+      pathIds.add(binding.id);
+      current = binding;
+    }
   }
 
+  window.pertCriticalPathIds = pathIds;
   graph.setDirtyCanvas(true, true);
+  // Rafraichit immediatement les agregats de cout/chemin critique (la barre d'etat
+  // suit la selection sans attendre le tick periodique de updateStatus).
+  if (window.updateStatus) window.updateStatus();
 }
 
 // Colore le(s) lien(s) origin→target dans graph.links.
@@ -578,17 +597,64 @@ function pertPublishStatus(res) {
     el.textContent = "Aucun nœud à calculer";
     return;
   }
-  let txt = "Chemin critique : " + res.nbCritical + " nœud(s)";
+  // Le nombre de tâches du chemin critique (conscient de la sélection) est affiché
+  // dans #status-cost par updateStatus ; ici on garde la fin de projet (invariante).
+  let txt;
   if (res.projectEnd !== null && res.projectEnd !== undefined) {
     const unit = (window.pertMeta && window.pertMeta.unit) || "j";
-    txt += " · Fin projet : " + res.projectEnd + " " + unit;
+    txt = "Fin projet : " + res.projectEnd + " " + unit;
     const d = pertOffsetToDate(res.projectEnd);
     if (d) txt += " (" + pertFormatDate(d) + ")";
+  } else {
+    txt = "Projet non daté";
   }
   el.textContent = txt;
 }
 
+// ─── Estimation de coût (Session 8.5) ───────────────────────────────────────────
+//
+// Cout d'une Activite = (duree convertie en heures) × ETP × taux horaire moyen.
+// La conversion duree→heures depend de l'unite courante (meta.unit) :
+//   - jour    : duree × heures_par_jour
+//   - semaine : duree × 5 × heures_par_jour   (semaine = 5 jours ouvres)
+//   - mois    : duree × heures_par_mois        (parametre independant, non derive du jour)
+// Les parametres (heures/mois, heures/jour, taux) sont dans meta, modifiables dans le
+// dialogue Parametres. pertActivityCost renvoie des EUROS ; l'affichage convertit en k€.
+// Les Jalons et Labels n'ont pas de cout (pas de duree/ETP).
+
+const PERT_DEFAULT_HOURS_MONTH = 135;  // defaut entreprise
+const PERT_DEFAULT_HOURS_DAY   = 8;    // semaine = 5 × 8 = 40 h
+const PERT_DEFAULT_RATE        = 136;  // taux horaire moyen charge (€/h)
+
+function pertDurationToHours(duration, unit, meta) {
+  const hpm = (meta && meta.hours_per_month != null) ? meta.hours_per_month : PERT_DEFAULT_HOURS_MONTH;
+  const hpd = (meta && meta.hours_per_day   != null) ? meta.hours_per_day   : PERT_DEFAULT_HOURS_DAY;
+  if (unit === "mois") return duration * hpm;
+  if (unit === "sem")  return duration * 5 * hpd;
+  return duration * hpd; // "j" (jours) par defaut
+}
+
+// Cout estime d'une Activite en euros (0 pour tout autre type de nœud).
+function pertActivityCost(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return 0;
+  const meta = window.pertMeta || {};
+  const dur = parseFloat(node.properties.duration) || 0;
+  const etpRaw = parseFloat(node.properties.etp);
+  const etp = isNaN(etpRaw) ? 0 : etpRaw;
+  const rate = (meta.hourly_rate != null) ? meta.hourly_rate : PERT_DEFAULT_RATE;
+  const hours = pertDurationToHours(dur, meta.unit || "j", meta);
+  return hours * etp * rate;
+}
+
+// Formatage d'un montant (euros) en k€, notation FR (1 decimale max). Ex. "137,7 k€".
+function pertFormatCost(euros) {
+  const k = (euros || 0) / 1000;
+  return k.toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " k€";
+}
+
 // Exposition globale (appelée depuis ui.js sur les événements de graphe)
+window.pertActivityCost = pertActivityCost;
+window.pertFormatCost = pertFormatCost;
 window.pertRecalc = pertRecalc;
 window.pertOffsetToDate = pertOffsetToDate;
 window.pertDateToOffset = pertDateToOffset;
