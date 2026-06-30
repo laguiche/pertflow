@@ -588,7 +588,50 @@ function pertPublishStatus(res) {
   el.textContent = txt;
 }
 
+// ─── Estimation de coût (Session 8.5) ───────────────────────────────────────────
+//
+// Cout d'une Activite = (duree convertie en heures) × ETP × taux horaire moyen.
+// La conversion duree→heures depend de l'unite courante (meta.unit) :
+//   - jour    : duree × heures_par_jour
+//   - semaine : duree × 5 × heures_par_jour   (semaine = 5 jours ouvres)
+//   - mois    : duree × heures_par_mois        (parametre independant, non derive du jour)
+// Les parametres (heures/mois, heures/jour, taux) sont dans meta, modifiables dans le
+// dialogue Parametres. pertActivityCost renvoie des EUROS ; l'affichage convertit en k€.
+// Les Jalons et Labels n'ont pas de cout (pas de duree/ETP).
+
+const PERT_DEFAULT_HOURS_MONTH = 135;  // defaut entreprise
+const PERT_DEFAULT_HOURS_DAY   = 8;    // semaine = 5 × 8 = 40 h
+const PERT_DEFAULT_RATE        = 136;  // taux horaire moyen charge (€/h)
+
+function pertDurationToHours(duration, unit, meta) {
+  const hpm = (meta && meta.hours_per_month != null) ? meta.hours_per_month : PERT_DEFAULT_HOURS_MONTH;
+  const hpd = (meta && meta.hours_per_day   != null) ? meta.hours_per_day   : PERT_DEFAULT_HOURS_DAY;
+  if (unit === "mois") return duration * hpm;
+  if (unit === "sem")  return duration * 5 * hpd;
+  return duration * hpd; // "j" (jours) par defaut
+}
+
+// Cout estime d'une Activite en euros (0 pour tout autre type de nœud).
+function pertActivityCost(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return 0;
+  const meta = window.pertMeta || {};
+  const dur = parseFloat(node.properties.duration) || 0;
+  const etpRaw = parseFloat(node.properties.etp);
+  const etp = isNaN(etpRaw) ? 0 : etpRaw;
+  const rate = (meta.hourly_rate != null) ? meta.hourly_rate : PERT_DEFAULT_RATE;
+  const hours = pertDurationToHours(dur, meta.unit || "j", meta);
+  return hours * etp * rate;
+}
+
+// Formatage d'un montant (euros) en k€, notation FR (1 decimale max). Ex. "137,7 k€".
+function pertFormatCost(euros) {
+  const k = (euros || 0) / 1000;
+  return k.toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " k€";
+}
+
 // Exposition globale (appelée depuis ui.js sur les événements de graphe)
+window.pertActivityCost = pertActivityCost;
+window.pertFormatCost = pertFormatCost;
 window.pertRecalc = pertRecalc;
 window.pertOffsetToDate = pertOffsetToDate;
 window.pertDateToOffset = pertDateToOffset;

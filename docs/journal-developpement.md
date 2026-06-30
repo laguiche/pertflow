@@ -546,6 +546,37 @@ des jalons, sur la branche `session/8-proprietes-jalons`.
 
 ---
 
+### Session 8.5 — Estimation des coûts (✅ 30/06/2026)
+
+Session **intercalée avant la S9** (comme S2.5 l'avait été) : l'utilisateur revient sur #3
+(estimation de coût), qu'il avait lui-même retiré le 28/06 (« pas indispensable pour un outil
+PERT KISS »). Le besoin s'est confirmé — preuve qu'une fonctionnalité « écartée » n'est pas
+« enterrée » : la roadmap reste pilotée par l'usage réel.
+
+- **Deux infos de coût par tâche.** Un **ETP** (Équivalent Temps Plein) saisi, et une
+  **estimation financière** qui en découle (non modifiable). Formule : `coût = durée_en_heures
+  × ETP × taux horaire`, la conversion durée→heures dépendant de l'unité (jour ×h/jour,
+  semaine ×5×h/jour, mois ×h/mois).
+- **Paramètres de chiffrage** dans Paramètres : heures/mois, heures/jour, taux horaire moyen
+  (défauts entreprise : 135 h/mois, 8 h/jour, 136 €/h).
+- **Agrégats en barre d'état** : coût total du projet (limité aux tâches **visibles** quand un
+  filtre est actif) et coût du **chemin critique** courant.
+
+> **Décision de cadrage (utilisateur).** Le point structurant n'est pas technique mais
+> *philosophique* : **ne pas surcharger l'affichage graphique**. L'ETP et le coût restent dans
+> le panneau latéral et la barre d'état, jamais sur les nœuds — « cohérent d'un PERT qui de base
+> n'est pas un outil de chiffrage ». Cet arbitrage a été tranché par l'utilisateur en cours
+> d'échange (après une proposition de l'IA d'afficher les valeurs sur le nœud), et il oriente
+> toute l'implémentation : le coût est une *lecture* annexe, pas une dimension première du
+> diagramme. **Apport méthode/IA** : questions ciblées sur les valeurs métier (taux horaire,
+> heures/mois — données d'entreprise non devinables) plutôt que de présumer des défauts ;
+> réutilisation du `setInterval(updateStatus)` existant pour rendre les agrégats *live* sans
+> recâbler chaque événement ; coût dérivé (jamais stocké) pour rester cohérent avec les
+> paramètres. Validé par `smoke-s85.js` (formule par unité, total filtré, chemin critique,
+> round-trip) + captures.
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)

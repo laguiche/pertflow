@@ -79,8 +79,14 @@ pertflow/
   type: "pert/activity",
   label: "Nom de l'activité",
   duration: 5,          // en unités (jours, semaines ou mois selon meta.unit)
+  etp: 1,               // S8.5 : nombre d'ETP (Equivalent Temps Plein) estimé — modifiable
   responsible: "",      // optionnel
+  notes: "",            // S8 : note libre (panneau seul, jamais rendue sur le nœud)
+  group: "",            // S6 : WP/métier/service (couleur mémorisée dans meta.groups)
   color: "#4A90D9",     // couleur de fond du nœud
+  // Coût estimé (S8.5) : NON stocké — dérivé (duration→heures × etp × taux, cf.
+  // pertActivityCost), recalculé comme es/ef. Affiché en lecture seule dans le panneau
+  // et agrégé en barre d'état ; JAMAIS rendu sur le nœud (PERT != outil de chiffrage).
   // Calculés (non saisis) :
   es: null,             // Early Start (date au plus tôt de début)
   ef: null,             // Early Finish (date au plus tôt de fin)
@@ -146,6 +152,27 @@ Recalculer automatiquement à chaque événement LiteGraph :
 - `graph.onNodeRemoved`
 - `graph.onConnectionChange`
 - Modification d'une propriété dans le panneau latéral
+
+### Estimation de coût (Session 8.5)
+**Coût d'une Activité = (durée convertie en heures) × ETP × taux horaire moyen.** En euros
+en interne, affiché en **k€**. La conversion durée→heures dépend de l'unité courante
+(`meta.unit`) et de paramètres dédiés (modifiables dans Paramètres, sérialisés, défauts
+entreprise) :
+- **jour** : `durée × hours_per_day` (défaut 8)
+- **semaine** : `durée × 5 × hours_per_day` (semaine = 5 jours ouvrés)
+- **mois** : `durée × hours_per_month` (défaut 135 — **paramètre indépendant**, PAS dérivé du jour)
+- **taux** : `hourly_rate` (défaut 136 €/h)
+
+Implémentation : `pertActivityCost(node)` (euros) + `pertFormatCost(euros)` (k€, FR) dans
+`pert_engine.js`. **Le coût n'est PAS stocké** (dérivé, recalculé comme es/ef). Les Jalons et
+Labels n'ont pas de coût. **Principe directeur : PertFlow reste un PERT, pas un outil de
+chiffrage** → ETP (saisie) et coût (lecture seule) vivent dans le **panneau latéral** et la
+**barre d'état**, JAMAIS sur le nœud (décision utilisateur).
+
+Barre d'état (`updateStatus`, rafraîchie toutes les 600 ms) : **coût total** = somme des
+Activités **visibles** (estompées par le filtre exclues → libellé « Coût visible » si filtre
+actif, sinon « Coût total ») ; **coût du chemin critique** = somme des Activités `is_critical`
+(état courant, indépendant du filtre).
 
 ---
 
@@ -316,10 +343,16 @@ onDrawForeground(ctx) {
 > bâtir le **filtre #16** (le tout dans S7). **#3 (estimation de coût) retiré** de la
 > roadmap planifiée → long terme (outil PERT KISS). Détail dans la section S7.
 >
+> **Réintroduction de #3 — Session 8.5 (30/06/2026)** — après S8, l'utilisateur a finalement
+> demandé la fonction d'**estimation de coût** (#3), retirée de S7 et classée « long terme ».
+> Insérée comme **Session 8.5** (intercalée avant S9, modèle S2.5). Principe : ETP saisi +
+> coût dérivé, **uniquement dans le panneau et la barre d'état** (PERT ≠ outil de chiffrage).
+>
 > Roadmap effective : **S1 ✅ → S2 ✅ → S2.5 ✅ → S3 ✅ (dont import Excel) → S4 ✅
 > → S5 ✅ (correctifs & quick wins) → S6 ✅ (regroupement métier WP, temps 1) → S7 ✅
-> (couleur/groupe : import + réorg conscients du groupe, puis filtre) → S8 (propriétés &
-> jalons enrichis) → S9 (exports avancés) → S10 (liens & layout) → Doc (fin)**.
+> (couleur/groupe : import + réorg conscients du groupe, puis filtre) → S8 ✅ (propriétés &
+> jalons enrichis) → S8.5 ✅ (estimation des coûts, #3 réintroduit) → S9 (exports avancés) →
+> S10 (liens & layout) → Doc (fin)**.
 
 ### Session 0 — Mise en place du dépôt GitHub ✅ TERMINÉE
 **Objectifs** :
@@ -934,6 +967,50 @@ merge/tag v0.10** (même schéma que S4–S7).
 
 ---
 
+### Session 8.5 — Estimation des coûts ✅ TERMINÉE (30/06/2026)
+Session **intercalée avant la S9** (sur le modèle de S2.5) à la demande de l'utilisateur :
+réintroduction de **#3 (estimation de coût)**, qui avait été retiré de S7 le 28/06 et classé
+« long terme ». Branche `session/8.5-estimation-couts`. **Tag `v0.11`** (S9 décalée à `v0.12`).
+**Objectifs** :
+- [x] **2 informations de coût par Activité** : **ETP** (Equivalent Temps Plein, **modifiable**)
+  + **estimation financière** (**non modifiable**, = durée en heures × ETP × taux, en k€)
+- [x] **Paramètres de coût** dans le dialogue Paramètres : heures/mois, heures/jour
+  (semaine = 5×), taux horaire moyen — modifiables, sérialisés
+- [x] **Barre d'état** : coût total du projet en k€ (**limité aux tâches visibles** si filtre
+  actif) + coût du **chemin critique** courant en k€
+
+**Décision utilisateur structurante** : **on ne surcharge pas l'affichage graphique** — ETP et
+coût restent dans le **panneau latéral** (+ agrégats en barre d'état), JAMAIS sur le nœud,
+« cohérent d'un PERT qui de base n'est pas un outil de chiffrage ». Défauts entreprise fournis
+par l'utilisateur : **135 h/mois · 8 h/jour · 136 €/h**.
+
+**Critère de validation** :
+Saisir un ETP, lire le coût d'une tâche et les agrégats projet/chemin critique ; vérifier que
+le filtre limite bien le total aux tâches visibles.
+**État** : implémenté et validé par test headless navigateur (`tools/smoke-s85.js` : formule par
+unité j/sem/mois, ETP défaut/0, jalon sans coût, total filtré vs non filtré, coût chemin critique,
+round-trip `.pert` de l'ETP + des paramètres) + smoke existant sans régression + captures de
+contrôle (panneau ETP+coût, dialogue Paramètres, barre d'état). **Validation visuelle utilisateur
+à confirmer avant merge/tag v0.11** (même schéma que S4–S8).
+
+**Implémentation — décisions notables (30/06/2026)** :
+- **Formule** : `pertActivityCost(node)` (euros) + `pertDurationToHours(duration, unit, meta)` +
+  `pertFormatCost(euros)` (k€, notation FR `toLocaleString`) dans `pert_engine.js`. Conversion
+  durée→heures **dépendante de l'unité** ; mois = paramètre indépendant (pas dérivé du jour),
+  semaine = 5×jour. Coût **non stocké** (dérivé, comme es/ef) → toujours cohérent avec les paramètres.
+- **`properties.etp`** (défaut 1) sur l'Activité ; édité par un `buildField` number (panneau).
+  L'ETP **n'affecte pas l'ordonnancement** → son handler appelle `fillCalcSection` (rafraîchit le
+  coût) mais **pas `pertRecalc`**. Coût affiché en lecture seule dans `fillCalcSection` (`buildReadonly`).
+- **Barre d'état** : nouveau `#status-cost`, alimenté dans `updateStatus` (déjà appelé toutes les
+  600 ms via `setInterval` → reflète en continu édition d'ETP, paramètres, filtre, recalcul, sans
+  câbler chaque événement). Total = Activités **visibles** (`!pertNodeDimmed`), libellé « Coût
+  visible » si filtre actif sinon « Coût total » ; critique = Activités `is_critical`.
+- **Paramètres** : `meta.hours_per_month/hours_per_day/hourly_rate` (défauts 135/8/136), groupés
+  dans un `<fieldset class="settings-group">` du dialogue Paramètres. Sérialisés (`storage.js`,
+  défauts pour anciens `.pert`) + restaurés par l'undo (`history.js`).
+
+---
+
 ### Session 9 — Exports avancés ⏳ À VENIR
 **Objectifs** :
 - [ ] **#21** Export Excel (notamment pour faciliter le micro-jalonnement) — s'appuie
@@ -996,9 +1073,10 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   est conservé
 - **#5** Incrément auto du n° de version — rattaché à S9 mais marqué « à rediscuter »
   (cf. ci-dessus), l'utilisateur doutant lui-même de l'intérêt
-- **#3** Estimation rapide du coût d'une activité ou d'un groupe (agrégation) — **retiré
-  de S7 le 28/06/2026** : pas indispensable pour un outil PERT KISS, reporté « beaucoup
-  plus tard » (décision utilisateur)
+- **#3** Estimation rapide du coût — ~~retiré de S7 le 28/06/2026~~ **RÉINTRODUIT et livré en
+  Session 8.5 (30/06/2026)** à la demande de l'utilisateur (ETP + coût dérivé, panneau + barre
+  d'état, sans surcharge du graphe). Voir la section Session 8.5. L'agrégation **par groupe**
+  n'est pas faite (seulement total projet / visible / chemin critique) — extension possible.
 
 ---
 
@@ -1200,4 +1278,23 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
 - Validé : `tools/smoke-s8.js` (#12 défaut/panneau-seul/round-trip, #13 collectResponsibles,
   #17 défaut/lookup/taille/indépendance targetState/round-trip, #18 toggle réversible +
   round-trip), smoke existant sans régression, captures de contrôle (jalons taggés, dialogue
-  Paramètres). **Validation visuelle utilisateur à confirmer avant merge/tag v0.10**.
+  Paramètres). **Mergée sur `main` (`7909a6d`), taguée `v0.10`, poussée** après validation
+  visuelle utilisateur (rituel de fin de session : bundle `--tag v0.10` régénéré+versionné).
+
+### Session 8.5 (30/06/2026) — estimation des coûts (#3 réintroduit)
+- Session **intercalée avant la S9** (modèle S2.5), sur la branche `session/8.5-estimation-couts`.
+  L'utilisateur a finalement demandé la fonction de coût (#3), retirée de S7 et classée « long
+  terme ». **Décision structurante** : ne pas surcharger le graphe — ETP (saisi) + coût (lecture
+  seule) dans le **panneau**, agrégats dans la **barre d'état**, rien sur le nœud (« PERT ≠ outil
+  de chiffrage »). Défauts entreprise : 135 h/mois · 8 h/jour · 136 €/h.
+- `src/pert_engine.js` : `pertActivityCost` + `pertDurationToHours` + `pertFormatCost` (coût =
+  durée→heures selon unité × ETP × taux, non stocké). `src/nodes.js` : `properties.etp` (défaut 1).
+  `src/ui.js` : champ ETP (panneau), coût en lecture seule dans `fillCalcSection`, agrégats dans
+  `updateStatus` (total visible/filtré + chemin critique, via `#status-cost`), paramètres dans
+  open/saveSettings. `index.html` : `<fieldset>` Estimation des coûts + `#status-cost`.
+  `css/style.css` : `.settings-group`. `src/storage.js` + `src/history.js` : sérialisation/
+  restauration des 3 paramètres (défauts pour anciens fichiers).
+- Validé : `tools/smoke-s85.js` (formule j/sem/mois, ETP défaut/0, jalon sans coût, total
+  filtré vs non, coût chemin critique, round-trip ETP+paramètres), smoke existant sans régression,
+  captures de contrôle (panneau ETP+coût, dialogue Paramètres, barre d'état). **Validation
+  visuelle utilisateur à confirmer avant merge/tag v0.11**.

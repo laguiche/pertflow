@@ -327,6 +327,25 @@ body {
   cursor: pointer;
 }
 
+/* S8.5 groupe de paramètres d'estimation de coût */
+#settings-box fieldset.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #2a3a6a;
+  border-radius: 6px;
+  padding: 10px 12px 12px;
+  margin: 0;
+}
+
+#settings-box fieldset.settings-group legend {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7eb8f7;
+  padding: 0 6px;
+}
+
 .dialog-buttons {
   display: flex;
   justify-content: flex-end;

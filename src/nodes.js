@@ -130,6 +130,11 @@ function ActivityNode() {
     uid: pertGenUid(),
     label: "Nouvelle activité",
     duration: 1,
+    // Estimation de coût (Session 8.5) : nombre d'ETP (Equivalent Temps Plein) estime
+    // pour realiser la tache. Modifiable (panneau). Le cout financier en decoule
+    // (cf. pertActivityCost) mais N'est PAS stocke (recalcule, comme es/ef). Affiches
+    // dans le panneau lateral uniquement — JAMAIS sur le nœud (PERT != outil de chiffrage).
+    etp: 1,
     responsible: "",
     // #2 Dimension "groupe" (WP / metier / service) au-dela du responsable. Texte
     // libre saisi via un combobox enrichissable (cf. ui.js). Couleur du groupe

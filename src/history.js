@@ -95,6 +95,10 @@
         global.pertMeta.layout_gap = data.meta.layout_gap;
         // #18 largeur ∝ duree (defaut true si snapshot anterieur sans la cle)
         global.pertMeta.prop_width = data.meta.prop_width !== false;
+        // S8.5 parametres d'estimation de cout (defauts si snapshot anterieur)
+        global.pertMeta.hours_per_month = data.meta.hours_per_month != null ? data.meta.hours_per_month : 135;
+        global.pertMeta.hours_per_day = data.meta.hours_per_day != null ? data.meta.hours_per_day : 8;
+        global.pertMeta.hourly_rate = data.meta.hourly_rate != null ? data.meta.hourly_rate : 136;
         // #14 registre des couleurs de groupes (capte dans le snapshot via pertMeta)
         global.pertMeta.groups = data.meta.groups || {};
       }
