@@ -169,10 +169,17 @@ Labels n'ont pas de coût. **Principe directeur : PertFlow reste un PERT, pas un
 chiffrage** → ETP (saisie) et coût (lecture seule) vivent dans le **panneau latéral** et la
 **barre d'état**, JAMAIS sur le nœud (décision utilisateur).
 
-Barre d'état (`updateStatus`, rafraîchie toutes les 600 ms) : **coût total** = somme des
-Activités **visibles** (estompées par le filtre exclues → libellé « Coût visible » si filtre
-actif, sinon « Coût total ») ; **coût du chemin critique** = somme des Activités `is_critical`
-(état courant, indépendant du filtre).
+Barre d'état (`updateStatus`, rafraîchie toutes les 600 ms **et** par `pertHighlightCriticalPath`) :
+- **Coût total** = somme des Activités **visibles** (estompées par le filtre exclues → libellé
+  « Coût visible » si filtre actif, sinon « Coût total »).
+- **Chemin critique** = nombre de **tâches** + coût des Activités du chemin **actuellement mis en
+  évidence** (`window.pertCriticalPathIds`, le MÊME que le tracé rouge) → **suit la sélection**
+  (chemin contraignant de la tâche sélectionnée) ; **sans sélection**, c'est le chemin de marge
+  minimale (`is_critical`). Corrige une incohérence S8.5 : avant, le coût utilisait `is_critical`
+  (invariant) alors que le tracé rouge suivait la sélection → les deux divergeaient.
+- **Comptage en tâches uniquement** (Activités) — pour le chemin critique ET le total projet
+  (`#status-nodes` = « N tâche(s) ») : les Jalons sont des contraintes/sorties de chemin, pas des
+  actions sur lesquelles agir (décision utilisateur). `#status-pert` ne porte plus que la fin de projet.
 
 ---
 
@@ -1008,6 +1015,24 @@ contrôle (panneau ETP+coût, dialogue Paramètres, barre d'état). **Validation
 - **Paramètres** : `meta.hours_per_month/hours_per_day/hourly_rate` (défauts 135/8/136), groupés
   dans un `<fieldset class="settings-group">` du dialogue Paramètres. Sérialisés (`storage.js`,
   défauts pour anciens `.pert`) + restaurés par l'undo (`history.js`).
+
+**Correctif chemin critique (retour utilisateur, 30/06/2026)** — l'utilisateur a relevé deux
+défauts à la première version :
+- **Coût ≠ chemin tracé** : la barre d'état utilisait `is_critical` (chemin global invariant)
+  alors que le tracé rouge des liens suit la sélection (#7) → divergence. `pertHighlightCriticalPath`
+  mémorise désormais l'ensemble des nœuds du chemin **réellement mis en évidence**
+  (`window.pertCriticalPathIds`) — chemin contraignant de la sélection, ou marge minimale
+  (`is_critical`) sans sélection (la **demande utilisateur explicite** : « sans sélection → chemin
+  de marge minimale »). La barre d'état (coût + nombre) en dérive → toujours cohérente avec le
+  rouge. La fonction a aussi été refactorée : le **mode défaut** colore les liens contraignants
+  entre nœuds `is_critical` (avant : remontée depuis le nœud d'EF max, qui pouvait diverger du
+  chemin de marge minimale en projet infaisable). `pertHighlightCriticalPath` appelle `updateStatus`
+  en fin → la barre suit la sélection sans attendre le tick 600 ms.
+- **Comptage des jalons** : le nombre de nœuds du chemin critique (et du projet) incluait les
+  Jalons, peu pertinents (contraintes/sorties, pas d'action possible). On ne compte plus que les
+  **tâches** (Activités) : `#status-cost` « Chemin critique : N tâche(s), X k€ », `#status-nodes`
+  « N tâche(s) ». `pertPublishStatus` (`#status-pert`) ne porte plus le compte critique (déplacé
+  dans `updateStatus`, conscient de la sélection) — il ne garde que « Fin projet ».
 
 ---
 

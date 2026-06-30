@@ -1060,30 +1060,36 @@ function saveSettings() {
 
 function updateStatus() {
   const g = window.pertGraph;
-  const nodes = g ? g._nodes.length : 0;
   const unit = window.pertMeta.unit === "sem" ? "semaines"
     : (window.pertMeta.unit === "mois" ? "mois" : "jours");
-  document.getElementById("status-nodes").textContent = nodes + " nœud(s)";
+  // Nombre de TÂCHES (Activités) — les jalons ne sont pas comptés (ce sont des
+  // contraintes/sorties de chemin, pas des actions ; décision utilisateur S8.5).
+  let nbTasks = 0;
+  if (g && g._nodes) g._nodes.forEach(n => { if (n.type === "pert/activity") nbTasks++; });
+  document.getElementById("status-nodes").textContent = nbTasks + " tâche(s)";
   document.getElementById("status-unit").textContent = "Unité : " + unit;
   document.getElementById("status-t0").textContent =
     window.pertMeta.t0 ? "T0 : " + window.pertMeta.t0 : "T0 non défini";
 
-  // S8.5 Coût agrégé. Total = somme des Activités VISIBLES (hors-filtre estompé exclu
-  // quand un filtre est actif) ; Chemin critique = somme des Activités is_critical (état
-  // courant, indépendant du filtre). Appelé périodiquement (setInterval 600 ms) → reflète
-  // en continu édition d'ETP, changement de paramètres, filtre et recalcul.
+  // S8.5 Coût agrégé + chemin critique. Total = somme des Activités VISIBLES (hors-filtre
+  // estompé exclu si un filtre est actif). Chemin critique = Activités du chemin
+  // ACTUELLEMENT mis en évidence (window.pertCriticalPathIds) → SUIT la sélection (le même
+  // chemin que le tracé rouge) ; sans sélection, c'est le chemin de marge minimale. On ne
+  // compte que les tâches (jalons exclus). Appelé périodiquement (setInterval 600 ms) ET
+  // par pertHighlightCriticalPath → reflète en continu sélection, ETP, paramètres, filtre.
   const costEl = document.getElementById("status-cost");
   if (costEl) {
-    let total = 0, crit = 0;
+    const critIds = window.pertCriticalPathIds || new Set();
+    let total = 0, crit = 0, critTasks = 0;
     if (g && g._nodes) g._nodes.forEach(n => {
       if (n.type !== "pert/activity") return;
       const c = pertActivityCost(n);
       if (!window.pertFilter || !pertNodeDimmed(n)) total += c; // visible
-      if (n.is_critical) crit += c;
+      if (critIds.has(n.id)) { crit += c; critTasks++; }
     });
     const totalLabel = window.pertFilter ? "Coût visible" : "Coût total";
     costEl.textContent = totalLabel + " : " + pertFormatCost(total)
-      + " · Chemin critique : " + pertFormatCost(crit);
+      + " · Chemin critique : " + critTasks + " tâche(s), " + pertFormatCost(crit);
   }
 }
 

@@ -575,6 +575,17 @@ PERT KISS »). Le besoin s'est confirmé — preuve qu'une fonctionnalité « é
 > paramètres. Validé par `smoke-s85.js` (formule par unité, total filtré, chemin critique,
 > round-trip) + captures.
 
+**Correction sur retour utilisateur (même jour).** À la validation, l'utilisateur a repéré
+que le coût du « chemin critique » de la barre d'état ne correspondait pas au chemin tracé en
+rouge : deux notions cohabitaient (le drapeau global `is_critical` pour la barre d'état, le
+tracé rouge suivant la tâche sélectionnée). Diagnostic et correctif : faire dériver la barre
+d'état du chemin **réellement mis en évidence** (sélection, ou marge minimale par défaut — sur
+demande explicite de l'utilisateur), de sorte que coût et tracé soient toujours cohérents. Au
+passage, le comptage du chemin critique (et du projet) ne retient plus que les **tâches** : les
+jalons sont des contraintes/sorties de chemin, sur lesquelles on n'agit pas. *Leçon* : une
+fonctionnalité « finie » selon les tests headless peut révéler une incohérence d'ergonomie à
+l'usage réel — la boucle de validation visuelle utilisateur reste indispensable.
+
 ---
 
 ## Backlog réorienté (à partir du 22/06/2026)
