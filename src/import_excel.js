@@ -85,10 +85,16 @@
     return String(j10) === "2" ? "sem" : "mois";
   }
 
-  // Premiere sous-forme dont le texte ressemble a un champ "x/y".
+  // Premiere sous-forme dont le texte ressemble a un champ "duree/marge".
+  // La marge peut etre "?" (indeterminee dans C-PERT, ex. "2/?"). Motif ANCRE sur
+  // tout le texte (^...$) : indispensable pour ne PAS confondre avec une date
+  // "jj/mm/aaaa" (deux slashes) — sans ancrage, "01/11/2026" matcherait "01/11" et
+  // la duree serait lue comme le quantieme (01 → 1). La duree reste toujours
+  // numerique ; seule la marge (2e membre) accepte "?".
   function findValueText(subs) {
     for (var i = 0; i < subs.length; i++) {
-      if (/-?\d[\d,]*\s*\/\s*-?\d/.test(subs[i].text || "")) return subs[i].text;
+      var t = String(subs[i].text || "").trim();
+      if (/^-?\d[\d,]*\s*\/\s*(-?[\d,]+|\?)$/.test(t)) return t;
     }
     return null;
   }

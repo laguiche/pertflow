@@ -1284,7 +1284,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"30/06/2026 22:54","tag":"v0.11"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"01/07/2026 23:45","tag":"v0.12"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -37774,10 +37774,16 @@ window.pertHighlightCriticalPath = pertHighlightCriticalPath;
     return String(j10) === "2" ? "sem" : "mois";
   }
 
-  // Premiere sous-forme dont le texte ressemble a un champ "x/y".
+  // Premiere sous-forme dont le texte ressemble a un champ "duree/marge".
+  // La marge peut etre "?" (indeterminee dans C-PERT, ex. "2/?"). Motif ANCRE sur
+  // tout le texte (^...$) : indispensable pour ne PAS confondre avec une date
+  // "jj/mm/aaaa" (deux slashes) — sans ancrage, "01/11/2026" matcherait "01/11" et
+  // la duree serait lue comme le quantieme (01 → 1). La duree reste toujours
+  // numerique ; seule la marge (2e membre) accepte "?".
   function findValueText(subs) {
     for (var i = 0; i < subs.length; i++) {
-      if (/-?\d[\d,]*\s*\/\s*-?\d/.test(subs[i].text || "")) return subs[i].text;
+      var t = String(subs[i].text || "").trim();
+      if (/^-?\d[\d,]*\s*\/\s*(-?[\d,]+|\?)$/.test(t)) return t;
     }
     return null;
   }
@@ -39166,7 +39172,11 @@ function buildCombobox(parent, labelText, value, options, onInput, onCommit) {
   const input = document.createElement("input");
   input.type = "text";
   input.value = value !== null && value !== undefined ? value : "";
-  input.setAttribute("autocomplete", "off");
+  // NB : PAS d'autocomplete="off" — sous Firefox (navigateur par defaut de l'utilisateur),
+  // autocomplete="off" combine a un attribut `list` SUPPRIME le menu deroulant du
+  // <datalist> (le champ ne propose plus les groupes/responsables deja saisis). Chrome
+  // l'affiche malgre tout, d'ou un bug invisible en test. On laisse donc l'autocomplete
+  // par defaut : le <datalist> EST le mecanisme d'autocompletion voulu ici.
   const listId = "dl-" + labelText.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   input.setAttribute("list", listId);
   const dl = document.createElement("datalist");
@@ -39781,7 +39791,8 @@ function promptImportGroup(defaultColor, onChoose) {
   groupLabel.textContent = "Groupe (WP / métier / service) — laisser vide pour aucun";
   const groupInput = document.createElement("input");
   groupInput.type = "text";
-  groupInput.setAttribute("autocomplete", "off");
+  // Pas d'autocomplete="off" (cf. buildCombobox) : sous Firefox il masquerait le
+  // menu deroulant du <datalist> des groupes existants.
   groupInput.setAttribute("list", "dl-import-group");
   groupInput.placeholder = "Aucun groupe";
   const dl = document.createElement("datalist");
