@@ -621,7 +621,11 @@ function buildCombobox(parent, labelText, value, options, onInput, onCommit) {
   const input = document.createElement("input");
   input.type = "text";
   input.value = value !== null && value !== undefined ? value : "";
-  input.setAttribute("autocomplete", "off");
+  // NB : PAS d'autocomplete="off" — sous Firefox (navigateur par defaut de l'utilisateur),
+  // autocomplete="off" combine a un attribut `list` SUPPRIME le menu deroulant du
+  // <datalist> (le champ ne propose plus les groupes/responsables deja saisis). Chrome
+  // l'affiche malgre tout, d'ou un bug invisible en test. On laisse donc l'autocomplete
+  // par defaut : le <datalist> EST le mecanisme d'autocompletion voulu ici.
   const listId = "dl-" + labelText.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   input.setAttribute("list", listId);
   const dl = document.createElement("datalist");
@@ -1236,7 +1240,8 @@ function promptImportGroup(defaultColor, onChoose) {
   groupLabel.textContent = "Groupe (WP / métier / service) — laisser vide pour aucun";
   const groupInput = document.createElement("input");
   groupInput.type = "text";
-  groupInput.setAttribute("autocomplete", "off");
+  // Pas d'autocomplete="off" (cf. buildCombobox) : sous Firefox il masquerait le
+  // menu deroulant du <datalist> des groupes existants.
   groupInput.setAttribute("list", "dl-import-group");
   groupInput.placeholder = "Aucun groupe";
   const dl = document.createElement("datalist");
