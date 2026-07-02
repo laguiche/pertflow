@@ -1075,6 +1075,64 @@ smoke général sans régression (Playwright/Chromium). **Numérotation : v0.12 
 
 ---
 
+### Correctifs pré-Session 9 (suite) — Ergonomie & filet anti-crash ✅ TERMINÉS (02-03/07/2026, tag v0.12.2)
+Trois évolutions d'ergonomie demandées par l'utilisateur avant d'ouvrir la S9 (branche
+`fix/centrage-toolbar-zoom-autosave`). **3e passe patch : `v0.12.2`** (v0.12.1 = sélecteur de
+groupe). La Session 9 reste **v0.13**.
+**Objectifs** :
+- [x] **Placement au centre de l'espace visible** — les nœuds créés via les boutons de la
+  toolbar apparaissaient décalés : `getCanvasCenter` utilisait une conversion écran→graphe
+  fausse (`(cx - offset)/scale` au lieu de `cx/scale - offset`, cf.
+  `DragAndScale.convertCanvasToOffset`), fautive dès que le zoom ≠ 1 ; le nœud était de plus
+  posé par son **coin haut-gauche**. Corrigé (formule + retrait de la demi-taille → centre
+  réel) ; les 3 boutons passent désormais par le helper `addNodeAt` (taille calculée d'abord).
+  Le clic droit « Ajouter » reste posé **sous le curseur** (inchangé).
+- [x] **Toolbar accessible à toute résolution** — à certaines résolutions la toolbar
+  débordait horizontalement, rendant des boutons inaccessibles (aucun mécanisme de
+  débordement). Passage en **`flex-wrap: wrap`** + `min-height: 42px` : la barre s'étale sur
+  plusieurs lignes en largeur contrainte au lieu de rogner des boutons. Zéro JS, sans casser
+  le menu Filtre (positionné en absolu) ni le canvas (recalculé par le handler `resize`).
+- [x] **Zoom −/+ (boutons toolbar)** — sans molette ni pavé tactile multipoint, le zoom
+  (Ctrl+scroll natif) était inaccessible. Boutons **`➖`/`➕`** encadrant « Tout afficher »,
+  câblés sur `changeScale` natif (helper `pertZoomBy`, facteur ×1,2, **clamp [0,1 ; 10]**,
+  recentrage sur le milieu du canvas visible).
+- [x] **Sauvegarde automatique (filet anti-crash)** — de rares plantages faisaient perdre le
+  travail. **Contrainte `file://`** : impossible d'écrire un `.pert` silencieusement (pas de
+  serveur ; téléchargement seulement sur action utilisateur). → **snapshot de récupération
+  dans `localStorage`** (même stockage que le presse-papier LiteGraph), écrit périodiquement
+  (8 s) tant qu'il reste du travail non sauvegardé, **proposé à la restauration au démarrage**
+  via un dialogue après un plantage. **ACTIVÉ PAR DÉFAUT** (décision utilisateur), désactivable
+  dans Paramètres, sérialisé **par projet**. Ne remplace PAS le `.pert` (filet, pas sauvegarde).
+
+**Décisions notables (02/07/2026)** :
+- **Le seul mécanisme viable en `file://`** est `localStorage` (pas d'écriture disque). Le
+  snapshot n'est effacé que par une vraie sauvegarde `.pert`, un chargement, ou « Ignorer »
+  → le dialogue de démarrage ne s'affiche que pour du **vrai travail non sauvegardé** (jamais
+  après une session propre sans édition). Un **simple F5 ne l'efface pas** (utile pour tester).
+- **Gating par séquence de changements** (`changeSeq`/`savedSeq`/`writtenSeq` dans
+  `src/autosave.js`) : `pertHistoryMark` incrémente `changeSeq` (`pertAutosaveTouch`), une vraie
+  sauvegarde/chargement cale `savedSeq` (`pertAutosaveMarkSaved`) et efface le snapshot → un
+  snapshot n'existe que si `changeSeq > savedSeq`. Écriture périodique (`setInterval` 8 s) +
+  flush best-effort sur `beforeunload`.
+- **Robustesse** : tout accès `localStorage` sous `try/catch` (quota/indisponible → toast
+  unique, jamais bloquant) — si un navigateur DSI bloquait le stockage, l'autosave se
+  désactive proprement sans casser l'app.
+- **Activé par défaut** = sémantique « défaut vrai » (`autosave !== false`) partout où la clé
+  peut être absente (init `meta`, chargement d'anciens `.pert`, restauration undo) ; un `false`
+  explicite reste respecté et sérialisé.
+- **Bundle** : `src/autosave.js` inliné automatiquement (regex du builder), aucune modif de
+  `scripts/build-bundle.js` nécessaire.
+
+**Validation** : tests headless navigateur (Playwright/Chromium, `file://`) — `tools/smoke-center-toolbar.js`
+(centrage exact à scale=0,5+pan, zoom monotone+clamp, toolbar enroulée à 720px avec « À propos »
+cliquable) + `tools/smoke-autosave.js` (aucun snapshot à froid, écriture après édition, dialogue
+de récupération au reload, Restaurer→2 nœuds+snapshot effacé, Ignorer→vierge, round-trip
+`meta.autosave` + défaut `true` pour anciens fichiers) + smoke général sans régression.
+**Validée par l'utilisateur** avant clôture (rituel de fin de session : bundle `--tag v0.12.2`
+régénéré + versionné). La Session 9 sera **v0.13**.
+
+---
+
 ### Session 9 — Exports avancés ⏳ À VENIR
 **Objectifs** :
 - [ ] **#21** Export Excel (notamment pour faciliter le micro-jalonnement) — s'appuie
@@ -1381,3 +1439,24 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   (Chrome/Edge) → **2e passe `v0.12.1`** : menu déroulant custom (bouton ▾ + pastilles, pattern
   filtre S7) dans `buildCombobox`, appliqué au Groupe et au Responsable. Rituel appliqué aux deux
   passes (bundle régénéré + versionné). La Session 9 sera `v0.13`.
+
+### Correctifs pré-Session 9 (suite, 02-03/07/2026) — ergonomie & filet anti-crash (tag v0.12.2)
+- Trois évolutions d'ergonomie demandées avant la S9, branche `fix/centrage-toolbar-zoom-autosave`.
+  Détail et décisions dans la section « Correctifs pré-Session 9 (suite) » plus haut. **Centrage** :
+  `getCanvasCenter` corrigé (conversion écran→graphe `cx/scale - offset`, fausse dès zoom ≠ 1) +
+  centrage réel (retrait demi-taille) ; les 3 boutons d'ajout passent par `addNodeAt`. **Toolbar** :
+  `flex-wrap` + `min-height` → plus aucun bouton rogné en petite résolution. **Zoom −/+** : boutons
+  `➖`/`➕` autour de « Tout afficher », `changeScale` natif (clamp [0,1 ; 10]) pour les postes sans
+  molette/pavé multipoint. **Sauvegarde automatique** : nouveau module `src/autosave.js` — snapshot
+  de récupération `localStorage` (seul mécanisme viable en `file://`), écrit toutes les 8 s tant
+  qu'il reste du travail non sauvegardé, dialogue de restauration au démarrage après plantage.
+  **Activée par défaut** (décision utilisateur), désactivable dans Paramètres, sérialisée par projet ;
+  effacée par une vraie sauvegarde/chargement/« Ignorer ».
+- `index.html` : boutons zoom, case + note Paramètres, dialogue de récupération, `<script src>` autosave.
+  `src/ui.js` : `getCanvasCenter` + centrage `addNodeAt`, `pertZoomBy`, case autosave, démarrage module +
+  check récupération, `meta.autosave` défaut true. `src/autosave.js` (nouveau). `src/storage.js` +
+  `src/history.js` : clé `autosave` (défaut true, anciens fichiers inclus) + effacement snapshot.
+  `css/style.css` : toolbar `flex-wrap`, note Paramètres.
+- Validé : `tools/smoke-center-toolbar.js` + `tools/smoke-autosave.js` + smoke général sans régression
+  (Playwright/Chromium, `file://`). **Validation utilisateur** avant clôture ; **mergé sur `main`,
+  tagué `v0.12.2`, poussé** (rituel : bundle `--tag v0.12.2` régénéré + versionné). La Session 9 sera `v0.13`.
