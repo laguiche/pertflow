@@ -709,10 +709,15 @@ body {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 0 12px;
+  padding: 4px 12px;
   background: #12122a;
   border-bottom: 1px solid #2a2a5a;
-  height: 42px;
+  /* Retour à la ligne quand la largeur manque (petites résolutions) : la
+     toolbar s'étale sur plusieurs lignes plutôt que de rogner des boutons
+     inaccessibles. min-height conserve la hauteur d'origine sur une ligne. */
+  flex-wrap: wrap;
+  row-gap: 4px;
+  min-height: 42px;
   flex-shrink: 0;
   user-select: none;
 }
@@ -1017,6 +1022,14 @@ body {
   margin: 0;
   flex: 0 0 auto;
   cursor: pointer;
+}
+
+/* Note explicative sous une case a cocher (ex. sauvegarde auto) */
+#settings-box p.settings-hint {
+  margin: -4px 0 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #8a93b5;
 }
 
 /* S8.5 groupe de paramètres d'estimation de coût */
@@ -1348,7 +1361,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"02/07/2026 07:39","tag":"v0.12.1"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"02/07/2026 23:58","tag":"v0.12.2"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -1374,6 +1387,13 @@ body {
         <input type="checkbox" id="settings-propwidth">
         Largeur des tâches proportionnelle à la durée
       </label>
+      <label class="settings-check">
+        <input type="checkbox" id="settings-autosave">
+        Sauvegarde automatique (récupération après plantage)
+      </label>
+      <p class="settings-hint">La sauvegarde automatique conserve une copie de récupération
+        dans le navigateur (proposée au redémarrage après un plantage). Elle ne remplace pas
+        la sauvegarde du fichier .pert.</p>
       <fieldset class="settings-group">
         <legend>Estimation des coûts</legend>
         <label>Heures par mois
@@ -1402,7 +1422,9 @@ body {
     <button id="btn-add-label" title="Ajouter un nœud Label">❏ Label</button>
     <div class="tb-sep"></div>
     <button id="btn-layout" title="Ré-arranger les nœuds chronologiquement (selon les dates au plus tôt)">⤓ Réorganiser</button>
+    <button id="btn-zoom-out" title="Dézoomer (utile sans molette ni pavé tactile multipoint)">➖</button>
     <button id="btn-fit" title="Ajuster le zoom pour afficher tout le planning à l'écran">🔍 Tout afficher</button>
+    <button id="btn-zoom-in" title="Zoomer (utile sans molette ni pavé tactile multipoint)">➕</button>
     <button id="btn-snap" title="Activer / désactiver la grille aimantée (alignement des nœuds)">▦ Grille</button>
     <div class="tb-sep"></div>
     <div id="filter-control" title="Mettre en évidence un groupe (WP/métier) ou une couleur ; les autres tâches sont estompées">
@@ -1435,6 +1457,21 @@ body {
       <div id="about-content"></div>
       <div class="dialog-buttons">
         <button id="about-close" class="primary">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dialogue de récupération (sauvegarde automatique) ─────────────────── -->
+  <div id="recovery-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog">
+      <h3>Récupération d'un travail non sauvegardé</h3>
+      <p>Une copie de récupération a été trouvée (issue probablement d'un plantage) :</p>
+      <p id="recovery-when" style="font-weight:600"></p>
+      <p>Voulez-vous restaurer ce travail ? (« Ignorer » repart du projet vierge et
+        supprime la copie de récupération.)</p>
+      <div class="dialog-buttons">
+        <button id="recovery-ignore">Ignorer</button>
+        <button id="recovery-restore" class="primary">Restaurer</button>
       </div>
     </div>
   </div>
@@ -38230,6 +38267,8 @@ window.pertHighlightCriticalPath = pertHighlightCriticalPath;
   // Marque une modification : programme un commit differe (coalescence).
   function historyMark() {
     if (history.restoring) return;
+    // Signale la modification a la sauvegarde automatique (snapshot de recuperation).
+    if (global.pertAutosaveTouch) global.pertAutosaveTouch();
     clearTimeout(history.timer);
     history.timer = setTimeout(historyCommit, COMMIT_DELAY_MS);
   }
@@ -38285,6 +38324,8 @@ window.pertHighlightCriticalPath = pertHighlightCriticalPath;
         global.pertMeta.hourly_rate = data.meta.hourly_rate != null ? data.meta.hourly_rate : 136;
         // #14 registre des couleurs de groupes (capte dans le snapshot via pertMeta)
         global.pertMeta.groups = data.meta.groups || {};
+        // Sauvegarde automatique (activee par defaut si snapshot anterieur sans la cle)
+        global.pertMeta.autosave = data.meta.autosave !== false;
       }
       graph.clear();
       if (data.graph) graph.configure(data.graph);
@@ -38324,6 +38365,193 @@ window.pertHighlightCriticalPath = pertHighlightCriticalPath;
 
 </script>
   <script>
+/* src/autosave.js */
+// ─── Sauvegarde automatique / recuperation apres plantage ───────────────────────
+//
+// Contrainte file:// (PC verrouille DSI) : on ne peut PAS ecrire silencieusement un
+// fichier .pert sur le disque (aucun serveur ; le navigateur ne declenche un
+// telechargement que sur action utilisateur). Le seul mecanisme fiable est un
+// snapshot de RECUPERATION dans localStorage (meme stockage que le presse-papier
+// LiteGraph, donc disponible dans le contexte file:// de l'app).
+//
+// Principe :
+//  - Quand l'option est activee (meta.autosave, case dans Parametres), l'app ecrit
+//    en continu une copie du projet dans localStorage (a intervalle, uniquement si
+//    le projet a change depuis la derniere ecriture).
+//  - Au demarrage, si un snapshot subsiste (typiquement apres un plantage : une
+//    fermeture propre n'est pas requise pour le conserver), on PROPOSE de le
+//    restaurer via un dialogue (choix utilisateur : « Proposer de restaurer »).
+//  - Ce snapshot NE REMPLACE PAS le fichier .pert : c'est un filet anti-crash.
+//    Une vraie sauvegarde (.pert) ou un chargement efface le snapshot (plus rien
+//    « non sauvegarde » a recuperer) ; il est re-cree des la modification suivante.
+//
+// Aucune dependance, pur JS, charge en <script src> (compatible file://).
+
+(function (global) {
+  "use strict";
+
+  var STORAGE_KEY = "pertflow.recovery.v1";
+  var INTERVAL_MS = 8000; // frequence de verification/ecriture du snapshot
+
+  // Sequence de changements : incrementee a chaque modification (pertHistoryMark),
+  // figee a savedSeq lors d'une vraie sauvegarde/chargement. Un snapshot de
+  // recuperation ne doit exister que s'il y a du travail non sauvegarde
+  // (changeSeq > savedSeq) → le dialogue de demarrage reste pertinent.
+  var changeSeq = 0;   // nb de modifications depuis le debut de session
+  var savedSeq = 0;    // valeur de changeSeq au dernier point sauvegarde
+  var writtenSeq = -1; // valeur de changeSeq du dernier snapshot ecrit
+  var warnedQuota = false;
+
+  function lsAvailable() {
+    try { return typeof localStorage !== "undefined"; } catch (e) { return false; }
+  }
+
+  // Marque une modification du projet (branche sur pertHistoryMark).
+  function touch() { changeSeq++; }
+
+  // Y a-t-il du travail non sauvegarde a proteger ?
+  function hasUnsaved() {
+    if (changeSeq <= savedSeq) return false;
+    var g = global.pertGraph;
+    return !!(g && g._nodes && g._nodes.length > 0);
+  }
+
+  // Ecrit le snapshot de recuperation (best-effort, jamais bloquant).
+  function writeSnapshot() {
+    if (!lsAvailable()) return;
+    try {
+      var payload = {
+        ts: Date.now(),
+        title: (global.pertMeta && global.pertMeta.title) || "",
+        project: global.pertSerializeProject ? global.pertSerializeProject() : null
+      };
+      if (!payload.project || !payload.project.graph) return;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      writtenSeq = changeSeq;
+    } catch (e) {
+      // Quota depasse ou stockage indisponible : on previent une seule fois.
+      if (!warnedQuota && global.showToast) {
+        global.showToast("Sauvegarde automatique impossible (stockage navigateur indisponible)", true);
+        warnedQuota = true;
+      }
+    }
+  }
+
+  // Efface le snapshot (apres restauration, refus, vraie sauvegarde ou chargement).
+  function clearSnapshot() {
+    if (!lsAvailable()) return;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+    writtenSeq = changeSeq;
+  }
+
+  // Appele apres une vraie sauvegarde .pert ou un chargement : l'etat courant
+  // devient le point de reference « sauvegarde » → plus rien a recuperer.
+  function markSaved() {
+    savedSeq = changeSeq;
+    clearSnapshot();
+  }
+
+  // Tick periodique : ecrit le snapshot si l'option est active et qu'il y a du
+  // nouveau travail non sauvegarde depuis la derniere ecriture.
+  function tick() {
+    if (!global.pertMeta || global.pertMeta.autosave !== true) return;
+    if (!hasUnsaved()) return;
+    if (changeSeq === writtenSeq) return; // deja ecrit cet etat
+    writeSnapshot();
+  }
+
+  // Bascule de l'option depuis Parametres : ecrit tout de suite si pertinent,
+  // efface si desactive (plus de filet demande).
+  function onToggle() {
+    if (global.pertMeta && global.pertMeta.autosave === true) {
+      if (hasUnsaved()) writeSnapshot();
+    } else {
+      clearSnapshot();
+    }
+  }
+
+  // Lit un snapshot exploitable (ou null).
+  function readSnapshot() {
+    if (!lsAvailable()) return null;
+    var raw;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
+    if (!raw) return null;
+    try {
+      var data = JSON.parse(raw);
+      if (data && data.project && data.project.graph) return data;
+    } catch (e) { /* snapshot corrompu : on l'ignore */ }
+    return null;
+  }
+
+  // Formate un horodatage (ms) en date/heure locale lisible.
+  function formatTs(ms) {
+    try { return new Date(ms).toLocaleString("fr-FR"); }
+    catch (e) { return ""; }
+  }
+
+  // Verifie au demarrage la presence d'un snapshot et PROPOSE de le restaurer.
+  function checkRecovery() {
+    var snap = readSnapshot();
+    if (!snap) return;
+    var when = formatTs(snap.ts);
+    var title = snap.title || "projet sans titre";
+    var whenEl = document.getElementById("recovery-when");
+    if (whenEl) {
+      whenEl.textContent = "« " + title + " » — " + when;
+    }
+    var dlg = document.getElementById("recovery-dialog");
+    if (!dlg) {
+      // Filet : pas de dialogue dans le DOM → on efface pour ne pas rester bloque.
+      clearSnapshot();
+      return;
+    }
+    dlg.style.display = "flex";
+
+    var btnRestore = document.getElementById("recovery-restore");
+    var btnIgnore = document.getElementById("recovery-ignore");
+
+    function close() { dlg.style.display = "none"; }
+
+    btnRestore.onclick = function () {
+      close();
+      if (global.pertApplyProject) {
+        global.pertApplyProject(snap.project);
+        // Le projet restaure est desormais l'etat courant ; il n'a pas ete
+        // ecrit dans un .pert → il reste « non sauvegarde », mais on repart du
+        // snapshot restaure comme reference d'ecriture pour eviter un doublon.
+        savedSeq = changeSeq;         // pertApplyProject a pu incrementer via marks
+        writtenSeq = changeSeq;
+        if (global.showToast) global.showToast("Travail récupéré restauré");
+      }
+    };
+    btnIgnore.onclick = function () {
+      close();
+      clearSnapshot();               // refus explicite → on ne renotifie plus
+      savedSeq = changeSeq;
+    };
+  }
+
+  // Demarre le module : timer periodique + flush best-effort a la fermeture.
+  function start() {
+    setInterval(tick, INTERVAL_MS);
+    global.addEventListener("beforeunload", function () {
+      if (global.pertMeta && global.pertMeta.autosave === true && hasUnsaved()) {
+        writeSnapshot();
+      }
+    });
+  }
+
+  // Exposition globale.
+  global.pertAutosaveTouch = touch;
+  global.pertAutosaveMarkSaved = markSaved;
+  global.pertAutosaveOnToggle = onToggle;
+  global.pertAutosaveCheckRecovery = checkRecovery;
+  global.pertAutosaveStart = start;
+
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
 /* src/storage.js */
 // ─── Sauvegarde / chargement JSON (.pert) — Session 3 ───────────────────────────
 //
@@ -38356,7 +38584,9 @@ function pertSerializeProject() {
       hours_per_day: meta.hours_per_day != null ? meta.hours_per_day : 8,
       hourly_rate: meta.hourly_rate != null ? meta.hourly_rate : 136,
       // #14 registre des couleurs de groupes (WP/metier/service)
-      groups: meta.groups || {}
+      groups: meta.groups || {},
+      // Sauvegarde automatique (recuperation apres plantage) : activee par defaut
+      autosave: meta.autosave !== false
     },
     // graph.serialize() renvoie un objet JS (noeuds + liens + positions/tailles)
     graph: graph ? graph.serialize() : null
@@ -38387,6 +38617,8 @@ function pertSaveProject() {
   document.body.removeChild(a);
   // Liberer l'URL objet apres que le navigateur a demarre le telechargement.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Le fichier .pert capture l'etat : plus rien de « non sauvegarde » a recuperer.
+  if (window.pertAutosaveMarkSaved) window.pertAutosaveMarkSaved();
   showToast("Projet sauvegarde : " + a.download);
 }
 
@@ -38430,6 +38662,8 @@ function pertApplyProject(data) {
   window.pertMeta.hourly_rate = meta.hourly_rate != null ? meta.hourly_rate : 136;
   // #14 registre des couleurs de groupes (robuste aux fichiers anterieurs : {})
   window.pertMeta.groups = meta.groups || {};
+  // Sauvegarde automatique (activee par defaut, y compris fichiers anterieurs sans la cle)
+  window.pertMeta.autosave = meta.autosave !== false;
 
   // Restauration du graphe : on vide tout puis on reconfigure depuis le fichier.
   graph.clear();
@@ -38454,6 +38688,10 @@ function pertApplyProject(data) {
   // Nouvelle reference d'historique : le projet charge devient la baseline d'undo
   // (sinon un Ctrl+Z remonterait avant le chargement, sur un graphe etranger).
   if (window.pertHistoryReset) window.pertHistoryReset();
+
+  // Chargement = nouvelle reference « sauvegarde » : on efface le snapshot de
+  // recuperation (le projet charge n'a pas de travail non sauvegarde en attente).
+  if (window.pertAutosaveMarkSaved) window.pertAutosaveMarkSaved();
 
   showToast("Projet charge : " + graph._nodes.length + " nœud(s)");
 }
@@ -38624,7 +38862,7 @@ window.pertRenderToCanvas = pertRenderToCanvas;
 window.pertMeta = {
   title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true,
   hours_per_month: 135, hours_per_day: 8, hourly_rate: 136,
-  groups: {}
+  groups: {}, autosave: true
 };
 window.pertGraph = null;
 window.pertCanvas = null;
@@ -38681,7 +38919,17 @@ document.addEventListener("DOMContentLoaded", () => {
   function addNodeAt(typeName, pos) {
     const n = LiteGraph.createNode(typeName);
     if (n.updateSize) n.updateSize();
-    n.pos = pos ? [pos[0], pos[1]] : getCanvasCenter();
+    if (pos) {
+      // Position explicite (clic droit) : coin haut-gauche sous le curseur
+      n.pos = [pos[0], pos[1]];
+    } else {
+      // Bouton toolbar : nœud CENTRE sur le milieu de l'espace de travail visible
+      // (retrait de la demi-taille — pos est le coin haut-gauche du nœud)
+      const c = getCanvasCenter();
+      const w = (n.size && n.size[0]) || 0;
+      const h = (n.size && n.size[1]) || 0;
+      n.pos = [c[0] - w / 2, c[1] - h / 2];
+    }
     graph.add(n);
     return n;
   }
@@ -38847,22 +39095,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Toolbar ─────────────────────────────────────────────────────────────────
 
+  // Les 3 boutons d'ajout passent par addNodeAt (sans position) → nœud centré
+  // sur le milieu de l'espace de travail visible, taille calculee au prealable.
   document.getElementById("btn-add-activity").addEventListener("click", () => {
-    const node = LiteGraph.createNode("pert/activity");
-    node.pos = getCanvasCenter();
-    graph.add(node);
+    addNodeAt("pert/activity");
   });
 
   document.getElementById("btn-add-milestone").addEventListener("click", () => {
-    const node = LiteGraph.createNode("pert/milestone");
-    node.pos = getCanvasCenter();
-    graph.add(node);
+    addNodeAt("pert/milestone");
   });
 
   document.getElementById("btn-add-label").addEventListener("click", () => {
-    const node = LiteGraph.createNode("pert/label");
-    node.pos = getCanvasCenter();
-    graph.add(node);
+    addNodeAt("pert/label");
   });
 
   document.getElementById("btn-layout").addEventListener("click", () => {
@@ -38875,6 +39119,16 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-fit").addEventListener("click", () => {
     pertZoomToFit();
   });
+
+  // Zoom au clavier/souris sans molette : boutons −/+ autour de « Tout afficher ».
+  // changeScale (natif LiteGraph) clampe [min_scale, max_scale] et recentre sur le
+  // milieu du canvas visible (zooming_center par defaut = centre de l'element).
+  function pertZoomBy(factor) {
+    lgCanvas.ds.changeScale(lgCanvas.ds.scale * factor);
+    lgCanvas.setDirty(true, true);
+  }
+  document.getElementById("btn-zoom-out").addEventListener("click", () => pertZoomBy(1 / 1.2));
+  document.getElementById("btn-zoom-in").addEventListener("click", () => pertZoomBy(1.2));
 
   // Toggle grille aimantée (snap-to-grid) : bascule l'état + visibilité de grille.
   document.getElementById("btn-snap").addEventListener("click", () => {
@@ -39013,6 +39267,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setInterval(updateStatus, 600);
   updateStatus();
+
+  // ── Sauvegarde automatique / recuperation apres plantage ─────────────────────
+  // Demarre le timer d'ecriture puis propose de restaurer un eventuel snapshot
+  // (issu d'une session precedente qui s'est mal terminee). Appele en dernier :
+  // pertApplyProject (utilise par la restauration) doit etre pleinement operationnel.
+  if (window.pertAutosaveStart) pertAutosaveStart();
+  if (window.pertAutosaveCheckRecovery) pertAutosaveCheckRecovery();
 });
 
 // ─── Utilitaires canvas ───────────────────────────────────────────────────────
@@ -39020,12 +39281,14 @@ document.addEventListener("DOMContentLoaded", () => {
 function getCanvasCenter() {
   const lgCanvas = window.pertCanvas;
   const canvasEl = document.getElementById("pertCanvas");
-  // Convertir le centre de l'écran en coordonnées graph
+  // Convertir le centre de l'écran (canvas visible) en coordonnées graphe.
+  // Convention LiteGraph : ecran = (graphe + offset) * scale
+  //   → graphe = ecran / scale - offset  (cf. DragAndScale.convertCanvasToOffset)
   const cx = canvasEl.width / 2;
   const cy = canvasEl.height / 2;
   return [
-    (cx - lgCanvas.ds.offset[0]) / lgCanvas.ds.scale,
-    (cy - lgCanvas.ds.offset[1]) / lgCanvas.ds.scale
+    cx / lgCanvas.ds.scale - lgCanvas.ds.offset[0],
+    cy / lgCanvas.ds.scale - lgCanvas.ds.offset[1]
   ];
 }
 
@@ -39723,6 +39986,9 @@ function openSettings() {
   // #18 case cochee par defaut (proportionnalite active sauf desactivation explicite)
   document.getElementById("settings-propwidth").checked =
     window.pertMeta.prop_width !== false;
+  // Sauvegarde automatique (activee par defaut : cochee sauf desactivation explicite)
+  document.getElementById("settings-autosave").checked =
+    window.pertMeta.autosave !== false;
   // S8.5 parametres d'estimation de cout
   document.getElementById("settings-hpm").value =
     window.pertMeta.hours_per_month != null ? window.pertMeta.hours_per_month : 135;
@@ -39741,6 +40007,9 @@ function saveSettings() {
   window.pertMeta.layout_gap = isNaN(hgap) ? 30 : Math.max(0, hgap);
   // #18 largeur ∝ duree (re-applique par updateSize sur tous les nœuds ci-dessous)
   window.pertMeta.prop_width = document.getElementById("settings-propwidth").checked;
+  // Sauvegarde automatique : bascule prise en compte immediatement par le module
+  window.pertMeta.autosave = document.getElementById("settings-autosave").checked;
+  if (window.pertAutosaveOnToggle) window.pertAutosaveOnToggle();
   // S8.5 parametres de cout (planches a 0 ; defaut si champ vide/invalide)
   const hpm = parseFloat(document.getElementById("settings-hpm").value);
   const hpd = parseFloat(document.getElementById("settings-hpd").value);

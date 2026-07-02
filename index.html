@@ -33,6 +33,13 @@
         <input type="checkbox" id="settings-propwidth">
         Largeur des tâches proportionnelle à la durée
       </label>
+      <label class="settings-check">
+        <input type="checkbox" id="settings-autosave">
+        Sauvegarde automatique (récupération après plantage)
+      </label>
+      <p class="settings-hint">La sauvegarde automatique conserve une copie de récupération
+        dans le navigateur (proposée au redémarrage après un plantage). Elle ne remplace pas
+        la sauvegarde du fichier .pert.</p>
       <fieldset class="settings-group">
         <legend>Estimation des coûts</legend>
         <label>Heures par mois
@@ -61,7 +68,9 @@
     <button id="btn-add-label" title="Ajouter un nœud Label">❏ Label</button>
     <div class="tb-sep"></div>
     <button id="btn-layout" title="Ré-arranger les nœuds chronologiquement (selon les dates au plus tôt)">⤓ Réorganiser</button>
+    <button id="btn-zoom-out" title="Dézoomer (utile sans molette ni pavé tactile multipoint)">➖</button>
     <button id="btn-fit" title="Ajuster le zoom pour afficher tout le planning à l'écran">🔍 Tout afficher</button>
+    <button id="btn-zoom-in" title="Zoomer (utile sans molette ni pavé tactile multipoint)">➕</button>
     <button id="btn-snap" title="Activer / désactiver la grille aimantée (alignement des nœuds)">▦ Grille</button>
     <div class="tb-sep"></div>
     <div id="filter-control" title="Mettre en évidence un groupe (WP/métier) ou une couleur ; les autres tâches sont estompées">
@@ -94,6 +103,21 @@
       <div id="about-content"></div>
       <div class="dialog-buttons">
         <button id="about-close" class="primary">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dialogue de récupération (sauvegarde automatique) ─────────────────── -->
+  <div id="recovery-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog">
+      <h3>Récupération d'un travail non sauvegardé</h3>
+      <p>Une copie de récupération a été trouvée (issue probablement d'un plantage) :</p>
+      <p id="recovery-when" style="font-weight:600"></p>
+      <p>Voulez-vous restaurer ce travail ? (« Ignorer » repart du projet vierge et
+        supprime la copie de récupération.)</p>
+      <div class="dialog-buttons">
+        <button id="recovery-ignore">Ignorer</button>
+        <button id="recovery-restore" class="primary">Restaurer</button>
       </div>
     </div>
   </div>
@@ -140,6 +164,7 @@
   <script src="src/pert_engine.js"></script>
   <script src="src/import_excel.js"></script>
   <script src="src/history.js"></script>
+  <script src="src/autosave.js"></script>
   <script src="src/storage.js"></script>
   <script src="src/export.js"></script>
   <script src="src/ui.js"></script>

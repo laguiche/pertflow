@@ -46,6 +46,8 @@
   // Marque une modification : programme un commit differe (coalescence).
   function historyMark() {
     if (history.restoring) return;
+    // Signale la modification a la sauvegarde automatique (snapshot de recuperation).
+    if (global.pertAutosaveTouch) global.pertAutosaveTouch();
     clearTimeout(history.timer);
     history.timer = setTimeout(historyCommit, COMMIT_DELAY_MS);
   }
@@ -101,6 +103,8 @@
         global.pertMeta.hourly_rate = data.meta.hourly_rate != null ? data.meta.hourly_rate : 136;
         // #14 registre des couleurs de groupes (capte dans le snapshot via pertMeta)
         global.pertMeta.groups = data.meta.groups || {};
+        // Sauvegarde automatique (activee par defaut si snapshot anterieur sans la cle)
+        global.pertMeta.autosave = data.meta.autosave !== false;
       }
       graph.clear();
       if (data.graph) graph.configure(data.graph);

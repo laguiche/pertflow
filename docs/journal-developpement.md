@@ -588,6 +588,41 @@ l'usage réel — la boucle de validation visuelle utilisateur reste indispensab
 
 ---
 
+### Correctifs pré-Session 9 (01→03/07/2026) — bugs d'import puis ergonomie & filet anti-crash
+
+Deux vagues de correctifs avant d'ouvrir la S9, pilotées par des retours d'usage.
+
+- **1re vague (v0.12 / v0.12.1).** Import : les tâches à marge indéterminée (`2/?` dans C-PERT)
+  étaient importées avec une durée erronée de 1 (le sélecteur se rabattait sur la date, `01/11`
+  → 1) → motif ancré tolérant `?`. Sélecteur de groupe du panneau : le `<datalist>` natif est
+  inadapté au cas « choisir parmi les valeurs existantes » (Firefox le masque avec
+  `autocomplete="off"` ; Edge/Chrome le filtrent par la valeur déjà saisie) → remplacé par un
+  **menu déroulant custom** (bouton ▾ + pastilles), même pattern que le filtre S7. *Leçon* : les
+  contrôles HTML « natifs » se comportent différemment d'un navigateur à l'autre — sur un parc
+  DSI hétérogène, un composant maison DOM/CSS est plus sûr.
+
+- **2e vague (v0.12.2) — ergonomie & robustesse.** Trois demandes utilisateur :
+  - *Placement au centre.* Les nœuds ajoutés par la toolbar tombaient à côté du centre visible :
+    conversion écran→graphe fausse dès que le zoom ≠ 1 (`(cx-offset)/scale` au lieu de
+    `cx/scale-offset`) + pose par le coin. Corrigé (formule + centrage réel).
+  - *Toolbar accessible.* À certaines résolutions la barre débordait et masquait des boutons →
+    `flex-wrap` (elle s'étale sur plusieurs lignes), zéro dépendance.
+  - *Zoom −/+.* Sans molette ni pavé multipoint, le zoom était inatteignable → boutons `➖`/`➕`
+    autour de « Tout afficher ».
+  - *Filet anti-crash.* De rares plantages faisaient perdre le travail. **Contrainte `file://` :
+    on ne peut pas écrire un fichier silencieusement** → **snapshot de récupération dans
+    `localStorage`**, proposé au redémarrage après un crash. **Activé par défaut** (choix
+    utilisateur), désactivable, sérialisé par projet ; ne remplace pas le `.pert` (c'est un
+    filet). *Apport méthode/IA* : cadrage explicite de la faisabilité **avant** de coder (la
+    contrainte `file://` interdit l'écriture disque → seul `localStorage` est viable), questions
+    ciblées sur l'emplacement de l'activation et l'UX de récupération, puis validation e2e en
+    navigateur réel (écriture, dialogue, restaurer/ignorer, round-trip).
+
+  Validé par `tools/smoke-center-toolbar.js` + `tools/smoke-autosave.js` + smoke général, puis
+  validation visuelle utilisateur. Tags `v0.12`, `v0.12.1`, `v0.12.2` (patchs successifs, S9 = v0.13).
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)
