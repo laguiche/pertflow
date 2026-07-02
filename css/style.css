@@ -17,10 +17,15 @@ body {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 0 12px;
+  padding: 4px 12px;
   background: #12122a;
   border-bottom: 1px solid #2a2a5a;
-  height: 42px;
+  /* Retour à la ligne quand la largeur manque (petites résolutions) : la
+     toolbar s'étale sur plusieurs lignes plutôt que de rogner des boutons
+     inaccessibles. min-height conserve la hauteur d'origine sur une ligne. */
+  flex-wrap: wrap;
+  row-gap: 4px;
+  min-height: 42px;
   flex-shrink: 0;
   user-select: none;
 }
@@ -325,6 +330,14 @@ body {
   margin: 0;
   flex: 0 0 auto;
   cursor: pointer;
+}
+
+/* Note explicative sous une case a cocher (ex. sauvegarde auto) */
+#settings-box p.settings-hint {
+  margin: -4px 0 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #8a93b5;
 }
 
 /* S8.5 groupe de paramètres d'estimation de coût */

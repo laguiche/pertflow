@@ -29,7 +29,9 @@ function pertSerializeProject() {
       hours_per_day: meta.hours_per_day != null ? meta.hours_per_day : 8,
       hourly_rate: meta.hourly_rate != null ? meta.hourly_rate : 136,
       // #14 registre des couleurs de groupes (WP/metier/service)
-      groups: meta.groups || {}
+      groups: meta.groups || {},
+      // Sauvegarde automatique (recuperation apres plantage) : activee par defaut
+      autosave: meta.autosave !== false
     },
     // graph.serialize() renvoie un objet JS (noeuds + liens + positions/tailles)
     graph: graph ? graph.serialize() : null
@@ -60,6 +62,8 @@ function pertSaveProject() {
   document.body.removeChild(a);
   // Liberer l'URL objet apres que le navigateur a demarre le telechargement.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Le fichier .pert capture l'etat : plus rien de « non sauvegarde » a recuperer.
+  if (window.pertAutosaveMarkSaved) window.pertAutosaveMarkSaved();
   showToast("Projet sauvegarde : " + a.download);
 }
 
@@ -103,6 +107,8 @@ function pertApplyProject(data) {
   window.pertMeta.hourly_rate = meta.hourly_rate != null ? meta.hourly_rate : 136;
   // #14 registre des couleurs de groupes (robuste aux fichiers anterieurs : {})
   window.pertMeta.groups = meta.groups || {};
+  // Sauvegarde automatique (activee par defaut, y compris fichiers anterieurs sans la cle)
+  window.pertMeta.autosave = meta.autosave !== false;
 
   // Restauration du graphe : on vide tout puis on reconfigure depuis le fichier.
   graph.clear();
@@ -127,6 +133,10 @@ function pertApplyProject(data) {
   // Nouvelle reference d'historique : le projet charge devient la baseline d'undo
   // (sinon un Ctrl+Z remonterait avant le chargement, sur un graphe etranger).
   if (window.pertHistoryReset) window.pertHistoryReset();
+
+  // Chargement = nouvelle reference « sauvegarde » : on efface le snapshot de
+  // recuperation (le projet charge n'a pas de travail non sauvegarde en attente).
+  if (window.pertAutosaveMarkSaved) window.pertAutosaveMarkSaved();
 
   showToast("Projet charge : " + graph._nodes.length + " nœud(s)");
 }

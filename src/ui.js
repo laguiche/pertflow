@@ -9,7 +9,7 @@
 window.pertMeta = {
   title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true,
   hours_per_month: 135, hours_per_day: 8, hourly_rate: 136,
-  groups: {}
+  groups: {}, autosave: true
 };
 window.pertGraph = null;
 window.pertCanvas = null;
@@ -66,7 +66,17 @@ document.addEventListener("DOMContentLoaded", () => {
   function addNodeAt(typeName, pos) {
     const n = LiteGraph.createNode(typeName);
     if (n.updateSize) n.updateSize();
-    n.pos = pos ? [pos[0], pos[1]] : getCanvasCenter();
+    if (pos) {
+      // Position explicite (clic droit) : coin haut-gauche sous le curseur
+      n.pos = [pos[0], pos[1]];
+    } else {
+      // Bouton toolbar : nœud CENTRE sur le milieu de l'espace de travail visible
+      // (retrait de la demi-taille — pos est le coin haut-gauche du nœud)
+      const c = getCanvasCenter();
+      const w = (n.size && n.size[0]) || 0;
+      const h = (n.size && n.size[1]) || 0;
+      n.pos = [c[0] - w / 2, c[1] - h / 2];
+    }
     graph.add(n);
     return n;
   }
@@ -232,22 +242,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Toolbar ─────────────────────────────────────────────────────────────────
 
+  // Les 3 boutons d'ajout passent par addNodeAt (sans position) → nœud centré
+  // sur le milieu de l'espace de travail visible, taille calculee au prealable.
   document.getElementById("btn-add-activity").addEventListener("click", () => {
-    const node = LiteGraph.createNode("pert/activity");
-    node.pos = getCanvasCenter();
-    graph.add(node);
+    addNodeAt("pert/activity");
   });
 
   document.getElementById("btn-add-milestone").addEventListener("click", () => {
-    const node = LiteGraph.createNode("pert/milestone");
-    node.pos = getCanvasCenter();
-    graph.add(node);
+    addNodeAt("pert/milestone");
   });
 
   document.getElementById("btn-add-label").addEventListener("click", () => {
-    const node = LiteGraph.createNode("pert/label");
-    node.pos = getCanvasCenter();
-    graph.add(node);
+    addNodeAt("pert/label");
   });
 
   document.getElementById("btn-layout").addEventListener("click", () => {
@@ -260,6 +266,16 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-fit").addEventListener("click", () => {
     pertZoomToFit();
   });
+
+  // Zoom au clavier/souris sans molette : boutons −/+ autour de « Tout afficher ».
+  // changeScale (natif LiteGraph) clampe [min_scale, max_scale] et recentre sur le
+  // milieu du canvas visible (zooming_center par defaut = centre de l'element).
+  function pertZoomBy(factor) {
+    lgCanvas.ds.changeScale(lgCanvas.ds.scale * factor);
+    lgCanvas.setDirty(true, true);
+  }
+  document.getElementById("btn-zoom-out").addEventListener("click", () => pertZoomBy(1 / 1.2));
+  document.getElementById("btn-zoom-in").addEventListener("click", () => pertZoomBy(1.2));
 
   // Toggle grille aimantée (snap-to-grid) : bascule l'état + visibilité de grille.
   document.getElementById("btn-snap").addEventListener("click", () => {
@@ -398,6 +414,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setInterval(updateStatus, 600);
   updateStatus();
+
+  // ── Sauvegarde automatique / recuperation apres plantage ─────────────────────
+  // Demarre le timer d'ecriture puis propose de restaurer un eventuel snapshot
+  // (issu d'une session precedente qui s'est mal terminee). Appele en dernier :
+  // pertApplyProject (utilise par la restauration) doit etre pleinement operationnel.
+  if (window.pertAutosaveStart) pertAutosaveStart();
+  if (window.pertAutosaveCheckRecovery) pertAutosaveCheckRecovery();
 });
 
 // ─── Utilitaires canvas ───────────────────────────────────────────────────────
@@ -405,12 +428,14 @@ document.addEventListener("DOMContentLoaded", () => {
 function getCanvasCenter() {
   const lgCanvas = window.pertCanvas;
   const canvasEl = document.getElementById("pertCanvas");
-  // Convertir le centre de l'écran en coordonnées graph
+  // Convertir le centre de l'écran (canvas visible) en coordonnées graphe.
+  // Convention LiteGraph : ecran = (graphe + offset) * scale
+  //   → graphe = ecran / scale - offset  (cf. DragAndScale.convertCanvasToOffset)
   const cx = canvasEl.width / 2;
   const cy = canvasEl.height / 2;
   return [
-    (cx - lgCanvas.ds.offset[0]) / lgCanvas.ds.scale,
-    (cy - lgCanvas.ds.offset[1]) / lgCanvas.ds.scale
+    cx / lgCanvas.ds.scale - lgCanvas.ds.offset[0],
+    cy / lgCanvas.ds.scale - lgCanvas.ds.offset[1]
   ];
 }
 
@@ -1108,6 +1133,9 @@ function openSettings() {
   // #18 case cochee par defaut (proportionnalite active sauf desactivation explicite)
   document.getElementById("settings-propwidth").checked =
     window.pertMeta.prop_width !== false;
+  // Sauvegarde automatique (activee par defaut : cochee sauf desactivation explicite)
+  document.getElementById("settings-autosave").checked =
+    window.pertMeta.autosave !== false;
   // S8.5 parametres d'estimation de cout
   document.getElementById("settings-hpm").value =
     window.pertMeta.hours_per_month != null ? window.pertMeta.hours_per_month : 135;
@@ -1126,6 +1154,9 @@ function saveSettings() {
   window.pertMeta.layout_gap = isNaN(hgap) ? 30 : Math.max(0, hgap);
   // #18 largeur ∝ duree (re-applique par updateSize sur tous les nœuds ci-dessous)
   window.pertMeta.prop_width = document.getElementById("settings-propwidth").checked;
+  // Sauvegarde automatique : bascule prise en compte immediatement par le module
+  window.pertMeta.autosave = document.getElementById("settings-autosave").checked;
+  if (window.pertAutosaveOnToggle) window.pertAutosaveOnToggle();
   // S8.5 parametres de cout (planches a 0 ; defaut si champ vide/invalide)
   const hpm = parseFloat(document.getElementById("settings-hpm").value);
   const hpd = parseFloat(document.getElementById("settings-hpd").value);
