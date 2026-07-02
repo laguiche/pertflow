@@ -554,6 +554,70 @@ body {
 .filter-menu-row.active { background: #1a4a9a; }
 .filter-row-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ─── Combobox du panneau (input + bouton ▾ + menu custom) ─────────────────────── */
+/* Menu custom robuste multi-navigateurs (le <datalist> natif filtre par la valeur
+   courante sous Chrome/Edge et est masque par autocomplete="off" sous Firefox). */
+.combo-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.combo-wrap input { flex: 1 1 auto; min-width: 0; }
+.combo-toggle {
+  flex: 0 0 auto;
+  width: 26px;
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 3px;
+  color: #aab4cc;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+.combo-toggle:hover { background: #243a6a; border-color: #5a8fd8; color: #dde3ec; }
+
+.combo-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #16183a;
+  border: 1px solid #2a3a7a;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  z-index: 1000;
+  padding: 4px;
+}
+.combo-menu[hidden] { display: none; }
+.combo-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #dde3ec;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.combo-menu-row:hover { background: #243a6a; }
+.combo-menu-row.active { background: #1a4a9a; }
+.combo-row-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.combo-menu-empty {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #7b88a8;
+  font-style: italic;
+}
+
 /* ─── Toast ─────────────────────────────────────────────────────────────────── */
 #toast {
   position: fixed;

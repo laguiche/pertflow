@@ -502,7 +502,7 @@ function showProperties(node) {
       node.properties.responsible = v;
       node.updateSize();           // #8 l'en-tete doit grandir pour loger la ligne 👤
       node.setDirtyCanvas(true, true);
-    });
+    }, null, { optionsProvider: collectResponsibles });
 
     // #2 Couleur — on garde la reference de l'input pour resynchroniser sa valeur
     // quand le groupe vient d'imposer sa teinte. #14 : changer la couleur d'une
@@ -526,7 +526,9 @@ function showProperties(node) {
         if (colorInput) colorInput.value = node.properties.color; // resync sans rebuild
         node.updateSize();
         node.setDirtyCanvas(true, true);
-      });
+      },
+      // Menu "▾" : liste live des groupes + pastille de la couleur memorisee de chacun.
+      { optionsProvider: collectGroupNames, swatchFor: g => pertGroups()[g] || null });
 
     // Action explicite : rattacher au groupe courant toutes les taches de meme couleur
     // (pratique pour tagger un lot importe entier). Lit le groupe au moment du clic.
@@ -609,23 +611,36 @@ function buildField(parent, labelText, type, value, onChange, attrs) {
   return input;
 }
 
-// Combobox enrichissable = <input> texte + <datalist> alimentee par les valeurs deja
-// saisies (Responsable, Groupe). L'utilisateur tape librement OU choisit une valeur
-// existante sans la ressaisir. onInput est appele a chaque frappe (memorisation au fil
-// de l'eau) ; onCommit (optionnel) a la validation (change/selection) — sert au Groupe
-// pour n'appliquer la teinte qu'une fois la saisie terminee. Si onCommit est omis,
-// onInput fait office des deux.
-function buildCombobox(parent, labelText, value, options, onInput, onCommit) {
+// Combobox enrichissable = <input> texte (saisie libre) + bouton "▾" ouvrant un MENU
+// CUSTOM listant TOUS les choix existants (Responsable, Groupe). L'utilisateur tape un
+// nouveau nom OU clique un existant dans le menu. onInput est appele a chaque frappe
+// (memorisation au fil de l'eau) ; onCommit (optionnel) a la validation (change/clic dans
+// le menu) — sert au Groupe pour n'appliquer la teinte qu'une fois la saisie terminee.
+// Si onCommit est omis, onInput fait office des deux.
+//
+// Pourquoi un menu custom et pas un <datalist> natif : le <datalist> est inutilisable
+// pour "choisir parmi les valeurs existantes". (1) Firefox : autocomplete="off" le
+// masque — mais meme sans, (2) Chrome/Edge FILTRENT les suggestions par la valeur
+// COURANTE du champ → rouvrir une activite deja groupee "WP1" ne propose plus que "WP1",
+// jamais les autres groupes. Le menu custom (meme pattern que le filtre S7) affiche
+// toujours TOUS les choix, identiquement sur Firefox/Edge/Chrome. On conserve neanmoins
+// un <datalist> discret pour l'autocompletion a la frappe (complement, pas le selecteur).
+//
+// config (optionnel) : { optionsProvider: fn()->[noms], swatchFor: fn(nom)->couleur|null }
+//   - optionsProvider : recalcule la liste a l'ouverture du menu (sinon `options` fige au build)
+//   - swatchFor       : pastille de couleur devant chaque ligne (Groupe → couleur du groupe)
+function buildCombobox(parent, labelText, value, options, onInput, onCommit, config) {
+  config = config || {};
   const label = document.createElement("label");
   label.textContent = labelText;
+
+  const wrap = document.createElement("div");
+  wrap.className = "combo-wrap";
+
   const input = document.createElement("input");
   input.type = "text";
   input.value = value !== null && value !== undefined ? value : "";
-  // NB : PAS d'autocomplete="off" — sous Firefox (navigateur par defaut de l'utilisateur),
-  // autocomplete="off" combine a un attribut `list` SUPPRIME le menu deroulant du
-  // <datalist> (le champ ne propose plus les groupes/responsables deja saisis). Chrome
-  // l'affiche malgre tout, d'ou un bug invisible en test. On laisse donc l'autocomplete
-  // par defaut : le <datalist> EST le mecanisme d'autocompletion voulu ici.
+  // Pas d'autocomplete="off" (cf. en-tete : Firefox masquerait le <datalist> de frappe).
   const listId = "dl-" + labelText.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   input.setAttribute("list", listId);
   const dl = document.createElement("datalist");
@@ -637,8 +652,80 @@ function buildCombobox(parent, labelText, value, options, onInput, onCommit) {
   });
   input.addEventListener("input", e => { onInput(e.target.value); pertHistoryMark(); });
   input.addEventListener("change", e => { (onCommit || onInput)(e.target.value); pertHistoryMark(); });
-  label.appendChild(input);
-  label.appendChild(dl);
+
+  // Bouton "▾" + menu custom (robuste multi-navigateurs).
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "combo-toggle";
+  toggle.textContent = "▾"; // ▾
+  toggle.tabIndex = -1;
+  toggle.title = "Choisir parmi les valeurs existantes";
+
+  const menu = document.createElement("div");
+  menu.className = "combo-menu";
+  menu.hidden = true;
+
+  function commit(v) {
+    input.value = v;
+    onInput(v);
+    (onCommit || onInput)(v);
+    pertHistoryMark();
+  }
+  function buildRows() {
+    menu.textContent = "";
+    const opts = typeof config.optionsProvider === "function" ? config.optionsProvider() : (options || []);
+    if (!opts.length) {
+      const empty = document.createElement("div");
+      empty.className = "combo-menu-empty";
+      empty.textContent = "Aucune valeur existante";
+      menu.appendChild(empty);
+      return;
+    }
+    opts.forEach(o => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "combo-menu-row" + (o === input.value ? " active" : "");
+      if (config.swatchFor) {
+        const c = config.swatchFor(o);
+        const sw = document.createElement("span");
+        sw.className = "filter-swatch" + (c ? "" : " none");
+        if (c) sw.style.background = c;
+        row.appendChild(sw);
+      }
+      const txt = document.createElement("span");
+      txt.className = "combo-row-label";
+      txt.textContent = o;
+      row.appendChild(txt);
+      row.addEventListener("click", e => { e.stopPropagation(); commit(o); closeMenu(); });
+      menu.appendChild(row);
+    });
+  }
+  // Ecouteurs "clic exterieur"/Echap attaches SEULEMENT tant que le menu est ouvert
+  // (retires a la fermeture → pas d'accumulation quand le panneau est reconstruit).
+  let outside = null;
+  function escClose(e) { if (e.key === "Escape") closeMenu(); }
+  function openMenu() {
+    buildRows();
+    menu.hidden = false;
+    outside = e => { if (!wrap.contains(e.target)) closeMenu(); };
+    setTimeout(() => document.addEventListener("click", outside), 0); // apres le clic courant
+    document.addEventListener("keydown", escClose);
+  }
+  function closeMenu() {
+    menu.hidden = true;
+    if (outside) { document.removeEventListener("click", outside); outside = null; }
+    document.removeEventListener("keydown", escClose);
+  }
+  toggle.addEventListener("click", e => {
+    e.stopPropagation();
+    if (menu.hidden) openMenu(); else closeMenu();
+  });
+
+  wrap.appendChild(input);
+  wrap.appendChild(toggle);
+  wrap.appendChild(menu);
+  wrap.appendChild(dl);
+  label.appendChild(wrap);
   parent.appendChild(label);
   return input;
 }

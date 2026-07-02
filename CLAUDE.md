@@ -1036,9 +1036,12 @@ défauts à la première version :
 
 ---
 
-### Correctifs pré-Session 9 — Import (marge « ? ») & sélecteur de groupe Firefox ✅ TERMINÉS (01/07/2026, tag v0.12)
+### Correctifs pré-Session 9 — Import (marge « ? ») & sélecteur de groupe ✅ TERMINÉS (01-02/07/2026, tags v0.12 puis v0.12.1)
 Deux bugs remontés par l'utilisateur, traités avant d'ouvrir la S9 (branche
 `fix/import-marge-et-selecteur-groupe`). Même modèle que les correctifs pré-S8.
+**Numérotation patch introduite ici** : `v0.12` = 1re passe (import + retrait `autocomplete="off"`
+côté Firefox) ; **`v0.12.1`** = 2e passe après retour utilisateur (« même souci sous Edge ») =
+remplacement du `<datalist>` par un menu déroulant custom (cf. sélecteur ci-dessous).
 **Objectifs** :
 - [x] **Import : durée fausse (« 1 mois ») sur les tâches à marge indéterminée** — dans
   C-PERT le champ durée/marge peut valoir `2/?` (marge non calculée). Le sélecteur
@@ -1047,20 +1050,28 @@ Deux bugs remontés par l'utilisateur, traités avant d'ouvrir la S9 (branche
   = `01` = 1. Corrigé par un motif **ancré** acceptant `?` :
   `/^-?\d[\d,]*\s*\/\s*(-?[\d,]+|\?)$/`. L'ancrage `^…$` empêche la confusion avec une date
   (deux slashes). La durée reste le 1er membre (`parseDurationField`), seule la marge tolère `?`.
-- [x] **Sélecteur de groupe (panneau) qui ne déroule plus sous Firefox** — les `<input>` du
-  combobox (`buildCombobox`) et du dialogue d'import portaient `autocomplete="off"`. Sous
-  **Firefox** (navigateur par défaut de l'utilisateur), `autocomplete="off"` combiné à un
-  attribut `list` **supprime le menu déroulant du `<datalist>`** (Chrome l'affiche malgré tout
-  → bug invisible en test Chromium). Retiré `autocomplete="off"` : le `<datalist>` EST
-  l'autocomplétion voulue. La logique de collecte/héritage des groupes était déjà correcte
-  (inchangée).
+- [x] **Sélecteur de groupe (panneau) inutilisable pour choisir parmi les groupes créés** —
+  **DEUX causes distinctes**, le `<datalist>` natif étant inadapté au cas « choisir parmi les
+  valeurs existantes » : (1) **Firefox** — `autocomplete="off"` sur les `<input>` du combobox
+  **supprime le menu déroulant du `<datalist>`** ; (2) **Edge/Chrome** — le `<datalist>` natif
+  **filtre les suggestions par la valeur COURANTE du champ** : rouvrir une activité déjà groupée
+  « WP1 » ne propose plus que « WP1 », jamais les autres groupes. Corrigé en **remplaçant le
+  sélecteur par un menu déroulant CUSTOM** (bouton « ▾ » + liste), même pattern que le menu de
+  filtre S7 (déjà adopté pour la même raison : listes natives non fiables cross-navigateur). Le
+  menu affiche **tous** les groupes (pastille de couleur de chacun via `pertGroups()`), identique
+  sur Firefox/Edge/Chrome ; le champ texte reste pour saisir un **nouveau** groupe (un `<datalist>`
+  discret est conservé pour l'autocomplétion à la frappe, en complément). Appliqué aussi au
+  **Responsable** (helper `buildCombobox` commun, param `config` optionnel `{optionsProvider,
+  swatchFor}`). `autocomplete="off"` retiré au passage. Logique de collecte/héritage des groupes
+  inchangée (déjà correcte).
 
 **Validation** : import `C_PERT_exemple_2.xlsm` → durées **2 / 3 / 6 / 3** (conformes à
 `test_cases/exemple2.png`, champs `2/?`, `3/?`, `6/1`, `3/?`) ; non-régression import
-`C_PERT_exemple.xlsm` (durées `1,9` conservées) ; smoke S6 + smoke général sans régression
-(Playwright/Chromium). ⚠️ Le sélecteur de groupe ne se reproduit **pas** en Chromium — fix
-fondé sur le comportement Firefox documenté, **validation visuelle Firefox utilisateur** à
-confirmer. **Numérotation décalée : v0.12** (v0.11 = S8.5) → la Session 9 sera **v0.13**.
+`C_PERT_exemple.xlsm` (durées `1,9` conservées) ; le menu custom liste **tous** les groupes
+même quand le champ contient déjà une valeur (cas qui piégeait la datalist Edge/Chrome), avec
+pastilles de couleur, sélection → héritage de teinte OK (capture de contrôle) ; smoke S6 + S7 +
+smoke général sans régression (Playwright/Chromium). **Numérotation : v0.12 puis patch v0.12.1**
+(v0.11 = S8.5) → la Session 9 sera **v0.13**.
 
 ---
 
@@ -1358,11 +1369,15 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   plus haut. **Import** : les tâches à marge indéterminée (`2/?`) étaient importées avec une
   durée de 1 — `findValueText` (`import_excel.js`) ignorait `2/?` (pas de chiffre après `/`) et
   se rabattait sur la date de la tâche, dont `01/11` donnait durée = 1. Motif ancré tolérant `?`.
-  **Sélecteur de groupe** : `autocomplete="off"` sur les `<input>` du combobox masquait le
-  `<datalist>` sous Firefox (navigateur de l'utilisateur) ; retiré dans `buildCombobox` et le
-  dialogue d'import (`src/ui.js`).
+  **Sélecteur de groupe** : le `<datalist>` natif était inutilisable (Firefox le masque avec
+  `autocomplete="off"` ; Edge/Chrome le filtrent par la valeur courante → impossible de voir les
+  autres groupes quand le champ est déjà rempli). Remplacé par un **menu déroulant custom**
+  (bouton ▾ + pastilles de couleur, pattern du filtre S7) dans `buildCombobox` (`src/ui.js`,
+  `css/style.css`), appliqué au Groupe et au Responsable.
 - Validé : import `C_PERT_exemple_2.xlsm` (durées 2/3/6/3), non-régression `C_PERT_exemple.xlsm`,
-  smoke S6 + smoke général (Playwright/Chromium) sans régression. Sélecteur de groupe = fix
-  fondé sur le comportement Firefox documenté (non reproductible en Chromium), validation
-  visuelle Firefox utilisateur à confirmer. **Mergé sur `main`, tagué `v0.12`** (rituel de fin
-  de session : bundle `--tag v0.12` régénéré + versionné). La Session 9 sera `v0.13`.
+  smoke S6 + S7 + smoke général (Playwright/Chromium) sans régression. **v0.12** = 1re passe
+  (import + retrait `autocomplete="off"`), **mergé sur `main` et tagué**. Retour utilisateur
+  ensuite : « même souci sous Edge » → le `<datalist>` natif filtre par la valeur courante
+  (Chrome/Edge) → **2e passe `v0.12.1`** : menu déroulant custom (bouton ▾ + pastilles, pattern
+  filtre S7) dans `buildCombobox`, appliqué au Groupe et au Responsable. Rituel appliqué aux deux
+  passes (bundle régénéré + versionné). La Session 9 sera `v0.13`.
