@@ -1,0 +1,247 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Document de maintenance — PertFlow</title><style>
+    :root { --fg:#1c2230; --muted:#5a6577; --line:#dfe3ea; --accent:#1a4a9a;
+            --codebg:#f4f6fa; --thbg:#eef2f8; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+           color: var(--fg); line-height: 1.55; max-width: 900px; margin: 0 auto;
+           padding: 48px 40px; background: #fff; font-size: 15px; }
+    h1 { font-size: 2em; border-bottom: 3px solid var(--accent); padding-bottom: .3em;
+         color: var(--accent); margin-top: 0; }
+    h2 { font-size: 1.5em; border-bottom: 1px solid var(--line); padding-bottom: .25em;
+         margin-top: 1.8em; color: #14213d; }
+    h3 { font-size: 1.2em; margin-top: 1.4em; color: #14213d; }
+    h4 { font-size: 1.05em; margin-top: 1.1em; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: var(--codebg); padding: .12em .4em; border-radius: 4px;
+           font-family: "SF Mono", "Consolas", "Menlo", monospace; font-size: .88em; }
+    pre { background: var(--codebg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+          border: 1px solid var(--line); }
+    pre code { background: none; padding: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .95em; }
+    th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left;
+             vertical-align: top; }
+    th { background: var(--thbg); font-weight: 600; }
+    tr:nth-child(even) td { background: #fafbfd; }
+    img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(20,40,80,.08); margin: .6em 0; display: block; }
+    blockquote { border-left: 4px solid #9fb6d8; margin: 1em 0; padding: .3em 1em;
+                 color: var(--muted); background: #f7f9fc; border-radius: 0 6px 6px 0; }
+    hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
+    ul, ol { padding-left: 1.5em; }
+    li { margin: .2em 0; }
+    @media print {
+      body { max-width: none; padding: 0; font-size: 11pt; }
+      h1, h2, h3, h4 { break-after: avoid; }
+      img, table, pre, blockquote { break-inside: avoid; }
+      a { color: var(--fg); }
+    }
+    @page { margin: 18mm 16mm; }
+    </style></head><body><h1 id="document-de-maintenance-pertflow">Document de maintenance — PertFlow</h1>
+<p>Guide pratique pour <strong>reprendre et faire évoluer</strong> PertFlow. À lire avec
+<a href="conception.md">conception.md</a> (architecture) et le <code>CLAUDE.md</code> racine (historique détaillé des
+sessions et décisions).</p>
+<hr />
+<h2 id="1-reprendre-le-projet-en-2-minutes">1. Reprendre le projet en 2 minutes</h2>
+<ul>
+<li><strong>Aucun build, aucune installation</strong> pour utiliser l'outil : ouvrez <code>index.html</code> (ou
+  <code>dist/pertflow.html</code>) par double-clic → il s'ouvre en <code>file://</code> dans le navigateur.</li>
+<li><strong>Pour développer</strong>, éditez <code>index.html</code>, <code>src/*.js</code>, <code>css/style.css</code> et rechargez la page.</li>
+<li>Un serveur local (<code>npx serve .</code> ou <code>python -m http.server</code>) n'est qu'un <strong>confort de dev
+  ponctuel</strong> : il ne doit <strong>jamais</strong> devenir nécessaire (voir contraintes ci-dessous).</li>
+<li>Récupérer l'environnement : <code>npm install</code> reconstitue <code>node_modules</code> (exclu du git).</li>
+</ul>
+<hr />
+<h2 id="2-contraintes-absolues-a-ne-jamais-enfreindre">2. Contraintes ABSOLUES (à ne jamais enfreindre)</h2>
+<p>Ces règles découlent du déploiement sur postes DSI verrouillés (ouverture <code>file://</code>) :</p>
+<ol>
+<li><strong>Pas de modules ES6.</strong> Interdits : <code>&lt;script type="module"&gt;</code>, <code>import</code>/<code>export</code>. Le code est
+   chargé par des <code>&lt;script src&gt;</code> classiques et vit dans le <strong>scope global</strong>.</li>
+<li><strong>Pas de <code>fetch()</code>/XHR de fichiers locaux.</strong> Lire les fichiers utilisateur avec
+   <code>&lt;input type="file"&gt;</code> + <code>FileReader</code>. (Vigilance particulière sur l'import/export.)</li>
+<li><strong>Licence MIT uniquement.</strong> Toute nouvelle bibliothèque doit être MIT (ou compatible) et
+   <strong>locale</strong> (<code>lib/</code>), jamais via CDN. Préférer réutiliser fflate/jsPDF/LiteGraph.</li>
+<li><strong>Pas de caractères accentués dans les identifiants ou valeurs de code</strong> (les libellés
+   d'affichage peuvent l'être).</li>
+<li><strong>Commentaires auto-documentés systématiques</strong> ; ne pas supprimer les commentaires existants
+   hors lignes réellement modifiées.</li>
+</ol>
+<p>Toute PR qui introduirait un module ES6, un <code>fetch</code> local ou une dépendance non-MIT casse le
+déploiement cible.</p>
+<hr />
+<h2 id="3-pieges-litegraph-deja-rencontres-a-connaitre-absolument">3. Pièges LiteGraph (déjà rencontrés — à connaître absolument)</h2>
+<table>
+<thead>
+<tr>
+<th>Piège</th>
+<th>À faire</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Masquer la barre de titre d'un nœud</td>
+<td><code>MonNoeud.title_mode = LiteGraph.NO_TITLE</code> sur le <strong>constructeur</strong>. <code>flags.no_title</code> <strong>ne fait rien</strong>.</td>
+</tr>
+<tr>
+<td>Rafraîchir le canvas</td>
+<td><code>LGraphCanvas.setDirty(fg, bg)</code> ; <strong><code>setDirtyCanvas</code> est sur le graphe / le nœud</strong>, pas sur le canvas.</td>
+</tr>
+<tr>
+<td>Slots d'entrée dynamiques des nœuds</td>
+<td>Connecter deux liens au <strong>même</strong> slot 0 <strong>remplace</strong> le premier. En test, viser des slots successifs ou isoler.</td>
+</tr>
+<tr>
+<td>Liens du nœud sélectionné forcés en blanc</td>
+<td>LiteGraph met <code>#FFF</code> via <code>highlighted_links</code> → on le vide dans notre <code>onDrawBackground</code> pour que nos couleurs de lien priment.</td>
+</tr>
+<tr>
+<td>Surcharger un comportement</td>
+<td>Surcharger sur <strong>l'instance</strong> <code>LGraphCanvas</code> (<code>renderLink</code>, <code>getMenuOptions</code>, <code>getNodeMenuOptions</code>) plutôt que patcher <code>lib/litegraph.js</code>.</td>
+</tr>
+<tr>
+<td>Rendu hors-écran (export)</td>
+<td>Penser à <code>graph.detachCanvas(tmp)</code> après coup (sinon le canvas temporaire reste dans <code>list_of_graphcanvas</code>).</td>
+</tr>
+<tr>
+<td><code>&lt;datalist&gt;</code> natif</td>
+<td>Inadapté au « choisir parmi les valeurs existantes » (masqué par <code>autocomplete=off</code> sous Firefox ; filtré par la valeur courante sous Edge/Chrome). Utiliser le <strong>menu déroulant custom</strong> (<code>buildCombobox</code>).</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-comment-ajouter">4. Comment ajouter…</h2>
+<h3 id="un-reglage-de-projet">…un réglage de projet</h3>
+<ol>
+<li>Ajouter le champ dans le dialogue <strong>Paramètres</strong> (<code>index.html</code>).</li>
+<li>Lire/écrire dans <code>openSettings</code> / <code>saveSettings</code> (<code>ui.js</code>).</li>
+<li><strong>Sérialiser</strong> dans <code>storage.js</code> (côté <code>pertSerializeProject</code> <strong>et</strong> <code>pertApplyProject</code>, avec
+   une <strong>valeur par défaut robuste</strong> pour les anciens <code>.pert</code>).</li>
+<li><strong>Restaurer</strong> dans <code>history.js</code> (undo).</li>
+<li>Si le réglage a un effet visuel immédiat, l'appliquer dans <code>saveSettings</code> et au chargement.</li>
+</ol>
+<p><em>(Exemple récent : <code>meta.link_mode</code> en Session 10.)</em></p>
+<h3 id="un-format-dexport">…un format d'export</h3>
+<ol>
+<li>Créer <code>src/export_&lt;format&gt;.js</code> qui produit le contenu (réutiliser <code>pertXlsxBuild</code> pour un
+   Excel, <code>pertScheduleModel</code> pour du temps/charge/liens) et télécharge via <code>pertDownloadBlob</code>.</li>
+<li>Appeler <code>pertRegisterExportFormat({ id, icon, label, desc, order, run })</code> en fin de fichier.</li>
+<li>Déclarer le <code>&lt;script src&gt;</code> dans <code>index.html</code>.</li>
+</ol>
+<h3 id="un-type-de-nud">…un type de nœud</h3>
+<p>Définir le type dans <code>nodes.js</code> (rendu custom, <code>title_mode</code>, slots), l'enregistrer auprès de
+LiteGraph, l'intégrer au moteur si pertinent (<code>pert_engine.js</code>) et à la sérialisation.</p>
+<hr />
+<h2 id="5-outillage-de-validation-tools">5. Outillage de validation (<code>tools/</code>)</h2>
+<blockquote>
+<p>⚠️ Le dossier <strong><code>tools/</code> est gitignoré</strong> (outillage de dev, hors livraison). Il contient
+<code>playwright-core</code> + un Chromium local. <code>npx playwright install chromium</code> si absent.</p>
+</blockquote>
+<ul>
+<li><strong>Smoke tests</strong> headless en navigateur réel (<code>file://</code>) : <code>tools/smoke.js</code> (parcours général)
+  et un <code>tools/smoke-sN.js</code> par session. Ils pilotent l'app via Playwright et vérifient l'absence
+  d'erreur console. Modèle de validation systématique avant clôture de session.</li>
+<li><strong>Captures d'écran de doc</strong> : <code>tools/screenshot.js</code> (<code>--app</code> / <code>--graph</code>) et <code>tools/doc-shots.js</code>
+  (jeu de captures du manuel dans <code>docs/images/manuel/</code>).</li>
+<li>Certains tests attendent <code>C_PERT_exemple.xlsm</code> à la racine ; les fichiers d'exemple vivent dans
+  <code>test_cases/</code> (<strong>non versionné</strong>) → copie temporaire à la racine pour lancer ces tests.</li>
+</ul>
+<p>Validation « pure Node » possible quand Playwright est indisponible (le moteur PERT est du JS sans
+DOM ; on stube <code>window</code>).</p>
+<h3 id="documentation-markdown-base-html-autonome-pdf">Documentation : Markdown (base) + HTML autonome + PDF</h3>
+<p>Les documents (<code>docs/*.md</code>) sont la <strong>source</strong>. Pour <strong>chaque</strong> document, on génère aussi une
+<strong>version HTML autonome</strong> (images embarquées en data-URI, consultable hors ligne d'un double-clic)
+et un <strong>PDF</strong>. Ces sorties <code>docs/*.html</code> et <code>docs/*.pdf</code> sont <strong>versionnées</strong> (livrables).</p>
+<ul>
+<li><strong>Régénérer</strong> après toute modification d'un <code>.md</code> : <code>node tools/build-docs.js</code>.</li>
+<li>Chaîne : <code>tools/_md2html.py</code> (python-markdown → HTML autonome + CSS d'impression, images en
+  data-URI) puis Chromium headless (Playwright) → PDF A4.</li>
+<li>Prérequis : <code>pip install markdown</code> + le Chromium de Playwright.</li>
+<li>Captures du manuel : <code>node tools/doc-shots.js</code> (régénère <code>docs/images/manuel/</code>).</li>
+</ul>
+<blockquote>
+<p>Règle : à chaque évolution d'un document, régénérer HTML <strong>et</strong> PDF, et les committer avec le
+<code>.md</code>.</p>
+</blockquote>
+<hr />
+<h2 id="6-git-versionnage-et-rituel-de-fin-de-session">6. Git, versionnage et rituel de fin de session</h2>
+<ul>
+<li><strong>Branche par session</strong> (<code>session/N-...</code> ou <code>fix/...</code>), merge <strong>no-ff</strong> sur <code>main</code>, <strong>tag</strong> en
+  fin de session.</li>
+<li>⚠️ <strong>Numérotation des tags décalée</strong> : <code>vN ≠ SN</code> (la Session 2.5 et plusieurs lots de correctifs
+  ont consommé des tags). Se fier à l'historique des tags, pas au numéro de session. Les
+  correctifs successifs sur une session déjà taguée utilisent un <strong>schéma patch <code>vX.Y.Z</code></strong>.</li>
+<li><strong>Format de commit</strong> : trois paragraphes (résumé bref / description fonctionnelle avec le
+  <em>pourquoi</em> / liste des fichiers et changements). Préfixe <code>[Plugin]</code> si LaBotBox/Simulia (sans
+  objet ici).</li>
+</ul>
+<h3 id="rituel-de-fin-de-session-obligatoire">Rituel de fin de session (obligatoire)</h3>
+<p>À chaque clôture, <strong>avant</strong> le commit final :</p>
+<ol>
+<li><strong>Mettre à jour la documentation</strong> (<code>CLAUDE.md</code>, <code>docs/journal-developpement.md</code>, mémoire) —
+   <strong>avant</strong> le push.</li>
+<li><strong>Régénérer le bundle</strong> avec le tag de la session :
+   <code>node scripts/build-bundle.js --tag vX.Y</code>.</li>
+<li><strong>Committer + pousser le bundle</strong> (<code>dist/pertflow.html</code>, <strong>versionné</strong>) avec le reste.</li>
+<li>Le bundle embarque le bouton <strong>« À propos »</strong> (© Stéphane Guichard, licence MIT, date de
+   génération et tag) : ces valeurs sont injectées par le build dans <code>window.PERTFLOW_BUILD</code> —
+   <strong>ne jamais les coder en dur</strong>.</li>
+</ol>
+<p>Ordre : finaliser code/doc → régénérer bundle (<code>--tag</code>) → committer (source + bundle) → pousser →
+merger sur <code>main</code> → taguer → pousser le tag.</p>
+<hr />
+<h2 id="7-points-de-vigilance-divers">7. Points de vigilance divers</h2>
+<ul>
+<li><strong>Ne pas versionner</strong> <code>test_cases/</code> ni <code>tools/</code> (déjà gitignorés). Éviter <code>git add -A</code> aveugle
+  (préférer <code>git add &lt;fichiers&gt;</code> explicites) pour ne pas committer un <code>.xlsm</code> d'exemple.</li>
+<li><strong><code>console.log</code> fonctionne</strong> ici (contrairement à l'intégration LaBotBox du dépôt jumeau) ; mais
+  en <code>file://</code> l'utilisateur final n'a pas la console → passer par <code>showToast</code>/<code>showError</code>.</li>
+<li><strong>Compatibilité navigateur</strong> : cible Chrome/Edge/Firefox récents. Les contrôles « natifs »
+  (<code>&lt;datalist&gt;</code>, <code>&lt;option&gt;</code> colorées) se comportent différemment d'un navigateur à l'autre →
+  privilégier des composants DOM/CSS maison (pattern déjà en place).</li>
+<li><strong>Le <code>.pert</code> doit rester rétro-compatible</strong> : toute nouvelle clé <code>meta</code> a une valeur par défaut
+  à la lecture (anciens fichiers).</li>
+</ul>
+<hr />
+<h2 id="8-ou-trouver-quoi">8. Où trouver quoi</h2>
+<table>
+<thead>
+<tr>
+<th>Je cherche…</th>
+<th>Fichier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L'historique détaillé et les décisions de chaque session</td>
+<td><code>CLAUDE.md</code> (racine)</td>
+</tr>
+<tr>
+<td>Le récit de développement (restitution)</td>
+<td><code>docs/journal-developpement.md</code></td>
+</tr>
+<tr>
+<td>Le manuel utilisateur</td>
+<td><code>docs/manuel-utilisateur.md</code></td>
+</tr>
+<tr>
+<td>L'architecture et les choix techniques</td>
+<td><code>docs/conception.md</code></td>
+</tr>
+<tr>
+<td>Le calcul PERT</td>
+<td><code>src/pert_engine.js</code></td>
+</tr>
+<tr>
+<td>Le rendu des nœuds / liens</td>
+<td><code>src/nodes.js</code>, <code>src/link_routing.js</code></td>
+</tr>
+<tr>
+<td>Les exports</td>
+<td><code>src/export*.js</code></td>
+</tr>
+<tr>
+<td>La sérialisation / l'undo / l'autosave</td>
+<td><code>src/storage.js</code>, <code>history.js</code>, <code>autosave.js</code></td>
+</tr>
+</tbody>
+</table></body></html>

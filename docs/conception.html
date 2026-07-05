@@ -1,0 +1,307 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Document de conception — PertFlow</title><style>
+    :root { --fg:#1c2230; --muted:#5a6577; --line:#dfe3ea; --accent:#1a4a9a;
+            --codebg:#f4f6fa; --thbg:#eef2f8; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+           color: var(--fg); line-height: 1.55; max-width: 900px; margin: 0 auto;
+           padding: 48px 40px; background: #fff; font-size: 15px; }
+    h1 { font-size: 2em; border-bottom: 3px solid var(--accent); padding-bottom: .3em;
+         color: var(--accent); margin-top: 0; }
+    h2 { font-size: 1.5em; border-bottom: 1px solid var(--line); padding-bottom: .25em;
+         margin-top: 1.8em; color: #14213d; }
+    h3 { font-size: 1.2em; margin-top: 1.4em; color: #14213d; }
+    h4 { font-size: 1.05em; margin-top: 1.1em; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: var(--codebg); padding: .12em .4em; border-radius: 4px;
+           font-family: "SF Mono", "Consolas", "Menlo", monospace; font-size: .88em; }
+    pre { background: var(--codebg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+          border: 1px solid var(--line); }
+    pre code { background: none; padding: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .95em; }
+    th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left;
+             vertical-align: top; }
+    th { background: var(--thbg); font-weight: 600; }
+    tr:nth-child(even) td { background: #fafbfd; }
+    img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(20,40,80,.08); margin: .6em 0; display: block; }
+    blockquote { border-left: 4px solid #9fb6d8; margin: 1em 0; padding: .3em 1em;
+                 color: var(--muted); background: #f7f9fc; border-radius: 0 6px 6px 0; }
+    hr { border: none; border-top: 1px solid var(--line); margin: 2em 0; }
+    ul, ol { padding-left: 1.5em; }
+    li { margin: .2em 0; }
+    @media print {
+      body { max-width: none; padding: 0; font-size: 11pt; }
+      h1, h2, h3, h4 { break-after: avoid; }
+      img, table, pre, blockquote { break-inside: avoid; }
+      a { color: var(--fg); }
+    }
+    @page { margin: 18mm 16mm; }
+    </style></head><body><h1 id="document-de-conception-pertflow">Document de conception — PertFlow</h1>
+<p>Ce document décrit l'<strong>architecture</strong> de PertFlow, ses <strong>choix techniques</strong> et leurs
+<strong>justifications</strong>. Il s'adresse à un développeur qui doit comprendre ou faire évoluer l'outil.
+Le compagnon <a href="maintenance.md">maintenance.md</a> détaille la reprise pratique et les pièges.</p>
+<hr />
+<h2 id="1-objectif-et-contraintes-structurantes">1. Objectif et contraintes structurantes</h2>
+<p>PertFlow est un outil de planification <strong>PERT</strong> en <strong>application web locale</strong> (un fichier HTML).
+Deux contraintes dictent toute l'architecture :</p>
+<ol>
+<li><strong>Ouverture en <code>file://</code> par double-clic — PRIMORDIAL.</strong> L'outil tourne sur des postes
+   d'entreprise verrouillés par la DSI : <strong>aucun serveur</strong>, <strong>aucun build</strong>, <strong>aucune
+   architecture client-serveur</strong>. Deux conséquences absolues :
+   - <strong>Pas de modules ES6</strong> (<code>&lt;script type="module"&gt;</code> + <code>import</code>/<code>export</code>) : ils forceraient un
+     serveur (CORS en <code>file://</code>). Tout le code est chargé par des <code>&lt;script src&gt;</code> <strong>classiques</strong>,
+     et vit dans le <strong>scope global</strong> (les fonctions <code>function pertX()</code> sont globales).
+   - <strong>Pas de <code>fetch()</code>/XHR de fichiers locaux</strong> : les fichiers utilisateur sont lus via
+     <code>&lt;input type="file"&gt;</code> + <code>FileReader</code>, jamais par <code>fetch</code>.</li>
+<li><strong>Licence MIT uniquement</strong> : toutes les bibliothèques sont locales (<code>lib/</code>) et sous licence
+   permissive compatible MIT. Aucune dépendance réseau au runtime.</li>
+</ol>
+<hr />
+<h2 id="2-vue-densemble-et-pile-technique">2. Vue d'ensemble et pile technique</h2>
+<table>
+<thead>
+<tr>
+<th>Besoin</th>
+<th>Choix</th>
+<th>Licence</th>
+<th>Fichier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Canvas / graphe</td>
+<td><strong>LiteGraph.js</strong></td>
+<td>MIT</td>
+<td><code>lib/litegraph.js</code> + <code>.css</code></td>
+</tr>
+<tr>
+<td>Export PDF</td>
+<td><strong>jsPDF</strong></td>
+<td>MIT</td>
+<td><code>lib/jspdf.umd.min.js</code></td>
+</tr>
+<tr>
+<td>Zip/dézip (import &amp; export Excel)</td>
+<td><strong>fflate</strong></td>
+<td>MIT</td>
+<td><code>lib/fflate.min.js</code></td>
+</tr>
+<tr>
+<td>Export PNG</td>
+<td>API Canvas2D native</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>UI</td>
+<td>Vanilla JS + CSS custom</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Aucun framework (React/Vue…), aucun bundler au sens classique : la simplicité prime, et la
+contrainte <code>file://</code> l'impose.</p>
+<h3 id="structure-des-fichiers">Structure des fichiers</h3>
+<pre><code>pertflow/
+├── index.html            # Point d'entrée : DOM + &lt;script src&gt; de tout le code
+├── lib/                  # Bibliothèques locales (LiteGraph, jsPDF, fflate)
+├── css/style.css         # Styles globaux (thème sombre)
+├── src/
+│   ├── nodes.js          # Types de nœuds PERT + rendu custom (LiteGraph)
+│   ├── pert_engine.js    # Calcul PERT, conversions dates↔unités, layout, chemin critique
+│   ├── import_excel.js   # Import des .xlsm legacy (fflate + DrawingML)
+│   ├── ui.js             # Toolbar, panneau, dialogues, menus, barre de statut, câblage
+│   ├── storage.js        # Sérialisation/chargement .pert
+│   ├── history.js        # Undo/Redo par snapshots
+│   ├── autosave.js       # Filet anti-crash (snapshot localStorage)
+│   ├── export.js         # Fenêtre d'export + PNG/PDF + helpers de téléchargement
+│   ├── export_csv.js     # Export CSV
+│   ├── export_xlsx.js    # Mini-writer XLSX générique (sur fflate)
+│   ├── export_gantt.js   # Gantt chargé (Excel) + MS Project (MSPDI XML)
+│   ├── export_microjalons.js  # Micro-jalonnement (Excel)
+│   └── link_routing.js   # Rendu des liens : styles + routage orthogonal (évitement)
+├── scripts/build-bundle.js   # Génère le fichier autonome dist/pertflow.html
+└── dist/pertflow.html        # Livrable autonome (versionné)
+</code></pre>
+<p>L'<strong>ordre de chargement</strong> des <code>&lt;script&gt;</code> dans <code>index.html</code> matérialise les dépendances (chaque
+module s'appuie sur les globales définies avant lui ; <code>ui.js</code> est chargé en dernier et fait le
+câblage).</p>
+<hr />
+<h2 id="3-modele-de-donnees">3. Modèle de données</h2>
+<h3 id="le-fichier-pert">Le fichier <code>.pert</code></h3>
+<pre><code class="language-json">{
+  &quot;version&quot;: &quot;1.0&quot;,
+  &quot;meta&quot;: { &quot;title&quot;, &quot;t0&quot;, &quot;unit&quot;, &quot;layout_gap&quot;, &quot;link_mode&quot;, &quot;prop_width&quot;,
+            &quot;hours_per_month&quot;, &quot;hours_per_day&quot;, &quot;hourly_rate&quot;, &quot;groups&quot;, &quot;autosave&quot; },
+  &quot;graph&quot;: { /* sérialisation LiteGraph native (graph.serialize()) */ }
+}
+</code></pre>
+<ul>
+<li><code>meta.unit</code> ∈ <code>"j" | "sem" | "mois"</code>.</li>
+<li><code>meta.groups</code> = registre <code>{ nom_de_groupe: couleur }</code> (mémoire des couleurs de groupe).</li>
+<li>Les <strong>valeurs calculées</strong> (ES/EF/LS/LF/slack/is_critical, coût) <strong>ne sont PAS sérialisées</strong> :
+  elles sont <strong>recalculées</strong> au chargement (<code>pertRecalc</code>) → cohérence garantie même sur un vieux
+  fichier. Les propriétés <strong>saisies</strong> vivent dans <code>node.properties</code> (sérialisées nativement par
+  LiteGraph).</li>
+</ul>
+<h3 id="les-nuds">Les nœuds</h3>
+<ul>
+<li><strong>Activité</strong> (<code>pert/activity</code>) : <code>uid, label, duration, etp, responsible, notes, group, color</code>.</li>
+<li><strong>Jalon</strong> (<code>pert/milestone</code>) : <code>label, due_date, tag</code> (<code>"" | DOTD | COTD | ING</code>).</li>
+<li><strong>Label</strong> (<code>pert/label</code>) : <code>text</code> (aucun lien, hors calcul).</li>
+</ul>
+<hr />
+<h2 id="4-le-moteur-pert-pert_enginejs">4. Le moteur PERT (<code>pert_engine.js</code>)</h2>
+<h3 id="principe">Principe</h3>
+<ul>
+<li><strong>Calcul interne en unités</strong> (offsets depuis T0), <strong>conversion en dates</strong> à l'affichage. On
+  convertit toujours l'<strong>offset cumulé</strong> (jamais pas-à-pas) → conversions inversibles, sans dérive.</li>
+<li><strong>Mois = mois calendaires réels</strong> (<code>pertAddUnits</code> via <code>Date.setMonth</code>), pas un facteur fixe de
+  30 jours (qui dérivait sur les projets longs). Jours (×1) et semaines (×7) sont exacts.</li>
+<li><strong>Forward pass</strong> : <code>ES = max(EF des prédécesseurs)</code>, <code>EF = ES + durée</code>.</li>
+<li><strong>Backward pass</strong> : <code>LF = min(LS des successeurs)</code>, <code>LS = LF − durée</code>. Ancre = <code>max(EF)</code> (fin
+  de projet).</li>
+<li><strong>Marge</strong> <code>slack = LF − EF</code>. <strong>Chemin critique</strong> = marge <strong>minimale</strong> (<code>slack &lt;= minSlack+ε</code>),
+  ce qui reste correct même quand une échéance imposée rend des marges <strong>négatives</strong>.</li>
+<li><strong>Détection de cycle</strong> par DFS tricolore avant tout calcul.</li>
+</ul>
+<h3 id="subtilite-des-jalons">Subtilité des jalons</h3>
+<p>Le rôle d'un jalon dépend de sa <strong>topologie</strong> (calculé dans le forward pass) :</p>
+<ul>
+<li><strong>Jalon entrant</strong> (aucun entrant + au moins un sortant + <code>due_date</code>) : <code>ES = EF = offset(due_date)</code>
+  (planché à T0). Modélise une <strong>contrainte externe</strong> qui retarde la chaîne aval.</li>
+<li><strong>Jalon terminal / point de contrôle</strong> : la <code>due_date</code> <strong>borne le LF</strong>, ne force pas l'ES.</li>
+<li>Le drapeau <code>target_missed</code> (EF calculé &gt; cible) pilote l'alerte visuelle.</li>
+</ul>
+<h3 id="rendu-du-chemin-critique">Rendu du chemin critique</h3>
+<p><code>pertHighlightCriticalPath</code> colore les <strong>liens</strong> contraignants (via <code>link.color</code>, mécanisme natif
+LiteGraph) et mémorise l'ensemble des nœuds réellement mis en évidence dans
+<code>window.pertCriticalPathIds</code> — dont dérive la barre de statut (coût + nombre), pour rester
+cohérent avec le tracé rouge, qu'il y ait ou non une sélection.</p>
+<h3 id="layout-automatique">Layout automatique</h3>
+<p><code>pertAutoLayout</code> : packing par couloirs, abscisse ∝ ES (allure Gantt), tâches d'un même groupe
+sur des couloirs voisins, jalons terminaux en bande haute. <strong>Déclenché manuellement</strong> uniquement
+(bouton « Réorganiser ») pour ne jamais casser un placement à la main.</p>
+<hr />
+<h2 id="5-rendu-litegraph-custom-nodesjs-link_routingjs">5. Rendu LiteGraph custom (<code>nodes.js</code>, <code>link_routing.js</code>)</h2>
+<p>LiteGraph fournit le canvas, le pan/zoom, la sélection, la sérialisation et les liens. Tout le
+<strong>rendu des nœuds</strong> est <strong>custom</strong> pour coller au PERT.</p>
+<ul>
+<li><strong>Nœuds dessinés à la main</strong> via <code>onDrawForeground</code> / <code>onDrawBackground</code> (en-tête coloré
+  multi-lignes, sections calculées, pastilles de tag, coin drapeau des jalons, voile d'estompage
+  du filtre).</li>
+<li><strong>Masquage de la barre de titre</strong> : <code>Constructor.title_mode = LiteGraph.NO_TITLE</code> (⚠️ le flag
+  d'instance <code>flags.no_title</code> <strong>n'a aucun effet</strong> — piège classique).</li>
+<li><strong>Positions de slots explicites</strong> (<code>input.pos</code> / <code>output.pos</code>) puisque le titre est masqué.</li>
+<li><strong>Filtre</strong> : voile translucide <strong>sombre</strong> dessiné en <code>onDrawForeground</code> (donc par-dessus le
+  contenu et les slots). L'état de filtre <code>window.pertFilter</code> est un <strong>état de vue non sérialisé</strong>.</li>
+<li><strong>Rendu des liens</strong> : <code>renderLink</code> est <strong>surchargé sur l'instance</strong> <code>LGraphCanvas</code> (sans patcher
+  la lib). Trois styles (<code>meta.link_mode</code>) : courbe (spline natif), droit (straight natif), et
+  <strong>coudé</strong> = routage <strong>orthogonal custom</strong> qui <strong>contourne</strong> les nœuds (best-effort : canal
+  vertical, sinon bande horizontale, sinon tracé direct). Garde-fous perf : élagage spatial +
+  dégradation au-delà de 300 nœuds. Le lien élastique de création reste une courbe native.</li>
+</ul>
+<hr />
+<h2 id="6-ui-historique-et-recuperation-uijs-historyjs-autosavejs">6. UI, historique et récupération (<code>ui.js</code>, <code>history.js</code>, <code>autosave.js</code>)</h2>
+<ul>
+<li><strong>Menus contextuels</strong> : <code>getMenuOptions</code> / <code>getNodeMenuOptions</code> <strong>surchargés</strong> sur l'instance
+  pour remplacer les menus natifs anglais par des menus français recentrés PERT ; searchbox
+  native neutralisée.</li>
+<li><strong>Panneau Propriétés</strong> : reconstruit à la sélection ; helpers <code>buildField</code>, <code>buildCombobox</code>
+  (menu déroulant custom à pastilles, fiable multi-navigateurs — le <code>&lt;datalist&gt;</code> natif est
+  inadapté), <code>buildSelect</code>, <code>buildTextarea</code>, <code>buildReadonly</code>.</li>
+<li><strong>Undo/Redo</strong> : historique par <strong>snapshots</strong> (<code>meta</code> + <code>graph.serialize()</code>), restaurés par
+  <code>configure()</code> — même mécanisme que la persistance, donc exhaustif. Coalescence des frappes.</li>
+<li><strong>Sauvegarde automatique</strong> : en <code>file://</code>, impossible d'écrire un fichier silencieusement → un
+  <strong>snapshot de récupération dans <code>localStorage</code></strong>, écrit périodiquement tant qu'il reste du
+  travail non sauvegardé, proposé à la restauration au démarrage. Activée par défaut.</li>
+<li><strong>Gestion d'erreurs</strong> : <code>showToast</code> / <code>showError</code> / <code>guardUI</code> + filet global — indispensable en
+  <code>file://</code> où l'utilisateur n'a pas la console.</li>
+</ul>
+<hr />
+<h2 id="7-import-excel-legacy-import_exceljs">7. Import Excel legacy (<code>import_excel.js</code>)</h2>
+<p>Le <code>.xlsm</code> est un ZIP dont <strong>toute la donnée utile est dans <code>xl/drawings/</code></strong> (les groupes de
+formes = nœuds, les connecteurs = liens ; les cellules sont cosmétiques sauf l'onglet <strong>MANUEL</strong>
+de configuration : feuille cible, T0, unité). Traitement 100 % <code>file://</code> :</p>
+<ul>
+<li><strong>Dézip par fflate</strong> (<code>unzipSync</code>), parsing <strong>DOMParser</strong> natif, <code>&lt;input type="file"&gt;</code> +
+  <code>FileReader.readAsArrayBuffer</code>, <strong>jamais <code>fetch</code></strong>.</li>
+<li>Convention de nommage : <code>A</code>=activité, <code>S</code>=jalon, <code>E</code>=<strong>jalon d'entrée</strong> (matérialisé en jalon
+  entrant avec ses arêtes). La couche <strong>transforms purs</strong> (<code>buildImportModel</code>) est séparée de la
+  couche DOM/ZIP → testable en Node.</li>
+</ul>
+<hr />
+<h2 id="8-exports-exportjs">8. Exports (<code>export*.js</code>)</h2>
+<p>Un <strong>seul bouton</strong> ouvre une fenêtre listant les formats (liste data-driven
+<code>PERT_EXPORT_FORMATS</code> + <code>pertRegisterExportFormat</code>, triée par <code>order</code>).</p>
+<ul>
+<li><strong>PNG / PDF</strong> : <strong>rendu hors-écran</strong> indépendant du zoom (un <code>LGraphCanvas</code> temporaire calé sur
+  la boîte englobante, fond blanc, un seul <code>draw</code>), puis <code>toDataURL</code> / jsPDF (A4, <code>compress:true</code>).</li>
+<li><strong>CSV</strong> : dump brut, séparateur <code>;</code>, décimales <code>,</code>, BOM UTF-8.</li>
+<li><strong>XLSX</strong> : un <code>.xlsx</code> est un <strong>ZIP de XML</strong> → <strong>mini-writer maison sur fflate</strong>
+  (<code>export_xlsx.js</code>, <code>pertXlsxBuild</code>) : cellules texte/nombre/date/formule, styles (formats date,
+  <code>0.00</code>, fills de couleur, gras) dédupliqués, <code>sharedStrings</code>. <strong>Pas de SheetJS</strong> (Apache-2.0,
+  exclu par « MIT uniquement »).</li>
+<li><strong>Gantt chargé</strong> et <strong>MS Project (MSPDI XML)</strong> partagent <code>pertScheduleModel()</code> (tri groupes par
+  ES précoce, classement jalons entrée/sortie, colonnes de périodes, liens). Aucune bibliothèque
+  <code>.mpp</code> native n'existant côté navigateur (MIT/offline), MS Project est produit en <strong>MSPDI XML</strong>
+  écrit à la main.</li>
+<li>Téléchargements via <code>pertDownloadBlob</code> (objet URL, fonctionne en <code>file://</code>).</li>
+</ul>
+<hr />
+<h2 id="9-packaging-scriptsbuild-bundlejs">9. Packaging (<code>scripts/build-bundle.js</code>)</h2>
+<p>Le développement se fait sur la structure <code>index.html</code> + <code>src/</code> + <code>lib/</code>. Un <strong>script Node natif
+sans dépendance</strong> produit le <strong>livrable autonome</strong> <code>dist/pertflow.html</code> en <strong>inlinant</strong> les
+<code>&lt;link&gt;</code>/<code>&lt;script&gt;</code> (avec garde-fou : échec s'il reste une référence <code>lib/</code>/<code>src/</code>/<code>css/</code>). Il
+injecte <code>window.PERTFLOW_BUILD = { date, tag }</code> (lu par la popup « À propos »). Le bundle est
+<strong>versionné</strong> et régénéré en fin de session.</p>
+<hr />
+<h2 id="10-recapitulatif-des-choix-et-de-leurs-raisons">10. Récapitulatif des choix et de leurs raisons</h2>
+<table>
+<thead>
+<tr>
+<th>Choix</th>
+<th>Raison</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pas de modules ES6, tout en global via <code>&lt;script src&gt;</code></td>
+<td>Ouverture <code>file://</code> sans serveur (CORS)</td>
+</tr>
+<tr>
+<td><code>FileReader</code> au lieu de <code>fetch</code></td>
+<td>Lecture de fichiers locaux en <code>file://</code></td>
+</tr>
+<tr>
+<td>fflate pour lire <strong>et</strong> écrire les Excel</td>
+<td>MIT, déjà nécessaire à l'import ; évite SheetJS (Apache-2.0)</td>
+</tr>
+<tr>
+<td>MS Project en MSPDI XML</td>
+<td>Aucune lib <code>.mpp</code> native MIT/offline en navigateur</td>
+</tr>
+<tr>
+<td>Valeurs PERT recalculées, non sérialisées</td>
+<td>Cohérence garantie au chargement</td>
+</tr>
+<tr>
+<td>Rendu de nœuds/liens custom sur l'instance</td>
+<td>Coller au PERT sans patcher LiteGraph</td>
+</tr>
+<tr>
+<td>Snapshots pour l'undo <strong>et</strong> l'autosave</td>
+<td>Un seul mécanisme robuste et exhaustif</td>
+</tr>
+<tr>
+<td>Autosave en <code>localStorage</code></td>
+<td>Seul stockage persistant possible en <code>file://</code></td>
+</tr>
+<tr>
+<td>Layout manuel (jamais auto)</td>
+<td>Ne jamais casser un placement à la main</td>
+</tr>
+</tbody>
+</table></body></html>
