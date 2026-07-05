@@ -1176,6 +1176,28 @@ body {
 .color-swatches.locked { opacity: 0.4; pointer-events: none; }
 .dialog input[type="color"]:disabled { opacity: 0.45; cursor: default; }
 
+/* ─── Fenêtre d'export (choix du format, S9) ─────────────────────────────────── */
+.export-dialog-box { width: 400px; }
+#export-format-list { display: flex; flex-direction: column; gap: 6px; }
+.export-format-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 6px;
+  color: #dde3ec;
+  cursor: pointer;
+  text-align: left;
+}
+.export-format-row:hover { background: #243a6a; border-color: #6a9fd8; }
+.export-format-icon { font-size: 20px; flex: 0 0 auto; width: 24px; text-align: center; }
+.export-format-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.export-format-label { font-size: 13px; color: #eaf0fb; }
+.export-format-desc { font-size: 11px; color: #8b97ad; line-height: 1.3; }
+
 /* ─── Contrôle de filtre custom (toolbar, S7 C) ──────────────────────────────── */
 /* Menu déroulant maison : les <option> natives n'affichent pas de couleur de fond
    sous Firefox → on dessine nos propres lignes avec pastilles de couleur. */
@@ -1369,7 +1391,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"05/07/2026 15:59","tag":"v0.12.3"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"05/07/2026 20:00","tag":"v0.13"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -1449,8 +1471,7 @@ body {
     <div class="tb-sep"></div>
     <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
-    <button id="btn-export-png" title="Exporter en PNG">🖼 PNG</button>
-    <button id="btn-export-pdf" title="Exporter en PDF">📄 PDF</button>
+    <button id="btn-export" title="Exporter le planning (PNG, PDF, CSV, Excel, MS Project)">⬇ Exporter</button>
     <div class="tb-sep"></div>
     <button id="btn-undo" title="Annuler (Ctrl+Z)" disabled>↶ Annuler</button>
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
@@ -1465,6 +1486,22 @@ body {
       <div id="about-content"></div>
       <div class="dialog-buttons">
         <button id="about-close" class="primary">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dialogue d'export (choix du format) — Session 9 ──────────────────── -->
+  <div id="export-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog export-dialog-box">
+      <h3>Exporter le planning</h3>
+      <!-- Liste des formats construite dynamiquement (src/export.js) -->
+      <div id="export-format-list"></div>
+      <p class="dialog-note">
+        Le fichier est déposé dans le dossier de téléchargement du navigateur
+        (le mode <code>file://</code> ne permet pas de choisir le dossier).
+      </p>
+      <div class="dialog-buttons">
+        <button id="export-cancel">Fermer</button>
       </div>
     </div>
   </div>
@@ -38804,6 +38841,22 @@ function pertDownloadDataUrl(dataUrl, filename) {
   document.body.removeChild(a);
 }
 
+// Telecharge un contenu binaire/texte (Blob ou Uint8Array) sous le nom donne.
+// Utilise un objet URL (fonctionne en file://) revoque apres le clic. Socle commun
+// aux exports CSV, XLSX (fflate) et MS Project XML — S9.
+function pertDownloadBlob(data, filename, mime) {
+  const blob = (data instanceof Blob) ? data : new Blob([data], { type: mime || "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+window.pertDownloadBlob = pertDownloadBlob;
+
 // Export PNG : capture hors-ecran → telechargement.
 function pertExportPNG() {
   const res = pertRenderToCanvas();
@@ -38858,6 +38911,900 @@ function pertExportPDF() {
 window.pertExportPNG = pertExportPNG;
 window.pertExportPDF = pertExportPDF;
 window.pertRenderToCanvas = pertRenderToCanvas;
+
+// ─── Fenetre d'export unique (choix du format) — Session 9 ───────────────────────
+//
+// Refonte S9 : un seul bouton toolbar « Exporter » ouvre une fenetre listant tous
+// les formats disponibles. PNG et PDF (existants) y sont ramenes ; les nouveaux
+// formats (CSV, Gantt Excel, micro-jalonnement, MS Project) s'ajoutent a la liste
+// PERT_EXPORT_FORMATS au fur et a mesure de leur implementation (livraison
+// incrementale), via pertRegisterExportFormat depuis leur module dedie. Chaque
+// descripteur : { id, icon, label, desc, order, run }.
+//   - order : rang d'affichage (tri stable) → l'ordre d'affichage ne depend PAS de
+//     l'ordre de chargement des <script>.
+//   - run() effectue l'export ; il est enrobe par guardUI (filet d'erreur) a l'appel.
+// La liste est rendue dynamiquement (pas de HTML fige) → ajouter un format = appeler
+// pertRegisterExportFormat, aucune modification de index.html.
+
+const PERT_EXPORT_FORMATS = [
+  { id: "png", icon: "🖼", label: "Image PNG", order: 10,
+    desc: "Capture du planning complet en image.",
+    run: () => pertExportPNG() },
+  { id: "pdf", icon: "📄", label: "Document PDF", order: 20,
+    desc: "Planning ajuste sur une page A4, titre en en-tete.",
+    run: () => pertExportPDF() },
+];
+
+// Enregistre (ou remplace, par id) un format d'export. Appele par les modules
+// export_csv.js / export_gantt.js / export_microjalons.js a leur chargement.
+function pertRegisterExportFormat(fmt) {
+  const i = PERT_EXPORT_FORMATS.findIndex(f => f.id === fmt.id);
+  if (i !== -1) PERT_EXPORT_FORMATS[i] = fmt;
+  else PERT_EXPORT_FORMATS.push(fmt);
+}
+window.pertRegisterExportFormat = pertRegisterExportFormat;
+
+// Construit une ligne cliquable de format dans la fenetre d'export.
+function pertBuildExportRow(fmt) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "export-format-row";
+  const ic = document.createElement("span");
+  ic.className = "export-format-icon";
+  ic.textContent = fmt.icon;
+  row.appendChild(ic);
+  const txt = document.createElement("span");
+  txt.className = "export-format-text";
+  const t = document.createElement("span");
+  t.className = "export-format-label";
+  t.textContent = fmt.label;
+  const d = document.createElement("span");
+  d.className = "export-format-desc";
+  d.textContent = fmt.desc;
+  txt.appendChild(t);
+  txt.appendChild(d);
+  row.appendChild(txt);
+  row.addEventListener("click", () => {
+    pertCloseExportDialog();
+    // guardUI : filet d'erreur (toast rouge) — indispensable en file:// (pas de console).
+    if (window.guardUI) guardUI("Export « " + fmt.label + " » impossible", fmt.run);
+    else fmt.run();
+  });
+  return row;
+}
+
+// (Re)construit la liste des formats et ouvre la fenetre.
+function pertOpenExportDialog() {
+  const list = document.getElementById("export-format-list");
+  const dlg = document.getElementById("export-dialog");
+  if (!list || !dlg) return;
+  list.innerHTML = "";
+  PERT_EXPORT_FORMATS.slice()
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .forEach(fmt => list.appendChild(pertBuildExportRow(fmt)));
+  dlg.style.display = "flex";
+}
+
+function pertCloseExportDialog() {
+  const dlg = document.getElementById("export-dialog");
+  if (dlg) dlg.style.display = "none";
+}
+
+window.PERT_EXPORT_FORMATS = PERT_EXPORT_FORMATS;
+window.pertOpenExportDialog = pertOpenExportDialog;
+window.pertCloseExportDialog = pertCloseExportDialog;
+
+</script>
+  <script>
+/* src/export_csv.js */
+// ─── Export CSV (« raw ») — Session 9 ───────────────────────────────────────────
+//
+// Dump brut du planning : une ligne par nœud PERT (Activite + Jalon ; les Labels,
+// simple documentation sans donnee d'ordonnancement, sont exclus). Separateur « ; »
+// (demande utilisateur), decimales en « , » (coherent Excel FR puisque le separateur
+// de colonnes est « ; »), dates au format FR. Un BOM UTF-8 est prepose pour qu'Excel
+// reconnaisse l'encodage et affiche correctement les accents.
+//
+// Colonnes (schema figé dans CLAUDE.md S9) :
+//   Type ; UID ; Libellé ; Groupe ; Responsable ; Durée ; Unité ; ETP ; Coût(k€) ;
+//   DébutTôt ; FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon
+//
+// Les valeurs calculees (es/ef/ls/lf/slack/is_critical) sont lues sur l'objet nœud
+// (posees par pertRecalc) ; les proprietes saisies sont dans node.properties.
+// Contrainte file:// : telechargement via Blob + objet URL (pertDownloadBlob), aucun
+// fetch, aucune dependance.
+
+const PERT_CSV_SEP = ";";
+
+// Libelle humain de l'unite courante.
+function pertCsvUnitLabel() {
+  const u = (window.pertMeta && window.pertMeta.unit) || "j";
+  return u === "mois" ? "mois" : (u === "sem" ? "semaine" : "jour");
+}
+
+// Nombre → chaine FR (decimale « , »), ou "" si null/undefined/NaN.
+function pertCsvNum(v) {
+  if (v === null || v === undefined || (typeof v === "number" && isNaN(v))) return "";
+  return String(v).replace(".", ",");
+}
+
+// Date calendaire depuis un offset en unites → "jj/mm/aa", ou "" si non calculee.
+function pertCsvDateFromOffset(offset) {
+  if (offset === null || offset === undefined) return "";
+  const d = pertOffsetToDate(offset);
+  return d ? pertFormatDate(d) : "";
+}
+
+// Echappement CSV : entoure de guillemets si le champ contient le separateur, un
+// guillemet, ou un saut de ligne ; double les guillemets internes.
+function pertCsvEscape(field) {
+  const s = (field === null || field === undefined) ? "" : String(field);
+  if (s.indexOf(PERT_CSV_SEP) !== -1 || s.indexOf('"') !== -1
+      || s.indexOf("\n") !== -1 || s.indexOf("\r") !== -1) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+// Construit une ligne (tableau de champs) pour un nœud PERT.
+function pertCsvRowForNode(node) {
+  const p = node.properties || {};
+  const isAct = node.type === "pert/activity";
+  const unit = pertCsvUnitLabel();
+
+  const type = isAct ? "Activité" : "Jalon";
+  const uid = isAct ? (p.uid || "") : "";
+  const label = p.label || "";
+  const group = isAct ? (p.group || "") : "";
+  const resp = isAct ? (p.responsible || "") : "";
+  const duration = isAct ? pertCsvNum(pertDuration(node)) : "";
+  const etp = isAct ? pertCsvNum(p.etp != null ? p.etp : "") : "";
+  const cost = isAct ? pertCsvNum(Math.round(pertActivityCost(node) / 100) / 10) : ""; // k€, 1 decimale
+  const es = pertCsvDateFromOffset(node.es);
+  const ef = pertCsvDateFromOffset(node.ef);
+  const ls = pertCsvDateFromOffset(node.ls);
+  const lf = pertCsvDateFromOffset(node.lf);
+  const slack = pertCsvNum(node.slack);
+  const critical = node.is_critical ? "oui" : "non";
+  // DateCible = date-cible d'un Jalon (due_date) ; vide pour une Activite.
+  const dueDate = (!isAct && p.due_date) ? pertFormatDate(pertOffsetToDate(pertDateToOffset(p.due_date))) : "";
+  // TagJalon = libelle du tag (DOTD / COTD / Ingenierie) ; vide sinon.
+  let tag = "";
+  if (!isAct && window.pertMilestoneTag) {
+    const t = pertMilestoneTag(p.tag);
+    if (t) tag = t.label;
+  }
+
+  return [type, uid, label, group, resp, duration, unit, etp, cost,
+          es, ef, ls, lf, slack, critical, dueDate, tag];
+}
+
+const PERT_CSV_HEADER = ["Type", "UID", "Libellé", "Groupe", "Responsable", "Durée",
+  "Unité", "ETP", "Coût(k€)", "DébutTôt", "FinTôt", "DébutTard", "FinTard", "Marge",
+  "Critique", "DateCible", "TagJalon"];
+
+// Serialise l'ensemble du planning en texte CSV (avec BOM UTF-8).
+function pertBuildCSV() {
+  const graph = window.pertGraph;
+  const nodes = (graph && graph._nodes ? graph._nodes : [])
+    .filter(n => n.type === "pert/activity" || n.type === "pert/milestone");
+  const lines = [];
+  lines.push(PERT_CSV_HEADER.map(pertCsvEscape).join(PERT_CSV_SEP));
+  for (const n of nodes) {
+    lines.push(pertCsvRowForNode(n).map(pertCsvEscape).join(PERT_CSV_SEP));
+  }
+  return "﻿" + lines.join("\r\n") + "\r\n"; // BOM + CRLF (compatibilite Excel)
+}
+
+// Export CSV : serialise → telechargement.
+function pertExportCSV() {
+  const graph = window.pertGraph;
+  const nodes = (graph && graph._nodes ? graph._nodes : [])
+    .filter(n => n.type === "pert/activity" || n.type === "pert/milestone");
+  if (!nodes.length) { showToast("Rien a exporter (planning vide)"); return; }
+  const content = pertBuildCSV();
+  const name = (window.pertProjectFilename ? pertProjectFilename() : "pertflow") + ".csv";
+  pertDownloadBlob(content, name, "text/csv;charset=utf-8");
+  showToast("Export CSV : " + name);
+}
+
+window.pertBuildCSV = pertBuildCSV;
+window.pertExportCSV = pertExportCSV;
+
+// Enregistrement dans la fenetre d'export unique (S9).
+if (window.pertRegisterExportFormat) {
+  pertRegisterExportFormat({
+    id: "csv", icon: "📑", label: "Données CSV", order: 30,
+    desc: "Tableau brut (séparateur « ; »), un nœud par ligne, pour Excel/tableur.",
+    run: () => pertExportCSV(),
+  });
+}
+
+</script>
+  <script>
+/* src/export_xlsx.js */
+// ─── Mini-writer XLSX (sur fflate) — Session 9 ──────────────────────────────────
+//
+// Un .xlsx est un ZIP de fichiers XML (Office Open XML). On le fabrique a la main
+// avec fflate (lib/fflate.min.js, MIT, deja present pour l'import) — AUCUNE
+// dependance supplementaire (SheetJS est Apache-2.0, exclu par la regle « MIT
+// uniquement »). Le writer est volontairement minimal mais couvre ce dont les
+// exports Gantt/micro-jalonnement ont besoin : cellules texte / nombre / date /
+// formule, formats de nombre et de date, remplissage (fills) de couleur, gras,
+// largeurs de colonnes, plusieurs feuilles.
+//
+// API :
+//   pertXlsxText(v, style?)     cellule texte (partagee via sharedStrings)
+//   pertXlsxNum(v, style?)      cellule nombre
+//   pertXlsxDate(dateObj,style?) cellule date (serial Excel + format date)
+//   pertXlsxFormula(f, style?)  cellule formule (ex. "SUM(D2:D12)")  — sans '='
+//   null / undefined            cellule vide
+//   style = { fmt, bold, fill } ; fmt ∈ {null,"num2","date-mmm-yy","date-d-mmm-yy"}
+//                                 fill = "#RRGGBB" ou null ; bold = booleen
+//   pertXlsxBuild(sheets) → Uint8Array (zip)
+//     sheets = [{ name, cols?, rows }]
+//       cols = [{ width }]   (largeurs de colonnes, optionnel)
+//       rows = [[cell, cell, ...], ...]
+//
+// Contrainte file:// : pur JS, telechargement via pertDownloadBlob.
+
+// Constructeurs de cellules (objets legers interpretes par pertXlsxBuild).
+function pertXlsxText(v, style)    { return { k: "s", v: (v == null ? "" : String(v)), style: style || null }; }
+function pertXlsxNum(v, style)     { return { k: "n", v: v, style: style || null }; }
+function pertXlsxDate(d, style)    { return { k: "d", v: d, style: style || null }; }
+function pertXlsxFormula(f, style) { return { k: "f", v: f, style: style || null }; }
+
+// Indice colonne 0-based → lettre(s) Excel (0→A, 26→AA…).
+function pertXlsxColLetter(i) {
+  let s = "";
+  i = i + 1;
+  while (i > 0) {
+    const r = (i - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    i = Math.floor((i - 1) / 26);
+  }
+  return s;
+}
+
+function pertXlsxEsc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+
+// Date → numero de serie Excel (jours depuis 1899-12-30, systeme 1900). Calcul en
+// composantes locales (nos dates sont construites a minuit local depuis T0).
+function pertXlsxDateSerial(d) {
+  if (!(d instanceof Date) || isNaN(d.getTime())) return 0;
+  const utc = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const epoch = Date.UTC(1899, 11, 30);
+  return Math.round((utc - epoch) / 86400000);
+}
+
+// Couleur "#RRGGBB" → ARGB "FFRRGGBB" (alpha opaque), majuscules.
+function pertXlsxArgb(hex) {
+  return "FF" + String(hex || "").replace(/^#/, "").toUpperCase();
+}
+
+// numFmtId par nom de format ; les >=164 sont des formats custom declares dans styles.xml.
+const PERT_XLSX_NUMFMT = {
+  "num2": 2,               // builtin "0.00"
+  "date-mmm-yy": 164,      // custom
+  "date-d-mmm-yy": 165,    // custom
+};
+const PERT_XLSX_CUSTOM_FMT = [
+  { id: 164, code: "mmm\\-yy" },
+  { id: 165, code: "d\\-mmm\\-yy" },
+];
+
+// Cle canonique d'un style (pour dedup en cellXfs).
+function pertXlsxStyleKey(st) {
+  if (!st) return "";
+  return (st.fmt || "") + "|" + (st.bold ? "1" : "0") + "|" + (st.fill || "");
+}
+
+// Construit le classeur complet et renvoie le zip (Uint8Array).
+function pertXlsxBuild(sheets) {
+  // ── 1) Collecte des sharedStrings, des styles et des fills ──────────────────
+  const strMap = new Map();       // texte → index
+  const strList = [];
+  function internStr(s) {
+    if (strMap.has(s)) return strMap.get(s);
+    const i = strList.length; strMap.set(s, i); strList.push(s); return i;
+  }
+
+  const fillMap = new Map();      // argb → fillId (les 0/1 sont reserves)
+  let nextFillId = 2;
+  function internFill(hex) {
+    const argb = pertXlsxArgb(hex);
+    if (fillMap.has(argb)) return fillMap.get(argb);
+    const id = nextFillId++; fillMap.set(argb, id); return id;
+  }
+
+  const xfMap = new Map();        // cle style → index cellXfs
+  const xfList = [];              // { numFmtId, fontId, fillId }
+  xfMap.set("", 0);
+  xfList.push({ numFmtId: 0, fontId: 0, fillId: 0 }); // style par defaut (index 0)
+  function internStyle(st) {
+    const key = pertXlsxStyleKey(st);
+    if (xfMap.has(key)) return xfMap.get(key);
+    const numFmtId = st && st.fmt ? (PERT_XLSX_NUMFMT[st.fmt] || 0) : 0;
+    const fontId = st && st.bold ? 1 : 0;
+    const fillId = st && st.fill ? internFill(st.fill) : 0;
+    const i = xfList.length;
+    xfList.push({ numFmtId, fontId, fillId });
+    xfMap.set(key, i);
+    return i;
+  }
+
+  // ── 2) Emission des feuilles (references string/style resolues ici) ─────────
+  const sheetXmls = sheets.map(sheet => {
+    let cols = "";
+    if (sheet.cols && sheet.cols.length) {
+      cols = "<cols>" + sheet.cols.map((c, i) =>
+        `<col min="${i + 1}" max="${i + 1}" width="${c.width || 10}" customWidth="1"/>`
+      ).join("") + "</cols>";
+    }
+    let body = "";
+    (sheet.rows || []).forEach((row, r) => {
+      const rn = r + 1;
+      let cells = "";
+      (row || []).forEach((cell, c) => {
+        if (cell == null) return;
+        const ref = pertXlsxColLetter(c) + rn;
+        const s = internStyle(cell.style);
+        const sAttr = s ? ` s="${s}"` : "";
+        if (cell.k === "s") {
+          const idx = internStr(cell.v);
+          cells += `<c r="${ref}"${sAttr} t="s"><v>${idx}</v></c>`;
+        } else if (cell.k === "n") {
+          const v = (cell.v == null || isNaN(cell.v)) ? 0 : cell.v;
+          cells += `<c r="${ref}"${sAttr}><v>${v}</v></c>`;
+        } else if (cell.k === "d") {
+          cells += `<c r="${ref}"${sAttr}><v>${pertXlsxDateSerial(cell.v)}</v></c>`;
+        } else if (cell.k === "f") {
+          cells += `<c r="${ref}"${sAttr}><f>${pertXlsxEsc(cell.v)}</f></c>`;
+        }
+      });
+      body += `<row r="${rn}">${cells}</row>`;
+    });
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+      + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
+      + cols + `<sheetData>${body}</sheetData></worksheet>`;
+  });
+
+  // ── 3) styles.xml (numFmts custom + 2 fonts + fills + cellXfs) ──────────────
+  const numFmtsXml = "<numFmts count=\"" + PERT_XLSX_CUSTOM_FMT.length + "\">"
+    + PERT_XLSX_CUSTOM_FMT.map(f => `<numFmt numFmtId="${f.id}" formatCode="${f.code}"/>`).join("")
+    + "</numFmts>";
+  const fontsXml = '<fonts count="2">'
+    + '<font><sz val="11"/><name val="Calibri"/></font>'
+    + '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>';
+  // fills : 0 none, 1 gray125 (reserves Excel), puis les solides collectes.
+  const solidFills = Array.from(fillMap.entries()).sort((a, b) => a[1] - b[1]);
+  const fillsXml = '<fills count="' + (2 + solidFills.length) + '">'
+    + '<fill><patternFill patternType="none"/></fill>'
+    + '<fill><patternFill patternType="gray125"/></fill>'
+    + solidFills.map(([argb]) =>
+        `<fill><patternFill patternType="solid"><fgColor rgb="${argb}"/><bgColor indexed="64"/></patternFill></fill>`
+      ).join("")
+    + '</fills>';
+  const cellXfsXml = '<cellXfs count="' + xfList.length + '">'
+    + xfList.map(xf => {
+        const attrs = [`numFmtId="${xf.numFmtId}"`, `fontId="${xf.fontId}"`,
+                       `fillId="${xf.fillId}"`, 'borderId="0"', 'xfId="0"'];
+        if (xf.numFmtId) attrs.push('applyNumberFormat="1"');
+        if (xf.fontId) attrs.push('applyFont="1"');
+        if (xf.fillId) attrs.push('applyFill="1"');
+        return "<xf " + attrs.join(" ") + "/>";
+      }).join("")
+    + '</cellXfs>';
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
+    + numFmtsXml + fontsXml + fillsXml
+    + '<borders count="1"><border/></borders>'
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    + cellXfsXml
+    + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+    + `</styleSheet>`;
+
+  // ── 4) sharedStrings.xml ────────────────────────────────────────────────────
+  const sstXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${strList.length}" uniqueCount="${strList.length}">`
+    + strList.map(s => `<si><t xml:space="preserve">${pertXlsxEsc(s)}</t></si>`).join("")
+    + `</sst>`;
+
+  // ── 5) workbook.xml + rels + content types ──────────────────────────────────
+  const sheetsMeta = sheets.map((s, i) =>
+    `<sheet name="${pertXlsxEsc(s.name || ("Feuille" + (i + 1)))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`
+  ).join("");
+  const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" `
+    + `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`
+    + `<sheets>${sheetsMeta}</sheets></workbook>`;
+
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
+    + sheets.map((s, i) =>
+        `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`
+      ).join("")
+    + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`
+    + `<Relationship Id="rId${sheets.length + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>`
+    + `</Relationships>`;
+
+  const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
+    + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>`
+    + `</Relationships>`;
+
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`
+    + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`
+    + `<Default Extension="xml" ContentType="application/xml"/>`
+    + `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`
+    + sheets.map((s, i) =>
+        `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+      ).join("")
+    + `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`
+    + `<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>`
+    + `</Types>`;
+
+  // ── 6) Zip (fflate) ─────────────────────────────────────────────────────────
+  const S = fflate.strToU8;
+  const files = {
+    "[Content_Types].xml": S(contentTypes),
+    "_rels/.rels": S(rootRels),
+    "xl/workbook.xml": S(workbookXml),
+    "xl/_rels/workbook.xml.rels": S(wbRels),
+    "xl/styles.xml": S(stylesXml),
+    "xl/sharedStrings.xml": S(sstXml),
+  };
+  sheetXmls.forEach((xml, i) => { files[`xl/worksheets/sheet${i + 1}.xml`] = S(xml); });
+  return fflate.zipSync(files, { level: 6 });
+}
+
+window.pertXlsxText = pertXlsxText;
+window.pertXlsxNum = pertXlsxNum;
+window.pertXlsxDate = pertXlsxDate;
+window.pertXlsxFormula = pertXlsxFormula;
+window.pertXlsxColLetter = pertXlsxColLetter;
+window.pertXlsxBuild = pertXlsxBuild;
+
+</script>
+  <script>
+/* src/export_gantt.js */
+// ─── Export Gantt chargé (Excel) & MS Project (MSPDI XML) — Session 9 ────────────
+//
+// Les deux exports partagent le meme MODELE D'ORDONNANCEMENT (pertScheduleModel) :
+// activites triees par groupe puis date de debut, jalons classes entree/sortie,
+// nombre de colonnes de periodes (selon meta.unit), liens de dependance. Le Gantt
+// Excel en fait un diagramme de charge colore ; le MSPDI en fait un projet importable.
+//
+// Gantt chargé (cf. gantt_charge.xlsx) :
+//   - Colonnes A/B/C = Tache / Groupe / Responsable, puis 1 colonne PAR PERIODE
+//     (unite du projet) de T0 a la fin de projet (en-tete = date, gras).
+//   - Sections en colonne A : « Jalons d'entree », « Taches », « Jalons de sortie »,
+//     « total charge » (SUM par colonne).
+//   - Cellule periode d'une Activite = son ETP, sur chaque periode active [es, ef),
+//     remplie a la couleur du groupe (barre de Gantt). Jalon = 0 dans sa colonne.
+//   - Granularite = meta.unit (garde-fou PERT_GANTT_MAX_COLS colonnes).
+//
+// Contrainte file:// : mini-writer XLSX maison (export_xlsx.js, fflate), pas de fetch.
+
+const PERT_GANTT_MAX_COLS = 400;  // garde-fou : au-dela, on tronque + avertit
+
+// Couleur de remplissage d'une Activite : couleur memorisee du groupe, sinon couleur
+// individuelle du nœud, sinon bleu par defaut.
+function pertGanttColor(act) {
+  const groups = (window.pertMeta && window.pertMeta.groups) || {};
+  const g = (act.properties.group || "").trim();
+  return (g && groups[g]) || act.properties.color || "#4A90D9";
+}
+
+// ETP d'une Activite (0 accepte ; defaut 1 si non renseigne / invalide).
+function pertGanttEtp(act) {
+  const raw = act.properties.etp;
+  if (raw === "" || raw == null) return 1;
+  const v = parseFloat(raw);
+  return isNaN(v) ? 1 : v;
+}
+
+// Construit le modele d'ordonnancement commun (Gantt + MSPDI). Recalcule d'abord
+// pour garantir des es/ef a jour. Renvoie null si rien a exporter / T0 absent.
+function pertScheduleModel() {
+  const graph = window.pertGraph;
+  if (!graph || !graph._nodes) return null;
+  if (!window.pertMeta || !window.pertMeta.t0) return { error: "no_t0" };
+  if (window.pertRecalc) pertRecalc();
+
+  const { nodes, preds, succs } = pertBuildAdjacency(graph);
+  if (!nodes.length) return null;
+
+  const acts = nodes.filter(n => n.type === "pert/activity");
+  const entryMs = [], exitMs = [];
+  nodes.filter(n => n.type === "pert/milestone").forEach(m => {
+    // Jalon d'entree = aucune arete entrante + au moins une sortante (contrainte
+    // externe qui amorce une chaine) ; tout le reste = jalon de sortie/checkpoint.
+    if (preds[m.id].length === 0 && succs[m.id].length >= 1) entryMs.push(m);
+    else exitMs.push(m);
+  });
+
+  // Offset d'affichage d'un jalon = sa date-cible si renseignee (ou l'on veut le voir
+  // sur l'echeance), sinon son EF calcule. (Ex. un jalon de sortie avec due_date se
+  // place a la cible, pas a l'EF de son predecesseur.)
+  const msOffset = (m) => {
+    if (m.properties && m.properties.due_date) {
+      const o = pertDateToOffset(m.properties.due_date);
+      if (o != null) return o;
+    }
+    return m.ef != null ? m.ef : 0;
+  };
+
+  // Tri : groupes ordonnes par leur ES le plus precoce (sans-groupe en dernier), puis
+  // activites par ES au sein du groupe. Coherent avec la logique de layout S7.
+  const groupMinEs = {};
+  acts.forEach(a => {
+    const g = (a.properties.group || "").trim();
+    const es = a.es == null ? Infinity : a.es;
+    if (!(g in groupMinEs) || es < groupMinEs[g]) groupMinEs[g] = es;
+  });
+  const grank = (g) => g ? (groupMinEs[g] != null ? groupMinEs[g] : Infinity) : Infinity;
+  acts.sort((a, b) => {
+    const ga = (a.properties.group || "").trim(), gb = (b.properties.group || "").trim();
+    const ra = grank(ga), rb = grank(gb);
+    if (ra !== rb) return ra - rb;
+    if (ga !== gb) return ga.localeCompare(gb, "fr"); // meme rang → alphabetique
+    return (a.es || 0) - (b.es || 0);
+  });
+  const byDate = (a, b) => msOffset(a) - msOffset(b);
+  entryMs.sort(byDate);
+  exitMs.sort(byDate);
+
+  // Nombre de colonnes de periodes : couvre la derniere periode active des activites
+  // ET la colonne (date d'affichage) des jalons.
+  let maxCol = 0;
+  acts.forEach(a => { if (a.ef != null) maxCol = Math.max(maxCol, Math.ceil(a.ef) - 1); });
+  entryMs.concat(exitMs).forEach(m => { maxCol = Math.max(maxCol, Math.round(msOffset(m))); });
+  let numCols = Math.max(1, maxCol + 1);
+  let truncated = false;
+  if (numCols > PERT_GANTT_MAX_COLS) { numCols = PERT_GANTT_MAX_COLS; truncated = true; }
+
+  // Liens de dependance (pour le MSPDI).
+  const ids = new Set(nodes.map(n => n.id));
+  const links = [];
+  for (const lid in graph.links) {
+    const l = graph.links[lid];
+    if (l && ids.has(l.origin_id) && ids.has(l.target_id)) links.push({ from: l.origin_id, to: l.target_id });
+  }
+
+  const unit = (window.pertMeta && window.pertMeta.unit) || "j";
+  return {
+    unit,
+    dateFmt: unit === "mois" ? "date-mmm-yy" : "date-d-mmm-yy",
+    acts, entryMs, exitMs, numCols, truncated, links, msOffset,
+    // Une Activite occupe la periode i si elle chevauche [i, i+1).
+    activeAt: (a, i) => a.es != null && a.ef != null && a.es < i + 1 && a.ef > i,
+    // Colonne (0-based) d'un jalon = periode de sa date d'affichage.
+    msCol: (m) => Math.min(numCols - 1, Math.max(0, Math.round(msOffset(m)))),
+  };
+}
+
+// ── Gantt chargé → classeur XLSX ────────────────────────────────────────────────
+function pertBuildGanttXlsx(model) {
+  const nCols = model.numCols;
+  const HEAD = { bold: true };
+  const HEAD_DATE = { bold: true, fmt: model.dateFmt };
+
+  // En-tete : Tache / Groupe / Responsable + une date par periode.
+  const header = [pertXlsxText("Tâche", HEAD), pertXlsxText("Groupe", HEAD), pertXlsxText("Responsable", HEAD)];
+  for (let i = 0; i < nCols; i++) header.push(pertXlsxDate(pertOffsetToDate(i), HEAD_DATE));
+
+  const rows = [header];
+  const sectionRow = (label) => { rows.push([pertXlsxText(label, HEAD)]); };
+
+  // Ligne d'un jalon : libelle + un 0 dans la colonne de sa date.
+  const milestoneRow = (m) => {
+    const row = [pertXlsxText(m.properties.label || "")];
+    const c = model.msCol(m);
+    row[3 + c] = pertXlsxNum(0, { fmt: "num2" });
+    rows.push(row);
+  };
+
+  // Ligne d'une activite : libelle/groupe/resp + ETP colore sur ses periodes actives.
+  const activityRow = (a) => {
+    const row = [
+      pertXlsxText(a.properties.label || ""),
+      pertXlsxText(a.properties.group || ""),
+      pertXlsxText(a.properties.responsible || ""),
+    ];
+    const etp = pertGanttEtp(a);
+    const fill = pertGanttColor(a);
+    for (let i = 0; i < nCols; i++) {
+      if (model.activeAt(a, i)) row[3 + i] = pertXlsxNum(etp, { fmt: "num2", fill });
+    }
+    rows.push(row);
+  };
+
+  sectionRow("Jalons d'entrée");
+  model.entryMs.forEach(milestoneRow);
+  sectionRow("Tâches");
+  model.acts.forEach(activityRow);
+  sectionRow("Jalons de sortie");
+  model.exitMs.forEach(milestoneRow);
+
+  // Ligne « total charge » : SUM par colonne de periode, de la 1re ligne de section
+  // (row 2, 1-based) a la derniere ligne de donnees (avant le total).
+  const firstDataRow = 2;
+  const lastDataRow = rows.length; // rows.length lignes deja posees (header=row1)
+  const totalRow = [pertXlsxText("total charge", HEAD)];
+  for (let i = 0; i < nCols; i++) {
+    const col = pertXlsxColLetter(3 + i);
+    totalRow[3 + i] = pertXlsxFormula(`SUM(${col}${firstDataRow}:${col}${lastDataRow})`, { fmt: "num2", bold: true });
+  }
+  rows.push(totalRow);
+
+  // Largeurs de colonnes : libelles larges, periodes etroites.
+  const cols = [{ width: 22 }, { width: 12 }, { width: 14 }];
+  for (let i = 0; i < nCols; i++) cols.push({ width: 8 });
+
+  return pertXlsxBuild([{ name: "Gantt chargé", cols, rows }]);
+}
+
+function pertExportGanttExcel() {
+  const model = pertScheduleModel();
+  if (!model) { showToast("Rien a exporter (planning vide)"); return; }
+  if (model.error === "no_t0") { showToast("Definissez d'abord la date T0 (Parametres)"); return; }
+  if (model.truncated) {
+    showToast("Gantt tronque a " + PERT_GANTT_MAX_COLS + " colonnes (projet tres long)", true);
+  }
+  const u8 = pertBuildGanttXlsx(model);
+  const name = (window.pertProjectFilename ? pertProjectFilename() : "pertflow") + "_gantt.xlsx";
+  pertDownloadBlob(u8, name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  showToast("Export Gantt Excel : " + name);
+}
+
+window.pertScheduleModel = pertScheduleModel;
+window.pertBuildGanttXlsx = pertBuildGanttXlsx;
+window.pertExportGanttExcel = pertExportGanttExcel;
+
+// ── Gantt MS Project (MSPDI XML) ────────────────────────────────────────────────
+//
+// MSPDI = « Microsoft Project Data Interchange », le format XML documente que MS
+// Project importe/exporte nativement. On l'ecrit A LA MAIN (aucune lib .mpp native
+// n'existe cote navigateur en MIT/offline). Meme modele que le Gantt chargé + les
+// LIENS de dependance (PredecessorLink). Duree/charge en heures : on reutilise
+// pertDurationToHours (coherent avec l'estimation de cout et le calendrier standard
+// 8 h/j de MS Project). Les activites sont auto-planifiees a partir de Start + Duration ;
+// on fournit aussi Finish pour information.
+
+function pertMspXmlEsc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+
+// Offset (unites) → horodatage ISO "YYYY-MM-DDTHH:MM:SS" (heure ouvree par defaut).
+function pertMspDate(offset, hour) {
+  const d = pertOffsetToDate(offset);
+  if (!d) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate())
+    + "T" + p(hour == null ? 8 : hour) + ":00:00";
+}
+
+// Nombre d'heures → duree MSPDI "PT<h>H0M0S".
+function pertMspHours(h) { return "PT" + Math.max(0, Math.round(h)) + "H0M0S"; }
+
+function pertBuildMSPDI(model) {
+  const meta = window.pertMeta || {};
+  const title = meta.title || "PertFlow";
+
+  // Ordre d'affichage = jalons d'entree, activites, jalons de sortie (comme le Gantt).
+  const ordered = model.entryMs.concat(model.acts, model.exitMs);
+  const uidOf = new Map();
+  ordered.forEach((n, i) => uidOf.set(n.id, i + 1));
+
+  // Predecesseurs par nœud (id cible → [uid sources]) depuis les liens du modele.
+  const predsByTarget = {};
+  model.links.forEach(l => {
+    if (!predsByTarget[l.to]) predsByTarget[l.to] = [];
+    if (uidOf.has(l.from)) predsByTarget[l.to].push(uidOf.get(l.from));
+  });
+
+  const tasksXml = ordered.map((n, i) => {
+    const uid = i + 1;
+    const isAct = n.type === "pert/activity";
+    const durH = isAct ? pertDurationToHours(pertDuration(n), model.unit, meta) : 0;
+    const etp = isAct ? pertGanttEtp(n) : 0;
+    const workH = durH * etp;
+    // Un jalon (ou une activite de duree nulle) est un Milestone.
+    const isMilestone = !isAct || durH <= 0;
+    const startOff = isAct ? n.es : model.msOffset(n);
+    const finishOff = isAct ? n.ef : model.msOffset(n);
+
+    let x = "<Task>";
+    x += "<UID>" + uid + "</UID>";
+    x += "<ID>" + uid + "</ID>";
+    x += "<Name>" + pertMspXmlEsc(n.properties.label || "") + "</Name>";
+    x += "<Active>1</Active>";
+    x += "<Manual>0</Manual>";
+    x += "<Type>0</Type>";                 // 0 = duree fixe / unites fixes (auto-planifie)
+    x += "<OutlineLevel>1</OutlineLevel>";
+    x += "<Start>" + pertMspDate(startOff) + "</Start>";
+    x += "<Finish>" + pertMspDate(finishOff, isMilestone ? 8 : 17) + "</Finish>";
+    x += "<Duration>" + pertMspHours(durH) + "</Duration>";
+    x += "<DurationFormat>7</DurationFormat>";  // 7 = jours (affichage)
+    x += "<Milestone>" + (isMilestone ? 1 : 0) + "</Milestone>";
+    x += "<Work>" + pertMspHours(workH) + "</Work>";
+    (predsByTarget[n.id] || []).forEach(puid => {
+      x += "<PredecessorLink><PredecessorUID>" + puid + "</PredecessorUID><Type>1</Type></PredecessorLink>";
+    });
+    x += "</Task>";
+    return x;
+  }).join("");
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<Project xmlns="http://schemas.microsoft.com/project">`
+    + `<Name>` + pertMspXmlEsc(title) + `</Name>`
+    + `<Title>` + pertMspXmlEsc(title) + `</Title>`
+    + `<ScheduleFromStart>1</ScheduleFromStart>`
+    + `<StartDate>` + pertMspDate(0) + `</StartDate>`
+    + `<Tasks>` + tasksXml + `</Tasks>`
+    + `</Project>`;
+}
+
+function pertExportMSProject() {
+  const model = pertScheduleModel();
+  if (!model) { showToast("Rien a exporter (planning vide)"); return; }
+  if (model.error === "no_t0") { showToast("Definissez d'abord la date T0 (Parametres)"); return; }
+  const xml = pertBuildMSPDI(model);
+  const name = (window.pertProjectFilename ? pertProjectFilename() : "pertflow") + "_msproject.xml";
+  pertDownloadBlob(xml, name, "application/xml");
+  showToast("Export MS Project : " + name);
+}
+
+window.pertBuildMSPDI = pertBuildMSPDI;
+window.pertExportMSProject = pertExportMSProject;
+
+// Enregistrement dans la fenetre d'export (S9).
+if (window.pertRegisterExportFormat) {
+  pertRegisterExportFormat({
+    id: "gantt-xlsx", icon: "📊", label: "Gantt chargé (Excel)", order: 40,
+    desc: "Diagramme de charge (ETP par période, coloré par groupe), formules de total.",
+    run: () => pertExportGanttExcel(),
+  });
+  pertRegisterExportFormat({
+    id: "msproject", icon: "🗓", label: "Gantt MS Project (XML)", order: 60,
+    desc: "Fichier MSPDI importable dans MS Project (tâches, jalons, charge, liens).",
+    run: () => pertExportMSProject(),
+  });
+}
+
+</script>
+  <script>
+/* src/export_microjalons.js */
+// ─── Export Micro-jalonnement (Excel) — Session 9 ───────────────────────────────
+//
+// Reproduit la STRUCTURE LOGIQUE du template de suivi de l'utilisateur
+// (cf. microjalons.xlsx) : une ligne par nœud (jalons + activites, chaque activite
+// devenant un micro-jalon « tache terminee »). Seules les colonnes derivables du
+// planning sont remplies ; les colonnes de suivi (Statut, Replan, Ecart, Filtres…)
+// restent vides, a completer par l'utilisateur (on ne recree PAS les listes
+// deroulantes / liens externes du fichier d'origine — « fidelite minimale »).
+//
+// Colonnes (dans l'ordre du template) :
+//   Num | Jalon | Destinataire | Resp. | LOT | Date baseline | Date prévue Actuelle |
+//   Replan proposée | dates Replan | Statut | Date réalisée | Ecart ... (j) |
+//   Jalon Majeur | Commentaires | Filtre1 | Filtre2 | Filtre3 |
+//   Filtre pour jalons majeurs | LIBELLE JALON MAJEUR
+//
+// Regles de remplissage :
+//   - Num : compteur par LOT (groupe) « <groupe>_NN » pour les ACTIVITES ; vide pour
+//     les jalons. Ordre = meme tri que le Gantt (groupe par ES precoce, puis ES).
+//   - Resp./LOT : responsable / groupe (activites).
+//   - Date baseline : date-cible (due_date) si presente, sinon EF (date planifiee).
+//   - Date prévue Actuelle : EF calcule (prevision courante). Diverge de la baseline
+//     quand une date-cible de jalon n'est pas exactement tenue.
+//   - Jalon Majeur : GOLDEN si tag DOTD/COTD, SILVER si tag Ingenierie ; sinon vide.
+//   - LIBELLE JALON MAJEUR : recopie du libelle pour un jalon majeur.
+//   - Commentaires : note libre de l'activite (properties.notes) si presente.
+//
+// Contrainte file:// : mini-writer XLSX maison (export_xlsx.js, fflate), pas de fetch.
+
+const PERT_MJ_HEADERS = ["Num", "Jalon", "Destinataire", "Resp.", "LOT", "Date baseline",
+  "Date prévue Actuelle", "Replan proposée", "dates Replan", "Statut", "Date réalisée",
+  "Ecart entre réalisé et baseline (j)", "Jalon Majeur", "Commentaires", "Filtre1",
+  "Filtre2", "Filtre3", "Filtre pour jalons majeurs", "LIBELLE JALON MAJEUR"];
+const PERT_MJ_COL = { NUM: 0, JALON: 1, DEST: 2, RESP: 3, LOT: 4, BASELINE: 5, PREVUE: 6,
+  MAJEUR: 12, COMMENT: 13, LIBELLE_MAJEUR: 18 };
+
+// Niveau « jalon majeur » a partir du tag du jalon (GOLDEN / SILVER / "").
+function pertMjMajorLevel(m) {
+  const t = (m.properties && m.properties.tag) || "";
+  if (t === "DOTD" || t === "COTD") return "GOLDEN";
+  if (t === "ING") return "SILVER";
+  return "";
+}
+
+function pertBuildMicroJalonsXlsx(model) {
+  const DATE = { fmt: "date-d-mmm-yy" };
+  const HEAD = { bold: true, fill: "#CCFFCC" };
+
+  // En-tete.
+  const rows = [PERT_MJ_HEADERS.map(h => pertXlsxText(h, HEAD))];
+
+  // Numeros de micro-jalon par LOT (groupe), dans l'ordre de tri des activites.
+  const counters = {};
+  const numOf = new Map();
+  model.acts.forEach(a => {
+    const g = (a.properties.group || "").trim() || "SG";
+    counters[g] = (counters[g] || 0) + 1;
+    numOf.set(a, g + "_" + String(counters[g]).padStart(2, "0"));
+  });
+
+  // Offsets baseline / prevue.
+  const baselineOffset = (n) => (n.type === "pert/milestone") ? model.msOffset(n) : n.ef;
+  const dateCell = (offset) => {
+    if (offset == null) return null;
+    const d = pertOffsetToDate(offset);
+    return d ? pertXlsxDate(d, DATE) : null;
+  };
+
+  const pushRow = (n) => {
+    const isAct = n.type === "pert/activity";
+    const row = [];
+    row[PERT_MJ_COL.JALON] = pertXlsxText(n.properties.label || "");
+    if (isAct) {
+      row[PERT_MJ_COL.NUM] = pertXlsxText(numOf.get(n) || "");
+      if (n.properties.responsible) row[PERT_MJ_COL.RESP] = pertXlsxText(n.properties.responsible);
+      if (n.properties.group) row[PERT_MJ_COL.LOT] = pertXlsxText(n.properties.group);
+      if (n.properties.notes) row[PERT_MJ_COL.COMMENT] = pertXlsxText(n.properties.notes);
+    } else {
+      const lvl = pertMjMajorLevel(n);
+      if (lvl) {
+        row[PERT_MJ_COL.MAJEUR] = pertXlsxText(lvl);
+        row[PERT_MJ_COL.LIBELLE_MAJEUR] = pertXlsxText(n.properties.label || "");
+      }
+    }
+    row[PERT_MJ_COL.BASELINE] = dateCell(baselineOffset(n));
+    row[PERT_MJ_COL.PREVUE] = dateCell(n.ef);
+    rows.push(row);
+  };
+
+  // Ordre : jalons d'entree, activites (groupees), jalons de sortie — comme le Gantt.
+  model.entryMs.forEach(pushRow);
+  model.acts.forEach(pushRow);
+  model.exitMs.forEach(pushRow);
+
+  const cols = [{ width: 10 }, { width: 24 }, { width: 12 }, { width: 10 }, { width: 8 },
+    { width: 13 }, { width: 15 }, { width: 12 }, { width: 12 }, { width: 10 }, { width: 12 },
+    { width: 16 }, { width: 12 }, { width: 20 }, { width: 8 }, { width: 8 }, { width: 8 },
+    { width: 16 }, { width: 20 }];
+
+  return pertXlsxBuild([{ name: "Micro-jalonnement", cols, rows }]);
+}
+
+function pertExportMicroJalons() {
+  const model = pertScheduleModel();
+  if (!model) { showToast("Rien a exporter (planning vide)"); return; }
+  if (model.error === "no_t0") { showToast("Definissez d'abord la date T0 (Parametres)"); return; }
+  const u8 = pertBuildMicroJalonsXlsx(model);
+  const name = (window.pertProjectFilename ? pertProjectFilename() : "pertflow") + "_microjalons.xlsx";
+  pertDownloadBlob(u8, name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  showToast("Export micro-jalonnement : " + name);
+}
+
+window.pertBuildMicroJalonsXlsx = pertBuildMicroJalonsXlsx;
+window.pertExportMicroJalons = pertExportMicroJalons;
+
+// Enregistrement dans la fenetre d'export (S9).
+if (window.pertRegisterExportFormat) {
+  pertRegisterExportFormat({
+    id: "microjalons", icon: "🎯", label: "Micro-jalonnement (Excel)", order: 50,
+    desc: "Une ligne par jalon/tâche pour le suivi (jalons majeurs GOLDEN/SILVER).",
+    run: () => pertExportMicroJalons(),
+  });
+}
 
 </script>
   <script>
@@ -39208,13 +40155,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (file) guardUI("Ouverture impossible", () => pertLoadProject(file));
   });
 
-  // ── Export PNG / PDF — Session 3 ────────────────────────────────────────────
-  document.getElementById("btn-export-png").addEventListener("click", () => {
-    guardUI("Export PNG impossible", () => pertExportPNG());
+  // ── Export — Session 9 : un seul bouton ouvrant la fenetre de choix du format ─
+  // (PNG/PDF de la S3 y sont ramenes ; CSV, Gantt Excel, micro-jalonnement et MS
+  // Project s'ajoutent a la liste PERT_EXPORT_FORMATS dans src/export.js.)
+  document.getElementById("btn-export").addEventListener("click", () => {
+    guardUI("Ouverture de l'export impossible", () => pertOpenExportDialog());
   });
-  document.getElementById("btn-export-pdf").addEventListener("click", () => {
-    guardUI("Export PDF impossible", () => pertExportPDF());
-  });
+  document.getElementById("export-cancel").addEventListener("click", pertCloseExportDialog);
 
   // ── Raccourcis clavier ──────────────────────────────────────────────────────
 

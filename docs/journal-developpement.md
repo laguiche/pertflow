@@ -637,6 +637,37 @@ Deux vagues de correctifs avant d'ouvrir la S9, pilotées par des retours d'usag
   (dimming, dédoublonnage des responsables, menu, validité, déclencheur), 0 erreur console. Tag
   `v0.12.3` (S9 = v0.13).
 
+### Session 9 — Exports avancés (✅ 05/07/2026, tag v0.13)
+
+**Refonte du concept d'export, approfondie avec l'utilisateur AVANT de coder** (formats décodés
+depuis les fichiers d'exemple réels, décisions figées par questions ciblées). Remplacement des
+deux boutons PNG/PDF par **un seul bouton « Exporter »** ouvrant une fenêtre de choix, et ajout
+de 4 formats métier.
+
+- **Fenêtre unique + 6 formats** : PNG, PDF (existants, rapatriés), CSV (`;`, brut), **Gantt
+  chargé Excel** (diagramme de charge : ETP par période coloré par groupe, sections + total
+  `SUM`), **Micro-jalonnement Excel** (template de suivi, jalons majeurs GOLDEN/SILVER selon le
+  tag), **Gantt MS Project** (MSPDI XML, tâches + charge + liens de dépendance).
+- **Décisions d'arbitrage (utilisateur)** : (1) fidélité Excel = *fichier propre minimal* (mêmes
+  colonnes/données/couleurs que les templates, sans les listes déroulantes / liens externes /
+  commentaires) ; (2) MS Project = *MSPDI XML écrit à la main* — aucune bibliothèque `.mpp` native
+  n'existe côté navigateur en MIT/offline ; (3) granularité Gantt = *suivre l'unité du projet*,
+  avec garde-fou de colonnes.
+- **Apport méthode/IA** : le décodage des deux `.xlsx` d'exemple (rétro-ingénierie cellule par
+  cellule, croisée avec le `.pert` source) a permis de figer une spec précise **avant** d'écrire
+  la moindre ligne, puis de valider chaque format en relisant les fichiers générés avec un
+  décodeur (openpyxl / parseur XML). *Leçon transférable* : sur un format d'échange imposé, la
+  valeur est dans la lecture fine de l'exemple, pas dans le code de génération (mécanique une fois
+  la structure comprise).
+- **Contraintes tenues** : mini-writer XLSX maison sur **fflate** (déjà présent, MIT — pas de
+  SheetJS Apache-2.0) ; MSPDI = XML pur ; téléchargements via Blob/objet URL ; 100% `file://`,
+  zéro dépendance ajoutée.
+
+Validé par `tools/smoke-s9.js` (6 formats + ordre, CSV, magic ZIP des xlsx, MSPDI 8 tâches/
+6 liens), relecture openpyxl des classeurs (structure conforme aux exemples), parse XML du MSPDI,
+`tools/smoke.js` adapté (PNG/PDF via la fenêtre) + smoke S6/S7 sans régression, 0 erreur console,
+puis validation visuelle utilisateur (ouverture Excel / import MS Project). Tag `v0.13`.
+
 ---
 
 ## Backlog réorienté (à partir du 22/06/2026)

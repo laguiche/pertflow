@@ -87,6 +87,22 @@ function pertDownloadDataUrl(dataUrl, filename) {
   document.body.removeChild(a);
 }
 
+// Telecharge un contenu binaire/texte (Blob ou Uint8Array) sous le nom donne.
+// Utilise un objet URL (fonctionne en file://) revoque apres le clic. Socle commun
+// aux exports CSV, XLSX (fflate) et MS Project XML — S9.
+function pertDownloadBlob(data, filename, mime) {
+  const blob = (data instanceof Blob) ? data : new Blob([data], { type: mime || "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+window.pertDownloadBlob = pertDownloadBlob;
+
 // Export PNG : capture hors-ecran → telechargement.
 function pertExportPNG() {
   const res = pertRenderToCanvas();
@@ -141,3 +157,85 @@ function pertExportPDF() {
 window.pertExportPNG = pertExportPNG;
 window.pertExportPDF = pertExportPDF;
 window.pertRenderToCanvas = pertRenderToCanvas;
+
+// ─── Fenetre d'export unique (choix du format) — Session 9 ───────────────────────
+//
+// Refonte S9 : un seul bouton toolbar « Exporter » ouvre une fenetre listant tous
+// les formats disponibles. PNG et PDF (existants) y sont ramenes ; les nouveaux
+// formats (CSV, Gantt Excel, micro-jalonnement, MS Project) s'ajoutent a la liste
+// PERT_EXPORT_FORMATS au fur et a mesure de leur implementation (livraison
+// incrementale), via pertRegisterExportFormat depuis leur module dedie. Chaque
+// descripteur : { id, icon, label, desc, order, run }.
+//   - order : rang d'affichage (tri stable) → l'ordre d'affichage ne depend PAS de
+//     l'ordre de chargement des <script>.
+//   - run() effectue l'export ; il est enrobe par guardUI (filet d'erreur) a l'appel.
+// La liste est rendue dynamiquement (pas de HTML fige) → ajouter un format = appeler
+// pertRegisterExportFormat, aucune modification de index.html.
+
+const PERT_EXPORT_FORMATS = [
+  { id: "png", icon: "🖼", label: "Image PNG", order: 10,
+    desc: "Capture du planning complet en image.",
+    run: () => pertExportPNG() },
+  { id: "pdf", icon: "📄", label: "Document PDF", order: 20,
+    desc: "Planning ajuste sur une page A4, titre en en-tete.",
+    run: () => pertExportPDF() },
+];
+
+// Enregistre (ou remplace, par id) un format d'export. Appele par les modules
+// export_csv.js / export_gantt.js / export_microjalons.js a leur chargement.
+function pertRegisterExportFormat(fmt) {
+  const i = PERT_EXPORT_FORMATS.findIndex(f => f.id === fmt.id);
+  if (i !== -1) PERT_EXPORT_FORMATS[i] = fmt;
+  else PERT_EXPORT_FORMATS.push(fmt);
+}
+window.pertRegisterExportFormat = pertRegisterExportFormat;
+
+// Construit une ligne cliquable de format dans la fenetre d'export.
+function pertBuildExportRow(fmt) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "export-format-row";
+  const ic = document.createElement("span");
+  ic.className = "export-format-icon";
+  ic.textContent = fmt.icon;
+  row.appendChild(ic);
+  const txt = document.createElement("span");
+  txt.className = "export-format-text";
+  const t = document.createElement("span");
+  t.className = "export-format-label";
+  t.textContent = fmt.label;
+  const d = document.createElement("span");
+  d.className = "export-format-desc";
+  d.textContent = fmt.desc;
+  txt.appendChild(t);
+  txt.appendChild(d);
+  row.appendChild(txt);
+  row.addEventListener("click", () => {
+    pertCloseExportDialog();
+    // guardUI : filet d'erreur (toast rouge) — indispensable en file:// (pas de console).
+    if (window.guardUI) guardUI("Export « " + fmt.label + " » impossible", fmt.run);
+    else fmt.run();
+  });
+  return row;
+}
+
+// (Re)construit la liste des formats et ouvre la fenetre.
+function pertOpenExportDialog() {
+  const list = document.getElementById("export-format-list");
+  const dlg = document.getElementById("export-dialog");
+  if (!list || !dlg) return;
+  list.innerHTML = "";
+  PERT_EXPORT_FORMATS.slice()
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .forEach(fmt => list.appendChild(pertBuildExportRow(fmt)));
+  dlg.style.display = "flex";
+}
+
+function pertCloseExportDialog() {
+  const dlg = document.getElementById("export-dialog");
+  if (dlg) dlg.style.display = "none";
+}
+
+window.PERT_EXPORT_FORMATS = PERT_EXPORT_FORMATS;
+window.pertOpenExportDialog = pertOpenExportDialog;
+window.pertCloseExportDialog = pertCloseExportDialog;
