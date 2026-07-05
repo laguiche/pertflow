@@ -87,8 +87,7 @@
     <div class="tb-sep"></div>
     <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
-    <button id="btn-export-png" title="Exporter en PNG">🖼 PNG</button>
-    <button id="btn-export-pdf" title="Exporter en PDF">📄 PDF</button>
+    <button id="btn-export" title="Exporter le planning (PNG, PDF, CSV, Excel, MS Project)">⬇ Exporter</button>
     <div class="tb-sep"></div>
     <button id="btn-undo" title="Annuler (Ctrl+Z)" disabled>↶ Annuler</button>
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
@@ -103,6 +102,22 @@
       <div id="about-content"></div>
       <div class="dialog-buttons">
         <button id="about-close" class="primary">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dialogue d'export (choix du format) — Session 9 ──────────────────── -->
+  <div id="export-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog export-dialog-box">
+      <h3>Exporter le planning</h3>
+      <!-- Liste des formats construite dynamiquement (src/export.js) -->
+      <div id="export-format-list"></div>
+      <p class="dialog-note">
+        Le fichier est déposé dans le dossier de téléchargement du navigateur
+        (le mode <code>file://</code> ne permet pas de choisir le dossier).
+      </p>
+      <div class="dialog-buttons">
+        <button id="export-cancel">Fermer</button>
       </div>
     </div>
   </div>
@@ -167,6 +182,10 @@
   <script src="src/autosave.js"></script>
   <script src="src/storage.js"></script>
   <script src="src/export.js"></script>
+  <script src="src/export_csv.js"></script>
+  <script src="src/export_xlsx.js"></script>
+  <script src="src/export_gantt.js"></script>
+  <script src="src/export_microjalons.js"></script>
   <script src="src/ui.js"></script>
 </body>
 </html>

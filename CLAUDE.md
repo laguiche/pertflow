@@ -1174,22 +1174,204 @@ sera **v0.13**.
 
 ---
 
-### Session 9 — Exports avancés ⏳ À VENIR
-**Objectifs** :
-- [ ] **#21** Export Excel (notamment pour faciliter le micro-jalonnement) — s'appuie
-  sur l'identifiant unique (#34) de S6
-- [ ] **#33** Export Gantt
-- [ ] **#7** Destination des sauvegardes/exports : ⚠️ **bridé par `file://`** — le
-  navigateur pilote le dossier de téléchargement, pas de sélecteur de chemin possible
-  sans serveur. Au mieux : nom de fichier suggéré + dossier Téléchargements. À **expliquer**
-  à l'utilisateur plutôt qu'à promettre.
+### Session 9 — Exports avancés ✅ TERMINÉE le 05/07/2026 (tag **v0.13**)
 
-**Écarté / à rediscuter en début de session** :
-- **#5** Incrément automatique du n° de version à chaque sauvegarde — l'utilisateur
-  lui-même le juge « peut-être une fausse bonne idée ». À trancher avant implémentation.
+> **État au 05/07/2026** : les 6 formats sont implémentés, validés par tests headless
+> navigateur (Playwright/Chromium, `file://`) contre les fichiers d'exemple réels — voir
+> « Implémentation » en fin de section — **et validés visuellement par l'utilisateur**.
+> Branche `session/9-exports-avances`, mergée sur `main`, taguée **v0.13** (rituel de fin
+> de session appliqué : bundle `--tag v0.13` régénéré + versionné). La spec détaillée
+> ci-dessous reste la référence.
+
+> **Concept d'export approfondi avec l'utilisateur le 05/07/2026, AVANT ouverture de la
+> session** (pour reprise sereine même après interruption). Cette section est
+> **auto-suffisante** : formats décodés depuis les fichiers d'exemple + décisions figées +
+> architecture + ordre de livraison. Fichiers d'exemple dans `test_cases/` (NON versionnés) :
+> source `pert_a_exporter.pert` → attendus `gantt_charge.xlsx` et `microjalons.xlsx`.
+
+**Refonte du concept (demande utilisateur)** : remplacer les boutons `🖼 PNG` / `📄 PDF`
+de la toolbar par **UN SEUL bouton « ⬇ Exporter »** ouvrant une **fenêtre de choix du
+format**. PNG et PDF (fonctions existantes inchangées) sont appelés depuis cette fenêtre.
+
+**Formats proposés dans la fenêtre** :
+- [ ] **PNG** — existant (`pertExportPNG`), juste déplacé dans la fenêtre.
+- [ ] **PDF** — existant (`pertExportPDF`), idem.
+- [ ] **CSV** — séparateur `;`, format « raw » (un nœud par ligne).
+- [ ] **Gantt chargé — Excel** (#33) — diagramme de charge `.xlsx`.
+- [ ] **Micro-jalonnement — Excel** (#21) — template de suivi `.xlsx`, s'appuie sur l'uid (#34).
+- [ ] **Gantt MS Project** — fichier **MSPDI XML** (`.xml`) importable par MS Project.
+
+#### Décisions figées (arbitrage utilisateur du 05/07/2026, via AskUserQuestion)
+- **Fidélité XLSX = fichier propre minimal** : mêmes colonnes / données / dates / couleurs de
+  groupe que les exemples, mais **SANS** les artefacts du template de l'utilisateur (listes
+  déroulantes de « Statut », liens externes vers un autre classeur, commentaires VML). Ces
+  exemples sont ses fichiers de suivi réels ; on n'en reproduit que la **structure logique**.
+- **MS Project = MSPDI XML** : **aucune lib JS navigateur, MIT et offline, n'écrit du `.mpp`
+  natif** (binaire propriétaire). On génère à la main du **MS Project XML (MSPDI, `.xml`)**,
+  importable nativement par Project — zéro dépendance, 100% offline, compatible MIT. Même
+  logique que le Gantt chargé **+ les liens de dépendance**.
+- **Granularité du Gantt = suivre l'unité du projet** (`meta.unit` : jour / semaine / mois) —
+  PAS toujours au mois. ⚠️ **Garde-fou obligatoire** : un projet en jours étalé sur des mois
+  peut produire des centaines de colonnes → **plafonner le nombre de colonnes** (proposition :
+  ~400) avec toast d'avertissement, plutôt qu'un fichier ingérable.
+
+#### Contraintes techniques (rappel `file://` + MIT — cf. CONTEXTE PROJET)
+- Un `.xlsx` est un **ZIP de fichiers XML** → **mini-writer maison sur `fflate`** (déjà
+  présent, MIT ; même lib que l'import). **PAS de SheetJS** (Apache-2.0, exclu par « MIT
+  uniquement »). Le writer produit : `[Content_Types].xml`, `_rels/`, `xl/workbook.xml`,
+  `xl/worksheets/sheet1.xml`, `xl/styles.xml`, `xl/sharedStrings.xml`. Styles nécessaires :
+  format date (`mmm-yy` pour le Gantt, `d-mmm-yy` pour les micro-jalons), format nombre
+  `0.00`, **fills** de couleur (barres Gantt), gras (en-têtes). Formules `=SUM(...)` supportées
+  (cellule `<f>` + type numérique).
+- MSPDI = **XML pur** écrit à la main (aucune lib), sérialisé en `.xml` téléchargé.
+- Téléchargement via `<a download>` (comme PNG/PDF) — **destination = dossier Téléchargements
+  du navigateur** (#7 : pas de sélecteur de chemin en `file://`, à **expliciter** dans la
+  fenêtre, ne pas promettre un choix de dossier).
+
+#### Formats décodés (spécification précise, tirée des exemples)
+
+**A. Gantt chargé (`gantt_charge.xlsx`)** — diagramme de charge :
+- Colonnes fixes : `A`=Tâche, `B`=Groupe, `C`=Responsable. Puis **une colonne par période**
+  (unité projet) de **T0 jusqu'à la fin de projet** ; en-tête = date de début de période
+  (format `mmm-yy` en mensuel), **gras**. `D1` = T0 (première date = T0).
+- **Sections** repérées par un libellé en colonne A, dans l'ordre :
+  1. `Jalons d'entrée` (jalons entrants — sans lien entrant),
+  2. `Tâches` (activités),
+  3. `Jalons de sortie` (jalons terminaux / intermédiaires),
+  4. `total charge` = ligne de **`=SUM(col2:col_avant_total)`** par colonne de période.
+- **Valeur d'une cellule période** pour une Activité = son **ETP**, placé sur **chaque
+  période active** (de ES à EF exclu), format `0.00`, **cellule remplie à la couleur du
+  groupe** (`meta.groups[group]` ou `properties.color`) → effet « barre de Gantt ».
+- **Jalon** = valeur `0` dans la seule colonne de sa date.
+- **Tri des tâches** : par **groupe** puis par **ES croissant** (vérifié : sys = Act 3 puis
+  Act 2 ; algo = Act 1 puis Act 4).
+- Exemple validé sur `pert_a_exporter.pert` (T0=2026-07-01, unité mois) : `Activité 3`
+  (etp 1, sys) → `1` d'août-26 à janv-27 ; `Activité 2` (etp 0,75) → `0,75` nov→janv ;
+  `Activité 4` (etp 2, algo) → `2` févr→avr-27 ; jalons d'entrée/sortie = `0` sur leur mois.
+
+**B. Micro-jalonnement (`microjalons.xlsx`)** — une ligne par nœud dans le template de suivi.
+En-têtes (ligne 1, fond vert clair) : `Num | Jalon | Destinataire | Resp. | LOT | Date
+baseline | Date prévue Actuelle | Replan proposée | dates Replan | Statut | Date réalisée |
+Ecart entre réalisé et baseline (j) | Jalon Majeur | Commentaires | Filtre1 | Filtre2 |
+Filtre3 | Filtre pour jalons majeurs | LIBELLE JALON MAJEUR`. Remplissage à l'export :
+- `Num` = **compteur par LOT/groupe** au format `<groupe>_NN` (ex. `sys_01`, `sys_02`,
+  `algo_01`…), **uniquement pour les Activités** ; **vide** pour les jalons. (NB : ce `Num`
+  n'est PAS l'uid #34 — c'est un numéro séquentiel par groupe, calculé à l'export dans le
+  même ordre de tri que le Gantt : groupe puis ES.)
+- `Jalon` = libellé ; `Resp.` = responsable ; `LOT` = groupe ; `Destinataire` = vide.
+- `Date baseline` = `Date prévue Actuelle` = **EF** (fin de tâche) pour une Activité, ou la
+  **date du jalon** pour un jalon. Format `d-mmm-yy`.
+- **`Jalon Majeur`** = **`GOLDEN`** si tag jalon DOTD ou COTD, **`SILVER`** si tag Ingénierie
+  (`ING`), vide sinon. `LIBELLE JALON MAJEUR` = recopie du libellé quand major (GOLDEN/SILVER).
+- Toutes les autres colonnes de suivi (`Statut`, `Replan`, `Ecart`, `Filtre1..3`, etc.)
+  restent **vides** (remplies plus tard par l'utilisateur) — on ne recrée PAS les listes
+  déroulantes / liens externes du template (cf. « fidélité minimale »).
+- Ordre des lignes = même tri que le Gantt : jalons d'entrée, puis activités groupées par LOT,
+  puis jalons de sortie.
+
+**C. MS Project (MSPDI `.xml`)** — même modèle temps/charge que le Gantt chargé **+ liens** :
+- Une `<Task>` par nœud (activités ET jalons ; jalon = `<Milestone>1</Milestone>`,
+  `<Duration>0`). Dates `<Start>`/`<Finish>` = ES/EF calendaires ; `<Work>` = charge (ETP ×
+  durée convertie, à caler sur la même logique que `pertDurationToHours`/le Gantt).
+- **Liens de dépendance** = `<PredecessorLink>` sur chaque tâche (type FS, `Type=1`),
+  reconstruits depuis `graph.links`.
+- En-tête projet : `<Project>` avec `<StartDate>` = T0. Encodage UTF-8, namespace MSPDI
+  (`http://schemas.microsoft.com/project`).
+
+**D. CSV (`;`)** — dump « raw », un nœud par ligne. **Schéma proposé** (à confirmer/ajuster en
+ouverture de session, non figé) :
+`Type ; UID ; Libellé ; Groupe ; Responsable ; Durée ; Unité ; ETP ; Coût(k€) ; DébutTôt ;
+FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon`. Dates au format FR,
+**décimales en `,`** (cohérent Excel FR puisque le séparateur de colonnes est `;`).
+
+#### Architecture fichiers (contrainte `file://` → `<script src>` classiques, pas de module ES6)
+- `src/export.js` (existant) — garde PNG/PDF ; **héberge la fenêtre d'orchestration**
+  (`pertOpenExportDialog` / menu de choix, même pattern DOM/CSS que le menu de filtre S7 pour
+  la fiabilité multi-navigateurs).
+- `src/export_xlsx.js` (nouveau) — **mini-writer XLSX** générique sur `fflate` (grille de
+  cellules typées string/number/date/formule, styles, fills, `sharedStrings`, zip). Socle
+  commun aux exports B et une partie de A.
+- `src/export_gantt.js` (nouveau) — construit le modèle temps/charge (buckets selon `meta.unit`
+  + garde-fou colonnes) ; produit **le Gantt chargé (via export_xlsx)** ET **le MSPDI XML**.
+- `src/export_microjalons.js` (nouveau) — produit le micro-jalonnement (via export_xlsx).
+- `src/export_csv.js` (nouveau) — produit le CSV.
+- `index.html` : retirer `#btn-export-png` / `#btn-export-pdf`, ajouter `#btn-export` +
+  conteneur de la fenêtre ; ajouter les `<script src>` des nouveaux modules **et** les
+  déclarer dans `scripts/build-bundle.js` si l'inline par regex ne les capte pas
+  automatiquement (vérifier : le builder inline tous les `<script src="src/…">`, donc a priori
+  automatique — **à contrôler sur le bundle**).
+- `css/style.css` : styles de la fenêtre d'export (réutiliser le pattern `.filter-menu`).
+
+#### Ordre de livraison conseillé (incrémental, testable à chaque étape)
+1. **Fenêtre d'export + bascule PNG/PDF** (retrait des 2 boutons, non-régression PNG/PDF).
+2. **CSV** (le plus simple, valide le téléchargement texte + le schéma de données).
+3. **Mini-writer XLSX** (`export_xlsx.js`) + un xlsx trivial de test (valide zip/ouverture Excel).
+4. **Gantt chargé Excel** (buckets + charge + fills + total + garde-fou colonnes).
+5. **Micro-jalonnement Excel** (réutilise le writer + la logique de tri/uid `<groupe>_NN`).
+6. **MSPDI XML** (réutilise le modèle temps du Gantt + liens).
+
+#### Points de vigilance / à trancher en ouverture
+- **Charge par période en jours/semaines** : l'ETP est placé sur chaque période active (charge
+  constante) — confirmer si un lissage plus fin est souhaité (a priori non, KISS).
+- **Nommage fichiers** : `<titre-projet>_gantt.xlsx`, `_microjalons.xlsx`, `_msproject.xml`,
+  `.csv`, `.png`, `.pdf` (via `pertProjectFilename()`).
+- **Schéma CSV** : proposé ci-dessus, à valider avec l'utilisateur avant de figer.
+- **#5** (incrément auto du n° de version à la sauvegarde) : **hors périmètre export**, jugé
+  « peut-être une fausse bonne idée » par l'utilisateur → à rediscuter séparément, ne pas
+  l'embarquer dans S9 sauf demande explicite.
+- **Validation** : test headless navigateur (Playwright/Chromium, `file://`) par format —
+  re-lire les xlsx générés avec un décodeur (fflate + DOMParser ou openpyxl côté outillage)
+  pour comparer la structure logique aux exemples ; MSPDI = XML bien formé + tâches/liens
+  présents ; CSV = colonnes/valeurs. Puis validation visuelle utilisateur (rituel habituel).
+
+#### Implémentation — décisions notables (05/07/2026)
+- **Fenêtre d'export = liste data-driven** : `PERT_EXPORT_FORMATS` (dans `export.js`) +
+  `pertRegisterExportFormat(fmt)` — chaque module d'export enregistre son descripteur
+  `{id, icon, label, desc, order, run}` à son chargement ; la fenêtre trie par `order` →
+  l'ordre d'affichage ne dépend PAS de l'ordre des `<script>`. Ajouter un format = un appel,
+  aucune modif de `index.html`. Fenêtre = dialogue modal (`#export-dialog`, pattern
+  `.dialog-overlay`) avec la **note de destination `file://`**. PNG/PDF (S3) inchangés,
+  juste rappelés via `run`. `pertDownloadBlob(data, filename, mime)` (objet URL, marche en
+  `file://`) = socle de téléchargement commun CSV/XLSX/XML.
+- **CSV** (`export_csv.js`) : `pertBuildCSV()` — BOM UTF-8 + CRLF, séparateur `;`, décimales
+  `,`, dates FR ; un nœud PERT par ligne (Labels exclus). Schéma = en-tête figé de la spec.
+- **Mini-writer XLSX** (`export_xlsx.js`) : `pertXlsxBuild(sheets)` sur **fflate** (zip + XML
+  écrits à la main). Cellules `pertXlsxText/Num/Date/Formula`, style `{fmt, bold, fill}`
+  dédupliqué en `cellXfs` ; formats date custom (164 `mmm-yy`, 165 `d-mmm-yy`), nombre `0.00`
+  (builtin 2) ; fills solides collectés dynamiquement (couleurs de groupe) ; `sharedStrings` ;
+  `cellStyles` « Normal » (sinon warning openpyxl / Excel tatillon). Dates → serial Excel
+  (epoch 1899-12-30, calcul UTC). Validé par relecture openpyxl (dates reconnues, formats,
+  fills, formules, gras, 0 warning).
+- **Gantt chargé + MSPDI** (`export_gantt.js`) partagent `pertScheduleModel()` : recalcul,
+  classement jalons entrée (aucun entrant + ≥1 sortant) / sortie, **tri activités = groupes
+  par ES le plus précoce puis ES** (colle à l'exemple : sys avant algo), `numCols` = dernière
+  période active + colonne jalons (garde-fou `PERT_GANTT_MAX_COLS=400` + toast), liens résolus
+  depuis `graph.links`. **Offset d'affichage d'un jalon = sa `due_date` si présente, sinon EF**
+  (l'exemple place « Jalon sortie 2 » à sa cible mars, pas à l'EF février). Gantt : ETP par
+  période active coloré par groupe, sections + ligne `total charge` = `SUM` par colonne.
+- **Micro-jalonnement** (`export_microjalons.js`) : template 19 colonnes, `Num` = `<groupe>_NN`
+  (activités, compteur par LOT dans l'ordre de tri), **Date baseline = due_date sinon EF**,
+  **Date prévue Actuelle = EF** (divergent pour un jalon dont la cible n'est pas tenue),
+  **Jalon Majeur = GOLDEN (DOTD/COTD) / SILVER (ING)** + `LIBELLE JALON MAJEUR`, `Commentaires`
+  = `properties.notes`. Colonnes de suivi laissées vides. En-tête fond vert (`#CCFFCC`).
+- **MSPDI** (`export_gantt.js`, `pertBuildMSPDI`) : `<Project>`/`<Tasks>` XML à la main,
+  namespace `schemas.microsoft.com/project`. Une `<Task>` par nœud (ordre = Gantt), UID/ID
+  séquentiels, `Milestone` pour jalons/durée nulle, `Duration`/`Work` en heures via
+  `pertDurationToHours` (× ETP pour Work), `PredecessorLink` (Type 1 = FS) depuis les liens.
+  Validé : XML bien formé, 8 tâches, 6 liens reconstruits correctement.
+- **Validation** : `tools/smoke-s9.js` (6 formats + ordre, CSV, magic PK des xlsx, MSPDI
+  8 tâches/6 liens) + relecture openpyxl des xlsx (structure logique conforme à
+  `gantt_charge.xlsx` / `microjalons.xlsx`) + parse XML du MSPDI ; **`tools/smoke.js` adapté**
+  (PNG/PDF via la fenêtre) sans régression ; smoke S6/S7 verts. 0 erreur console.
+- **Fichiers** : `index.html` (bouton `#btn-export`, `#export-dialog`, 4 nouveaux `<script>`),
+  `src/export.js` (fenêtre + `pertDownloadBlob` + registre), `src/export_csv.js`,
+  `src/export_xlsx.js`, `src/export_gantt.js` (Gantt + MSPDI), `src/export_microjalons.js`,
+  `src/ui.js` (bouton unique), `css/style.css` (`.export-*`), `tools/smoke-s9.js`.
 
 **Critère de validation** :
-Export Excel et Gantt exploitables ; contrainte de destination explicitée à l'utilisateur.
+Un seul bouton d'export ; PNG/PDF/CSV/Gantt Excel/Micro-jalonnement/MSPDI produits, exploitables
+et fidèles (structure logique) aux exemples ; ouverture propre dans Excel / MS Project ;
+contrainte de destination `file://` explicitée à l'utilisateur.
 
 ---
 
@@ -1517,3 +1699,26 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   responsable (dimming, dédoublonnage, menu + pastille 👤, validité, déclencheur), 0 erreur console.
   **Validation utilisateur** avant clôture ; **mergé sur `main`, tagué `v0.12.3`, poussé** (rituel :
   bundle `--tag v0.12.3` régénéré + versionné). La Session 9 sera `v0.13`.
+
+### Session 9 (05/07/2026) — exports avancés (#21, #33)
+- Sur la branche `session/9-exports-avances`. **Concept approfondi avec l'utilisateur AVANT de
+  coder** (formats décodés depuis `test_cases/pert_a_exporter.pert` → `gantt_charge.xlsx` +
+  `microjalons.xlsx` ; 3 décisions figées par AskUserQuestion). Détail complet et décisions dans
+  la section Session 9 plus haut. **Refonte** : un seul bouton « ⬇ Exporter » ouvrant une fenêtre
+  de choix (PNG/PDF perdent leur bouton dédié, fonctions S3 inchangées) + 4 formats métier.
+- 6 formats : PNG, PDF, **CSV** (`;`, brut), **Gantt chargé Excel** (charge ETP/période colorée
+  par groupe, sections + `total` SUM), **Micro-jalonnement Excel** (template de suivi, jalons
+  majeurs GOLDEN/SILVER), **Gantt MS Project** (MSPDI XML, tâches + charge + liens). Décisions
+  utilisateur : fidélité Excel *minimale* ; MS Project = *MSPDI XML à la main* (pas de lib .mpp) ;
+  granularité Gantt = *unité projet* + garde-fou 400 colonnes.
+- Fichiers : `index.html` (bouton + `#export-dialog` + 4 `<script>`), `src/export.js` (fenêtre
+  data-driven `PERT_EXPORT_FORMATS`/`pertRegisterExportFormat` + `pertDownloadBlob`),
+  `src/export_csv.js`, `src/export_xlsx.js` (mini-writer XLSX sur fflate), `src/export_gantt.js`
+  (Gantt chargé + MSPDI, `pertScheduleModel` partagé), `src/export_microjalons.js`, `src/ui.js`
+  (bouton unique), `css/style.css` (`.export-*`) + `tools/smoke-s9.js` ; `tools/smoke.js` adapté
+  (PNG/PDF via la fenêtre).
+- Validé : `tools/smoke-s9.js` + relecture openpyxl des xlsx (structure conforme aux exemples) +
+  parse XML du MSPDI (8 tâches, 6 liens), smoke général + S6/S7 sans régression, 0 erreur console,
+  **validation visuelle utilisateur** (Excel + import MS Project). **Mergé sur `main`, tagué
+  `v0.13`, poussé** (rituel : bundle `--tag v0.13` régénéré + versionné). Prochaine étape : **S10
+  (rendu des liens & layout)** — ou la session Doc si l'utilisateur préfère.

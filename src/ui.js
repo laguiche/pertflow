@@ -344,13 +344,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (file) guardUI("Ouverture impossible", () => pertLoadProject(file));
   });
 
-  // ── Export PNG / PDF — Session 3 ────────────────────────────────────────────
-  document.getElementById("btn-export-png").addEventListener("click", () => {
-    guardUI("Export PNG impossible", () => pertExportPNG());
+  // ── Export — Session 9 : un seul bouton ouvrant la fenetre de choix du format ─
+  // (PNG/PDF de la S3 y sont ramenes ; CSV, Gantt Excel, micro-jalonnement et MS
+  // Project s'ajoutent a la liste PERT_EXPORT_FORMATS dans src/export.js.)
+  document.getElementById("btn-export").addEventListener("click", () => {
+    guardUI("Ouverture de l'export impossible", () => pertOpenExportDialog());
   });
-  document.getElementById("btn-export-pdf").addEventListener("click", () => {
-    guardUI("Export PDF impossible", () => pertExportPDF());
-  });
+  document.getElementById("export-cancel").addEventListener("click", pertCloseExportDialog);
 
   // ── Raccourcis clavier ──────────────────────────────────────────────────────
 

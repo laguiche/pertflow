@@ -484,6 +484,28 @@ body {
 .color-swatches.locked { opacity: 0.4; pointer-events: none; }
 .dialog input[type="color"]:disabled { opacity: 0.45; cursor: default; }
 
+/* ─── Fenêtre d'export (choix du format, S9) ─────────────────────────────────── */
+.export-dialog-box { width: 400px; }
+#export-format-list { display: flex; flex-direction: column; gap: 6px; }
+.export-format-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 6px;
+  color: #dde3ec;
+  cursor: pointer;
+  text-align: left;
+}
+.export-format-row:hover { background: #243a6a; border-color: #6a9fd8; }
+.export-format-icon { font-size: 20px; flex: 0 0 auto; width: 24px; text-align: center; }
+.export-format-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.export-format-label { font-size: 13px; color: #eaf0fb; }
+.export-format-desc { font-size: 11px; color: #8b97ad; line-height: 1.3; }
+
 /* ─── Contrôle de filtre custom (toolbar, S7 C) ──────────────────────────────── */
 /* Menu déroulant maison : les <option> natives n'affichent pas de couleur de fond
    sous Firefox → on dessine nos propres lignes avec pastilles de couleur. */
