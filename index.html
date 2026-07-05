@@ -29,6 +29,13 @@
       <label>Espacement horizontal entre tâches (px)
         <input type="number" id="settings-hgap" min="0" step="5">
       </label>
+      <label>Style des liens
+        <select id="settings-linkmode">
+          <option value="courbe">Courbe</option>
+          <option value="droit">Droit</option>
+          <option value="coude">Coudé (contourne les tâches)</option>
+        </select>
+      </label>
       <label class="settings-check">
         <input type="checkbox" id="settings-propwidth">
         Largeur des tâches proportionnelle à la durée
@@ -186,6 +193,7 @@
   <script src="src/export_xlsx.js"></script>
   <script src="src/export_gantt.js"></script>
   <script src="src/export_microjalons.js"></script>
+  <script src="src/link_routing.js"></script>
   <script src="src/ui.js"></script>
 </body>
 </html>

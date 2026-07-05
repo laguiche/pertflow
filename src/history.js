@@ -95,6 +95,8 @@
         global.pertMeta.t0 = data.meta.t0;
         global.pertMeta.unit = data.meta.unit;
         global.pertMeta.layout_gap = data.meta.layout_gap;
+        // S10 style des liens (defaut "courbe" si snapshot anterieur sans la cle)
+        global.pertMeta.link_mode = data.meta.link_mode || "courbe";
         // #18 largeur ∝ duree (defaut true si snapshot anterieur sans la cle)
         global.pertMeta.prop_width = data.meta.prop_width !== false;
         // S8.5 parametres d'estimation de cout (defauts si snapshot anterieur)
@@ -116,6 +118,8 @@
       if (titleEl) titleEl.textContent = global.pertMeta.title || "PertFlow";
       if (global.showProperties) global.showProperties(null);
       if (global.updateStatus) global.updateStatus();
+      // S10 : le mode de liens fait partie de meta → le reappliquer apres restauration
+      if (global.pertApplyLinkMode) global.pertApplyLinkMode();
       if (global.pertCanvas) global.pertCanvas.setDirty(true, true);
     } finally {
       history.restoring = false;

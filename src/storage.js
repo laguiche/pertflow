@@ -22,6 +22,8 @@ function pertSerializeProject() {
       t0: meta.t0 || "",
       unit: meta.unit || "j",
       layout_gap: meta.layout_gap != null ? meta.layout_gap : 30,
+      // S10 style des liens (defaut "courbe" si absent : anciens .pert)
+      link_mode: meta.link_mode || "courbe",
       // #18 largeur des taches ∝ duree (defaut true si absent : anciens .pert)
       prop_width: meta.prop_width !== false,
       // S8.5 parametres d'estimation de cout (defauts si absents : anciens .pert)
@@ -99,6 +101,8 @@ function pertApplyProject(data) {
   window.pertMeta.t0 = meta.t0 || "";
   window.pertMeta.unit = meta.unit || "j";
   window.pertMeta.layout_gap = meta.layout_gap != null ? meta.layout_gap : 30;
+  // S10 style des liens (defaut "courbe" pour les fichiers anterieurs sans la cle)
+  window.pertMeta.link_mode = meta.link_mode || "courbe";
   // #18 largeur ∝ duree (defaut true pour les fichiers anterieurs sans la cle)
   window.pertMeta.prop_width = meta.prop_width !== false;
   // S8.5 parametres d'estimation de cout (defauts pour les fichiers anterieurs)
@@ -128,6 +132,8 @@ function pertApplyProject(data) {
 
   pertRecalc();
   updateStatus();
+  // S10 : applique le style de liens du projet charge (courbe/droit/coude)
+  if (window.pertApplyLinkMode) pertApplyLinkMode();
   pertZoomToFit();
 
   // Nouvelle reference d'historique : le projet charge devient la baseline d'undo
