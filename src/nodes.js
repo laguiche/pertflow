@@ -87,7 +87,7 @@ function ellipsize(ctx, text, maxWidth) {
 // ─── #16 Filtre / mise en évidence (S7) ─────────────────────────────────────────
 //
 // window.pertFilter (defini dans ui.js, etat de vue non serialise) :
-//   null | { type:"group", value } | { type:"color", value }
+//   null | { type:"group", value } | { type:"color", value } | { type:"responsible", value }
 // Un nœud "estompe" recoit un voile translucide (pertDrawDimVeil), dessine en
 // onDrawForeground → par-dessus le contenu ET les slots (l'avant-plan est rendu en
 // dernier par LiteGraph). Sans filtre actif, rien n'est estompe. Seules les
@@ -105,13 +105,16 @@ function pertNodeDimmed(node) {
   if (f.type === "color") {
     return !(isAct && (node.properties.color || "").toLowerCase() === String(f.value).toLowerCase());
   }
+  if (f.type === "responsible") {
+    return !(isAct && (node.properties.responsible || "").trim() === f.value);
+  }
   return false;
 }
 
 function pertDrawDimVeil(ctx, node) {
   if (!pertNodeDimmed(node)) return;
   ctx.save();
-  ctx.fillStyle = "rgba(248,249,251,0.78)"; // voile clair : estompe sans masquer
+  ctx.fillStyle = "rgba(18,18,42,0.72)"; // voile sombre (thème sombre) : estompe sans masquer
   ctx.fillRect(0, 0, node.size[0], node.size[1]);
   ctx.restore();
 }
