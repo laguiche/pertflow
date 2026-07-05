@@ -695,6 +695,31 @@ Validé par `tools/smoke-s10.js` (bascule des modes, évitement d'un obstacle, r
 réel coudé, non-régression #15) + smoke général sans régression + capture de contrôle (lien
 contournant un nœud), puis validation visuelle utilisateur. Tag `v0.14`.
 
+### Session Doc — Manuel & documentation (✅ 06/07/2026)
+
+**Dernière session de la roadmap.** Trois documents illustrant l'application aboutie :
+
+- **Manuel utilisateur** (français, illustré de captures réelles) : prise en main rapide,
+  explication du moteur PERT (calcul des dates, marges, chemin critique, et les subtilités des
+  **jalons entrants / sortants / points de contrôle** avec la notion de **cible**), et l'ensemble
+  des fonctionnalités sans exception.
+- **Document de conception** (architecture, contraintes `file://`/MIT, choix techniques justifiés).
+- **Document de maintenance** (reprise du projet, pièges LiteGraph, outillage, rituel).
+
+- **Décision utilisateur — 3 formats par document** : Markdown (source) + **HTML autonome**
+  (images embarquées, consultable hors ligne) + **PDF**. Un pipeline (`tools/build-docs.js`)
+  régénère HTML et PDF depuis le Markdown à chaque évolution → cohérent avec l'esprit `file://`
+  du produit (documents autoportants, sans dépendance réseau).
+- **Retours utilisateur intégrés** : ne mentionner que le bundle distribué (`pertflow.html`) ;
+  clarifier le vocabulaire nœud/tâche dès l'introduction ; alléger les illustrations superflues.
+- **Apport méthode/IA** : les captures d'écran sont produites **automatiquement** à partir d'un
+  projet démo scripté (`tools/doc-shots.js`), et les formats HTML/PDF sont **générés** — la
+  documentation est donc **reproductible** et se met à jour sans travail manuel de mise en page.
+
+**Clôture** : documentation uniquement (aucune modification du code applicatif) → commit des docs
+**sans nouveau tag ni régénération du bundle** (réservés aux évolutions fonctionnelles). Le
+livrable applicatif reste `v0.14`. **La roadmap est terminée.**
+
 ---
 
 ## Backlog réorienté (à partir du 22/06/2026)

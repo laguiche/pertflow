@@ -1433,25 +1433,43 @@ Sur un PERT chargé, les liens restent lisibles sans masquer les nœuds.
 
 ---
 
-### Session Doc — Manuel utilisateur & documentation de conception/maintenance ⏳ À VENIR (en fin de parcours)
+### Session Doc — Manuel utilisateur & documentation de conception/maintenance ✅ TERMINÉE (06/07/2026)
 Placée intentionnellement en dernier (décision du 27/06/2026) pour que le manuel illustre
-l'application aboutie, sans refaire les captures à chaque ajout de fonctionnalité.
+l'application aboutie. **Dernière session de la roadmap.** Livrée sur la branche `session/doc`.
 **Objectifs** :
-- [ ] **Manuel utilisateur** de PertFlow (prise en main, toolbar, nœuds, calcul PERT,
-  import Excel, sauvegarde/export) — illustré de captures d'écran réelles
-- [ ] **Document de conception logicielle** : architecture (fichiers `file://`, libs
-  locales, modèle de données, moteur PERT, rendu LiteGraph custom), choix techniques
-  et leurs justifications (s'appuyer sur ce `CLAUDE.md` et `docs/journal-developpement.md`)
-- [ ] **Document de maintenance** : comment reprendre/faire évoluer le projet (pièges
-  LiteGraph, contraintes DSI, points de vigilance), pour une reprise par une autre
-  personne ou une équipe de l'entreprise
+- [x] **Manuel utilisateur** (`docs/manuel-utilisateur.md`) — 100 % français, illustré de
+  captures réelles : prise en main rapide (quick start), moteur PERT (dates, marges, chemin
+  critique, **jalons entrants/sortants/points de contrôle + notion de cible**), et **toutes**
+  les fonctionnalités (interface, 3 types de nœuds, panneau, réorganiser/grille/styles de
+  liens/filtre, groupes, coûts, import Excel, sauvegarde/autosave, 6 exports, paramètres,
+  raccourcis, FAQ). Note « Vocabulaire » en tête (nœud/lien/tâche + 3 types) sur retour user.
+- [x] **Document de conception** (`docs/conception.md`) — contraintes `file://`/MIT,
+  architecture, modèle de données, moteur PERT, rendu LiteGraph custom, exports, packaging,
+  tableau des choix techniques justifiés.
+- [x] **Document de maintenance** (`docs/maintenance.md`) — reprise, contraintes absolues,
+  pièges LiteGraph, recettes « comment ajouter… », outillage `tools/`, rituel, vigilances.
 
-**Captures d'écran** : produites via l'outillage `tools/screenshot.js` (Playwright
-local, `file://`) — modes `--app` (UI complète) et `--graph` (planning seul).
+**Décisions (retours utilisateur, 06/07/2026)** :
+- **3 formats par document** (demande user) : **Markdown (source) + HTML autonome + PDF**.
+  HTML autonome = images embarquées en data-URI (consultable hors ligne d'un double-clic), PDF
+  A4 imprimable. **Pipeline** : `tools/build-docs.js` (chaîne `tools/_md2html.py` = python-markdown
+  → HTML autonome + CSS d'impression + images data-URI, puis Chromium/Playwright → PDF). Sorties
+  `docs/*.html` et `docs/*.pdf` **versionnées**. Règle permanente : à chaque évolution d'un doc,
+  régénérer les 3 formats. (Cf. mémoire feedback-doc-formats.)
+- **Retouches manuel** : ne mentionner que le **bundle `pertflow.html`** (pas `index.html` —
+  seul le bundle est distribué) ; vocabulaire nœud/tâche clarifié en tête ; capture de barre
+  d'état retirée du chapitre coûts (texte suffisant).
+- **Clôture sans tag ni bundle** (décision user) : la session Doc ne modifie pas le code de
+  l'app → **commit docs uniquement, pas de nouveau tag, pas de régénération du bundle** (ces
+  mécanismes restent réservés aux évolutions fonctionnelles). Le bundle reste en `v0.14`.
+
+**Captures d'écran** : `tools/doc-shots.js` (projet démo relabellisé FR) → `docs/images/manuel/`
+(9 PNG). `tools/screenshot.js` reste disponible (modes `--app` / `--graph`).
 
 **Critère de validation** :
-Un nouvel arrivant prend en main l'outil avec le manuel seul ; un développeur tiers
-comprend l'architecture et peut intervenir avec la doc de conception/maintenance.
+Un nouvel arrivant prend en main l'outil avec le manuel seul ; un développeur tiers comprend
+l'architecture et peut intervenir avec la doc de conception/maintenance. **Validé par
+l'utilisateur** (relecture du manuel + retouches appliquées).
 
 ---
 
@@ -1788,3 +1806,21 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   visuelle utilisateur**. **Mergé sur `main`, tagué `v0.14`, poussé** (rituel : bundle `--tag v0.14`
   régénéré + versionné). Prochaine étape : **session Doc** (manuel + conception/maintenance),
   dernière de la roadmap.
+
+### Session Doc (06/07/2026) — manuel utilisateur & doc conception/maintenance
+- **Dernière session de la roadmap.** Sur la branche `session/doc`. Détail et décisions dans la
+  section « Session Doc » plus haut. Trois documents en `docs/` : **manuel utilisateur** (FR,
+  quick start, moteur PERT + jalons entrants/sortants/cible, toutes les fonctionnalités, 9
+  captures réelles), **conception** (architecture, choix techniques), **maintenance** (reprise,
+  pièges LiteGraph, outillage, rituel).
+- **Décision user : 3 formats par document** — Markdown (source) + **HTML autonome** (images
+  data-URI, hors ligne) + **PDF**. Pipeline `tools/build-docs.js` (`_md2html.py` python-markdown +
+  Chromium/Playwright). Sorties `docs/*.html` / `docs/*.pdf` versionnées ; à régénérer à chaque
+  évolution d'un doc. Captures via `tools/doc-shots.js` (projet démo relabellisé FR).
+- **Retouches manuel (retour user)** : seul le bundle `pertflow.html` mentionné (pas `index.html`) ;
+  vocabulaire nœud/tâche en tête ; capture barre d'état retirée du chapitre coûts.
+- **Clôture sans tag ni bundle** (décision user) : docs uniquement → pas de code modifié → **commit
+  docs, pas de nouveau tag, bundle inchangé (`v0.14`)** ; ces mécanismes restent pour les évolutions
+  fonctionnelles. **Roadmap terminée.** Fichiers : `docs/manuel-utilisateur.{md,html,pdf}`,
+  `docs/conception.{md,html,pdf}`, `docs/maintenance.{md,html,pdf}`, `docs/images/manuel/*.png`,
+  CLAUDE.md + journal (`tools/build-docs.js`, `_md2html.py`, `doc-shots.js` = outillage gitignoré).
