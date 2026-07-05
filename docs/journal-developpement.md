@@ -668,6 +668,33 @@ Validé par `tools/smoke-s9.js` (6 formats + ordre, CSV, magic ZIP des xlsx, MSP
 `tools/smoke.js` adapté (PNG/PDF via la fenêtre) + smoke S6/S7 sans régression, 0 erreur console,
 puis validation visuelle utilisateur (ouverture Excel / import MS Project). Tag `v0.13`.
 
+### Session 10 — Rendu des liens & layout (✅ 05/07/2026, tag v0.14)
+
+**Lisibilité des liens** (#46 droit/coudé, #19 évitement des nœuds). Concept cadré avec
+l'utilisateur avant de coder, via un échange révélateur : ses questions portaient moins sur le
+rendu que sur le **comportement** (« que se passe-t-il quand je déplace une tâche ? et quand je
+tire un lien pour connecter ? » « la perf m'inquiète »). Ces questions ont **orienté la
+conception** avant la première ligne de code.
+
+- **3 styles de liens** (`meta.link_mode`, sélecteur dans Paramètres) : Courbe (défaut), Droit,
+  **Coudé** = routage orthogonal custom à angles droits qui **contourne** les activités
+  intercalées (#19). Best-effort, pas de pathfinding complet (écarté : trop coûteux/peu KISS).
+- **Réponses aux inquiétudes de l'utilisateur, intégrées à la conception** : le placement manuel
+  n'est jamais modifié (déplacer une tâche ne relance aucun layout, le routage est cosmétique et
+  recalculé en direct) ; le lien élastique de création reste une simple courbe (visée fluide) ;
+  perf tenue par élagage spatial + dégradation automatique au-delà de 300 nœuds.
+- **Apport méthode/IA** : le bon design est venu de la **clarification du comportement attendu**
+  (drag de nœud, drag de lien, perf) *avant* l'implémentation — pas d'un choix technique a priori.
+  *Leçon transférable* : sur une feature d'interaction, expliciter « que se passe-t-il quand… »
+  pour chaque geste utilisateur cadre le périmètre mieux qu'une spec fonctionnelle.
+- **Technique** : surcharge de `renderLink` sur l'instance `LGraphCanvas` (sans patcher la lib),
+  routage orthogonal (canal vertical, sinon bande horizontale, sinon Z simple) ; `meta.link_mode`
+  sérialisé/restauré ; 100% `file://`, zéro dépendance.
+
+Validé par `tools/smoke-s10.js` (bascule des modes, évitement d'un obstacle, round-trip, rendu
+réel coudé, non-régression #15) + smoke général sans régression + capture de contrôle (lien
+contournant un nœud), puis validation visuelle utilisateur. Tag `v0.14`.
+
 ---
 
 ## Backlog réorienté (à partir du 22/06/2026)

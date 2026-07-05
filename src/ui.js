@@ -33,6 +33,10 @@ document.addEventListener("DOMContentLoaded", () => {
   lgCanvas.render_shadows = false;
   lgCanvas.render_connections_border = true;
   lgCanvas.connections_width = 2;
+  // S10 : rendu des liens (courbe / droit / coudé orthogonal avec évitement #19/#46).
+  // Surcharge de renderLink sur l'instance (sans patcher la lib) + application du mode.
+  if (window.pertInstallLinkRouting) pertInstallLinkRouting(lgCanvas);
+  if (window.pertApplyLinkMode) pertApplyLinkMode();
   // Cadre par défaut LiteGraph dessiné en coords graphe (ancré à l'origine 0,0) :
   // il se décale visuellement après recadrage « Tout afficher ». Inutile ici.
   lgCanvas.render_canvas_border = false;
@@ -1150,6 +1154,8 @@ function openSettings() {
   document.getElementById("settings-unit").value = window.pertMeta.unit || "j";
   document.getElementById("settings-hgap").value =
     window.pertMeta.layout_gap != null ? window.pertMeta.layout_gap : 30;
+  // S10 style des liens (defaut "courbe" : comportement historique)
+  document.getElementById("settings-linkmode").value = window.pertMeta.link_mode || "courbe";
   // #18 case cochee par defaut (proportionnalite active sauf desactivation explicite)
   document.getElementById("settings-propwidth").checked =
     window.pertMeta.prop_width !== false;
@@ -1172,6 +1178,9 @@ function saveSettings() {
   window.pertMeta.unit = document.getElementById("settings-unit").value;
   const hgap = parseFloat(document.getElementById("settings-hgap").value);
   window.pertMeta.layout_gap = isNaN(hgap) ? 30 : Math.max(0, hgap);
+  // S10 style des liens : applique immediatement (redessin)
+  window.pertMeta.link_mode = document.getElementById("settings-linkmode").value || "courbe";
+  if (window.pertApplyLinkMode) pertApplyLinkMode();
   // #18 largeur ∝ duree (re-applique par updateSize sur tous les nœuds ci-dessous)
   window.pertMeta.prop_width = document.getElementById("settings-propwidth").checked;
   // Sauvegarde automatique : bascule prise en compte immediatement par le module

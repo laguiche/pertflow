@@ -1375,13 +1375,58 @@ contrainte de destination `file://` explicitée à l'utilisateur.
 
 ---
 
-### Session 10 — Rendu des liens & layout ⏳ À VENIR
+### Session 10 — Rendu des liens & layout ✅ TERMINÉE le 05/07/2026 (tag **v0.14**)
+> Implémentée, validée par tests headless (`tools/smoke-s10.js` + smoke général) **et
+> validée visuellement par l'utilisateur** ; branche `session/10-liens-layout` mergée sur
+> `main`, taguée **v0.14** (rituel appliqué : bundle `--tag v0.14` régénéré + versionné).
+> Défaut conservé = `"courbe"` (non-disruptif).
 **Objectifs** :
-- [ ] **#19** Liens qui ne passent plus sous/sur les activités (routage évitant les nœuds)
-- [ ] **#46** Liens droits ou coudés au choix (la grille aimantée du même point est
-  couverte par le snap-to-grid de S4)
-- [ ] **#15 (suite)** Affiner la réorganisation automatique si la superposition de Label
-  n'a pas été entièrement résolue en S5
+- [x] **#46** Liens **droits ou coudés au choix** — 3 styles pilotés par `meta.link_mode`
+  (`"courbe"` défaut / `"droit"` / `"coude"`), sélecteur dans **Paramètres**. Le coudé =
+  vrais angles droits (routage orthogonal custom).
+- [x] **#19** Liens qui **ne passent plus sous/sur les activités** — en mode coudé, routage
+  orthogonal **best-effort contournant** les nœuds intercalés.
+- [x] **#15 (suite)** — vérifié : `pertRelocateOverlappingLabels` (S5) toujours en place et
+  couvre le cas ; pas de retouche nécessaire.
+
+**Décisions de conception (arbitrage utilisateur du 05/07/2026, via AskUserQuestion)** :
+- **#46 = 3 styles** dont un **coudé orthogonal custom** (pas seulement les modes natifs
+  LiteGraph), basculable dans **Paramètres** (cohérent avec `prop_width`/`layout_gap`).
+- **#19 = routage orthogonal contournant les nœuds** (best-effort), PAS de pathfinding complet
+  (écarté : trop coûteux/peu KISS). Garde-fous perf : élagage spatial + **dégradation auto
+  au-delà de `PERT_LINK_AVOID_MAX=300` nœuds** (routage orthogonal simple sans test de collision).
+- **Le placement manuel n'est JAMAIS modifié** : déplacer une tâche ne relance PAS le layout
+  (`pertAutoLayout` reste manuel) ; le routage est purement cosmétique, recalculé en direct.
+- **Le lien élastique de création** (drag pour connecter, objet lien `null`) reste une **simple
+  courbe native** → visée fluide, aucun calcul d'évitement pendant le tirage.
+
+**Implémentation — décisions notables (05/07/2026)** :
+- **`src/link_routing.js`** : surcharge de `renderLink` **sur l'instance** `LGraphCanvas`
+  (comme les menus contextuels, sans patcher la lib). Mode `coude` + lien **réel** → tracé
+  orthogonal custom (`pertRenderOrthogonalLink` : bordure + trait coloré + flèche, en
+  reproduisant la résolution de couleur native `link.color`/highlight/défaut) ; sinon (courbe/
+  droit, ou lien élastique `null`) → rendu natif. `pertApplyLinkMode` règle
+  `links_render_mode` natif (`droit`→STRAIGHT, `courbe`/`coude`→SPLINE pour l'élastique) et
+  `setDirty` (⚠️ `LGraphCanvas.setDirty`, PAS `setDirtyCanvas` qui est sur graphe/nœud).
+- **Routage** (`pertRouteOrthogonal`) : (1) canal vertical « Z » testé au milieu puis aux bords
+  de chaque obstacle ; (2) si échec, **bande horizontale** par-dessus/dessous les obstacles de
+  l'empan ; (3) fallback Z simple. Collision = segments axis-aligned vs rectangles
+  (`pertSegHitsRect`). Obstacles = tous les nœuds **sauf les 2 extrémités**, élagués à la zone
+  du lien (`pertCollectObstacles`, renvoie `null` si > `PERT_LINK_AVOID_MAX` → pas de test).
+- **`meta.link_mode`** (défaut `"courbe"` = comportement historique) sérialisé (`storage.js`,
+  défaut anciens fichiers) + restauré (`history.js`) ; `pertApplyLinkMode` rappelé après
+  chargement (`storage.js`), undo (`history.js`) et `saveSettings`. Sélecteur `#settings-linkmode`
+  dans le dialogue Paramètres.
+- **Validation** : `tools/smoke-s10.js` (bascule des 3 modes → `links_render_mode` attendu ;
+  `pertRouteOrthogonal` contourne un obstacle posé sur la ligne ; Z simple / mode dégradé ;
+  rendu réel `.pert` en mode coudé sans erreur ; round-trip `meta.link_mode` ; #15 présent),
+  `tools/smoke.js` sans régression (mode courbe par défaut), capture de contrôle (lien
+  contournant un nœud non relié par-dessous, en angles droits). 0 erreur console.
+- **Défaut = `"courbe"`** (non-disruptif pour les projets existants) ; l'utilisateur active le
+  coudé dans Paramètres. À rediscuter si l'on veut le coudé par défaut.
+- **Fichiers** : `src/link_routing.js` (nouveau), `index.html` (`<script>` + `#settings-linkmode`),
+  `src/ui.js` (install + apply à l'init, open/saveSettings), `src/storage.js` + `src/history.js`
+  (sérialisation/restauration + apply), `tools/smoke-s10.js`.
 
 **Critère de validation** :
 Sur un PERT chargé, les liens restent lisibles sans masquer les nœuds.
@@ -1722,3 +1767,24 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   **validation visuelle utilisateur** (Excel + import MS Project). **Mergé sur `main`, tagué
   `v0.13`, poussé** (rituel : bundle `--tag v0.13` régénéré + versionné). Prochaine étape : **S10
   (rendu des liens & layout)** — ou la session Doc si l'utilisateur préfère.
+
+### Session 10 (05/07/2026) — rendu des liens & layout (#46, #19, #15)
+- Sur la branche `session/10-liens-layout`. **Concept cadré avec l'utilisateur avant de coder**
+  (2 arbitrages via AskUserQuestion, après échanges sur le comportement au déplacement de nœud
+  et la perf). Détail complet et décisions dans la section Session 10 plus haut. **#46** : 3
+  styles de liens (`meta.link_mode` = courbe/droit/coudé) dans Paramètres, le coudé = routage
+  orthogonal custom ; **#19** : en mode coudé, contournement best-effort des nœuds intercalés ;
+  **#15** : vérifié (pertRelocateOverlappingLabels S5 suffit).
+- Décisions : coudé = vrai orthogonal custom (pas les modes natifs seuls) ; évitement best-effort
+  (pas de pathfinding complet) avec garde-fous perf (élagage + dégradation > 300 nœuds) ;
+  placement manuel jamais modifié (routage cosmétique) ; lien élastique de création reste une
+  courbe simple. Défaut = courbe (non-disruptif).
+- Fichiers : `src/link_routing.js` (nouveau : surcharge instance de `renderLink`, `pertRouteOrthogonal`,
+  `pertRenderOrthogonalLink`, `pertApplyLinkMode`), `index.html` (`<script>` + `#settings-linkmode`),
+  `src/ui.js` (install + apply à l'init + open/saveSettings), `src/storage.js` + `src/history.js`
+  (sérialisation/restauration `link_mode` + apply), `tools/smoke-s10.js`.
+- Validé : `tools/smoke-s10.js` (bascule modes, évitement, round-trip, rendu réel coudé, #15) +
+  smoke général sans régression + capture de contrôle (lien contournant un nœud) + **validation
+  visuelle utilisateur**. **Mergé sur `main`, tagué `v0.14`, poussé** (rituel : bundle `--tag v0.14`
+  régénéré + versionné). Prochaine étape : **session Doc** (manuel + conception/maintenance),
+  dernière de la roadmap.
