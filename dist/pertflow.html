@@ -1215,6 +1215,14 @@ body {
 .filter-swatch.none {
   background: repeating-linear-gradient(45deg, #6a7390, #6a7390 3px, #aab2c8 3px, #aab2c8 6px);
 }
+/* Pastille "icone" (responsable, dimension sans couleur) : glyphe centre, sans cadre */
+.filter-swatch.icon {
+  border: none;
+  background: none;
+  font-size: 12px;
+  line-height: 14px;
+  text-align: center;
+}
 
 .filter-menu {
   position: absolute;
@@ -1361,7 +1369,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"02/07/2026 23:58","tag":"v0.12.2"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"05/07/2026 15:59","tag":"v0.12.3"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -36560,7 +36568,7 @@ function ellipsize(ctx, text, maxWidth) {
 // ─── #16 Filtre / mise en évidence (S7) ─────────────────────────────────────────
 //
 // window.pertFilter (defini dans ui.js, etat de vue non serialise) :
-//   null | { type:"group", value } | { type:"color", value }
+//   null | { type:"group", value } | { type:"color", value } | { type:"responsible", value }
 // Un nœud "estompe" recoit un voile translucide (pertDrawDimVeil), dessine en
 // onDrawForeground → par-dessus le contenu ET les slots (l'avant-plan est rendu en
 // dernier par LiteGraph). Sans filtre actif, rien n'est estompe. Seules les
@@ -36578,13 +36586,16 @@ function pertNodeDimmed(node) {
   if (f.type === "color") {
     return !(isAct && (node.properties.color || "").toLowerCase() === String(f.value).toLowerCase());
   }
+  if (f.type === "responsible") {
+    return !(isAct && (node.properties.responsible || "").trim() === f.value);
+  }
   return false;
 }
 
 function pertDrawDimVeil(ctx, node) {
   if (!pertNodeDimmed(node)) return;
   ctx.save();
-  ctx.fillStyle = "rgba(248,249,251,0.78)"; // voile clair : estompe sans masquer
+  ctx.fillStyle = "rgba(18,18,42,0.72)"; // voile sombre (thème sombre) : estompe sans masquer
   ctx.fillRect(0, 0, node.size[0], node.size[1]);
   ctx.restore();
 }
@@ -39697,9 +39708,10 @@ function pertRecolorGroup(groupName, color) {
 // ─── #16 Filtre / mise en évidence (par groupe ou couleur) — S7 (C) ──────────────
 //
 // Le filtre est un etat de VUE (window.pertFilter), non serialise dans le .pert :
-//   null                         → aucun filtre (tout en pleine intensite)
-//   { type:"group", value:"WP1" } → seules les Activites du groupe restent vives
-//   { type:"color", value:"#.." } → seules les Activites de cette couleur restent vives
+//   null                              → aucun filtre (tout en pleine intensite)
+//   { type:"group", value:"WP1" }      → seules les Activites du groupe restent vives
+//   { type:"color", value:"#.." }      → seules les Activites de cette couleur restent vives
+//   { type:"responsible", value:"..." }→ seules les Activites de ce responsable restent vives
 // Les nœuds non concernes sont ESTOMPES (voile translucide dessine dans nodes.js,
 // pertDrawDimVeil). On ne cache rien (les liens et la structure restent lisibles),
 // on attire l'œil sur l'ensemble selectionne. Couvre import (couleur d'un lot) et
@@ -39746,6 +39758,7 @@ function pertFilterStillValid() {
     const lc = String(f.value).toLowerCase();
     return collectActivityColors().some(c => c.toLowerCase() === lc);
   }
+  if (f.type === "responsible") return collectResponsibles().indexOf(f.value) !== -1;
   return false;
 }
 
@@ -39771,8 +39784,15 @@ function toggleFilterMenu() {
 }
 
 // Crée une pastille de couleur (carré). color null → motif hachuré "aucun".
-function buildFilterSwatch(color) {
+// icon (optionnel) : glyphe affiché à la place de la pastille (ex. 👤 pour un
+// responsable, dimension sans couleur associée).
+function buildFilterSwatch(color, icon) {
   const sw = document.createElement("span");
+  if (icon) {
+    sw.className = "filter-swatch icon";
+    sw.textContent = icon;
+    return sw;
+  }
   sw.className = "filter-swatch" + (color ? "" : " none");
   if (color) sw.style.background = color;
   return sw;
@@ -39788,11 +39808,12 @@ function buildFilterHeader(text) {
 
 // Une ligne cliquable du menu : pastille + libellé. filter = descripteur (ou null
 // pour "aucun"). color = teinte de la pastille (ou null → motif "aucun").
-function buildFilterRow(filter, label, color) {
+// icon (optionnel) : glyphe de pastille pour une dimension sans couleur (responsable).
+function buildFilterRow(filter, label, color, icon) {
   const row = document.createElement("button");
   row.type = "button";
   row.className = "filter-menu-row" + (filterEquals(window.pertFilter, filter) ? " active" : "");
-  row.appendChild(buildFilterSwatch(color));
+  row.appendChild(buildFilterSwatch(color, icon));
   const txt = document.createElement("span");
   txt.className = "filter-row-label";
   txt.textContent = label;
@@ -39824,6 +39845,13 @@ function refreshFilterOptions() {
     groups.forEach(g => menu.appendChild(buildFilterRow({ type: "group", value: g }, g, reg[g] || null)));
   }
 
+  const responsibles = collectResponsibles();
+  if (responsibles.length) {
+    menu.appendChild(buildFilterHeader("Responsables"));
+    responsibles.forEach(r => menu.appendChild(
+      buildFilterRow({ type: "responsible", value: r }, r, null, "👤")));
+  }
+
   const colors = collectActivityColors();
   if (colors.length) {
     menu.appendChild(buildFilterHeader("Couleurs"));
@@ -39838,9 +39866,11 @@ function updateFilterTrigger() {
   cur.innerHTML = "";
   const f = window.pertFilter;
   if (!f) { cur.textContent = "🔎 Filtre : aucun"; return; }
-  const color = f.type === "group" ? (pertGroups()[f.value] || null) : f.value;
-  const label = f.type === "group" ? f.value : pertColorGroupLabel(f.value);
-  cur.appendChild(buildFilterSwatch(color));
+  let color = null, label, icon = null;
+  if (f.type === "group") { color = pertGroups()[f.value] || null; label = f.value; }
+  else if (f.type === "responsible") { label = f.value; icon = "👤"; }
+  else { color = f.value; label = pertColorGroupLabel(f.value); }
+  cur.appendChild(buildFilterSwatch(color, icon));
   const txt = document.createElement("span");
   txt.className = "filter-row-label";
   txt.textContent = label;
@@ -39852,9 +39882,10 @@ function applyFilter(filter) {
   window.pertFilter = filter;
   if (window.pertGraph) window.pertGraph.setDirtyCanvas(true, true);
   if (!filter) { showToast("Filtre désactivé"); return; }
-  const label = filter.type === "group"
-    ? "groupe « " + filter.value + " »"
-    : "couleur de « " + pertColorGroupLabel(filter.value) + " »";
+  let label;
+  if (filter.type === "group") label = "groupe « " + filter.value + " »";
+  else if (filter.type === "responsible") label = "responsable « " + filter.value + " »";
+  else label = "couleur de « " + pertColorGroupLabel(filter.value) + " »";
   showToast("Filtre actif : " + label + " mis en évidence");
 }
 window.refreshFilterOptions = refreshFilterOptions;

@@ -1133,6 +1133,47 @@ régénéré + versionné). La Session 9 sera **v0.13**.
 
 ---
 
+### Correctifs pré-Session 9 (suite 2) — Filtre : voile sombre & axe responsable ✅ TERMINÉS (05/07/2026, tag v0.12.3)
+Deux petites évolutions du filtre demandées par l'utilisateur (« à gérer en indice mineur »)
+avant d'ouvrir la S9. **4e passe patch : `v0.12.3`** (v0.12.2 = ergonomie & autosave). La
+Session 9 reste **v0.13**.
+**Objectifs** :
+- [x] **Voile d'estompage cohérent avec le thème sombre** — le filtre (#16, S7) estompait les
+  nœuds hors sélection avec un voile **clair** `rgba(248,249,251,0.78)` (quasi blanc), incohérent
+  sur le thème sombre de l'app. Repassé en voile **sombre** `rgba(18,18,42,0.72)` aligné sur le
+  fond du canvas (`#12122a`) : les tâches masquées sont *assombries* au lieu d'être blanchies.
+  Un seul point de changement (`pertDrawDimVeil` dans `nodes.js`) → bénéficie à tous les nœuds
+  estompés (Activités/Jalons/Labels).
+- [x] **Filtre par responsable** — nouveau 3e axe `{ type:"responsible", value }`, **symétrique**
+  aux filtres groupe/couleur existants (aucune refonte). Le responsable n'ayant pas de couleur
+  associée, il s'affiche dans le menu avec une **pastille icône 👤** (au lieu d'un carré coloré).
+
+**Décision de conception** : extension **par symétrie stricte** du motif de filtre S7 (menu
+déroulant custom à pastilles, déjà adopté pour la fiabilité cross-navigateur) — surface de
+risque minimale, réutilise `collectResponsibles()` (déjà présent depuis S6 pour la datalist
+Responsable). Le filtre reste un **état de vue** `window.pertFilter` **non sérialisé**.
+
+**Implémentation — décisions notables (05/07/2026)** :
+- **Voile** : `pertDrawDimVeil` (`nodes.js`) — seule la couleur de remplissage change.
+- **`pertNodeDimmed`** (`nodes.js`) : branche `f.type === "responsible"` → estompe si
+  `properties.responsible` (trim) ≠ valeur du filtre. Seules les Activités portent un responsable
+  → Jalons/Labels estompés dès qu'un filtre responsable est actif (comme pour groupe/couleur).
+- **`ui.js`** : `pertFilterStillValid` (invalide si le responsable a disparu du graphe),
+  `refreshFilterOptions` (section « Responsables » entre Groupes et Couleurs, alimentée par
+  `collectResponsibles()`), `updateFilterTrigger` + `applyFilter` (toast) gèrent le cas
+  responsable. `buildFilterSwatch(color, icon)` et `buildFilterRow(filter, label, color, icon)`
+  reçoivent un param **icône** optionnel (👤) pour une dimension sans couleur.
+- **`css/style.css`** : `.filter-swatch.icon` (glyphe centré, sans cadre ni fond).
+
+**Validation** : `tools/smoke-s7.js` (non-régression du filtre groupe/couleur) + vérification e2e
+dédiée du nouvel axe (dimming Alice vives / Bob+sans-responsable estompés, `collectResponsibles`
+dédoublonné+trié, section « Responsables » + pastille 👤 dans le menu, validité Alice/absent,
+déclencheur « 👤 Bob ») — Playwright/Chromium `file://`, 0 erreur console. **Validée par
+l'utilisateur** avant clôture (rituel : bundle `--tag v0.12.3` régénéré + versionné). La Session 9
+sera **v0.13**.
+
+---
+
 ### Session 9 — Exports avancés ⏳ À VENIR
 **Objectifs** :
 - [ ] **#21** Export Excel (notamment pour faciliter le micro-jalonnement) — s'appuie
@@ -1460,3 +1501,19 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
 - Validé : `tools/smoke-center-toolbar.js` + `tools/smoke-autosave.js` + smoke général sans régression
   (Playwright/Chromium, `file://`). **Validation utilisateur** avant clôture ; **mergé sur `main`,
   tagué `v0.12.2`, poussé** (rituel : bundle `--tag v0.12.2` régénéré + versionné). La Session 9 sera `v0.13`.
+
+### Correctifs pré-Session 9 (suite 2, 05/07/2026) — filtre : voile sombre & axe responsable (tag v0.12.3)
+- Deux petites évolutions du filtre demandées « en indice mineur » avant la S9, branche
+  `fix/filtre-responsable-voile-sombre`. Détail dans la section « Correctifs pré-Session 9 (suite 2) »
+  plus haut. **Voile sombre** : `pertDrawDimVeil` (`src/nodes.js`) passe d'un voile clair
+  `rgba(248,249,251,0.78)` (blanchit, incohérent thème sombre) à un voile sombre `rgba(18,18,42,0.72)`
+  aligné sur le fond `#12122a` du canvas → les tâches hors filtre sont assombries. **Filtre
+  responsable** : nouvel axe `{ type:"responsible", value }` symétrique aux filtres groupe/couleur
+  (`pertNodeDimmed` dans `src/nodes.js` ; `pertFilterStillValid`, section « Responsables » de
+  `refreshFilterOptions`, `updateFilterTrigger`, `applyFilter` dans `src/ui.js` ; réutilise
+  `collectResponsibles()` de S6). Pastille icône **👤** (dimension sans couleur) via `buildFilterSwatch`/
+  `buildFilterRow` (param `icon` optionnel) + `.filter-swatch.icon` (`css/style.css`).
+- Validé : `tools/smoke-s7.js` (non-régression groupe/couleur) + vérification e2e dédiée du filtre
+  responsable (dimming, dédoublonnage, menu + pastille 👤, validité, déclencheur), 0 erreur console.
+  **Validation utilisateur** avant clôture ; **mergé sur `main`, tagué `v0.12.3`, poussé** (rituel :
+  bundle `--tag v0.12.3` régénéré + versionné). La Session 9 sera `v0.13`.

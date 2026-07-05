@@ -523,6 +523,14 @@ body {
 .filter-swatch.none {
   background: repeating-linear-gradient(45deg, #6a7390, #6a7390 3px, #aab2c8 3px, #aab2c8 6px);
 }
+/* Pastille "icone" (responsable, dimension sans couleur) : glyphe centre, sans cadre */
+.filter-swatch.icon {
+  border: none;
+  background: none;
+  font-size: 12px;
+  line-height: 14px;
+  text-align: center;
+}
 
 .filter-menu {
   position: absolute;

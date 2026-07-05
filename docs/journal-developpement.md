@@ -621,6 +621,22 @@ Deux vagues de correctifs avant d'ouvrir la S9, pilotées par des retours d'usag
   Validé par `tools/smoke-center-toolbar.js` + `tools/smoke-autosave.js` + smoke général, puis
   validation visuelle utilisateur. Tags `v0.12`, `v0.12.1`, `v0.12.2` (patchs successifs, S9 = v0.13).
 
+- **3e vague (v0.12.3) — filtre & lisibilité.** Deux petites évolutions demandées sur le filtre :
+  - *Voile d'estompage sombre.* Le filtre estompait les tâches hors sélection avec un voile
+    **clair** (quasi blanc) — incohérent avec le thème sombre de l'app. Repassé sur un ton
+    **sombre** aligné sur le fond du canvas (`rgba(18,18,42,0.72)`, proche du `#12122a`) : les
+    tâches masquées sont désormais *assombries*, ce qui est visuellement plus logique.
+  - *Filtre par responsable.* Le filtre ne connaissait que le groupe et la couleur → ajout d'un
+    3e axe `responsible`, symétrique aux deux existants (dimming `pertNodeDimmed`, validité,
+    section « Responsables » du menu déroulant, déclencheur, toast). N'ayant pas de couleur
+    associée, un responsable s'affiche avec une **pastille icône 👤** (au lieu d'un carré coloré).
+    *Apport méthode/IA* : extension par symétrie stricte d'un motif déjà éprouvé (le filtre S7) →
+    surface de risque minimale, couverte par une vérification e2e ciblée du nouvel axe.
+
+  Validé par `tools/smoke-s7.js` (non-régression) + vérification e2e dédiée du filtre responsable
+  (dimming, dédoublonnage des responsables, menu, validité, déclencheur), 0 erreur console. Tag
+  `v0.12.3` (S9 = v0.13).
+
 ---
 
 ## Backlog réorienté (à partir du 22/06/2026)
