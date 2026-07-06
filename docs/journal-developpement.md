@@ -722,7 +722,7 @@ livrable applicatif reste `v0.14`. **La roadmap est terminée.**
 
 ---
 
-### Évolution post-roadmap — réorganisation à deux niveaux (✅ 06/07/2026, tag prévu v0.15)
+### Évolution post-roadmap — réorganisation à deux niveaux (✅ 06/07/2026, tag v0.14.1)
 
 **Roadmap terminée → place aux évolutions mineures et corrections.** Première d'entre elles :
 améliorer la **réorganisation chronologique automatique**. Jusqu'ici elle regroupait les tâches
@@ -752,6 +752,25 @@ pour « voir toutes les tâches d'un groupe », il reste le **filtre**.
   mauvais compteur, sans conséquence tant qu'elle n'était appelée qu'une fois), et validation en
   navigateur réel (test dédié `smoke-reorg.js` incluant un cas anti-zigzag + non-régression des tests
   existants + capture de contrôle montrant une chaîne à groupes alternés rectiligne).
+
+### Évolution post-roadmap — déplacement d'une sélection multiple au clic-glisser (✅ 07/07/2026, tag v0.14.1)
+
+Petit correctif d'ergonomie remonté à l'usage. Après avoir sélectionné plusieurs tâches (Ctrl +
+glisser une zone, conforme aux standards), l'utilisateur s'attendait à déplacer tout le groupe en
+**cliquant-glissant** simplement l'un des éléments ; il fallait en plus maintenir **SHIFT**, ce qui
+n'est pas le standard.
+
+- **Cause** : la lib graphique (LiteGraph), au clic sur un nœud déjà sélectionné sans touche
+  modificatrice, réinitialise la sélection à ce seul nœud → seul lui se déplaçait.
+- **Correctif** : une **surcharge ciblée** (sans modifier la bibliothèque) conserve la sélection
+  quand on clique un élément qui en fait déjà partie → le clic-glisser déplace alors tout le groupe.
+  Cliquer un élément hors sélection garde le comportement attendu (sélection unique) ; Ctrl/Shift
+  conservent leurs rôles d'ajout/bascule.
+- **Apport méthode/IA** : diagnostic guidé par la lecture du code de la lib (repérage exact du point
+  de bascule), correctif minimal et non intrusif, validé par un test **rejouant le vrai geste souris**
+  (sélection rectangle puis déplacement sans SHIFT) — au passage, deux artefacts de test ont été
+  identifiés et neutralisés (hit-test dépendant du premier rendu ; deux clics trop rapprochés pris
+  pour un double-clic), sans rapport avec le comportement réel côté utilisateur.
 
 ---
 

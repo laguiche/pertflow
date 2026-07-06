@@ -1478,7 +1478,36 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
-### Réorganisation à deux niveaux — enchaînement puis groupe ✅ TERMINÉE (06/07/2026, tag prévu **v0.15**)
+### Déplacement d'une sélection multiple au simple clic-glisser ✅ TERMINÉE (07/07/2026, tag **v0.14.1**)
+Correctif d'ergonomie sur la branche `evo/reorg-enchainements` (même lot que la réorg,
+avant le tag). **Demande utilisateur** : après avoir sélectionné plusieurs tâches
+(**Ctrl + glisser une zone** — conforme aux standards, inchangé), déplacer le groupe en
+**cliquant-glissant sur l'un des éléments** exigeait de maintenir **SHIFT** (peu standard).
+Attendu : le simple clic-glisser sur un élément déjà sélectionné déplace toute la sélection.
+
+**Cause** : LiteGraph, au `mousedown` sur un nœud **déjà sélectionné sans modificateur**,
+réinitialise la sélection à ce seul nœud (`processNodeSelected` → `selectNode` sans « add »)
+→ seul ce nœud se déplaçait ; il fallait SHIFT pour préserver la multi-sélection.
+
+**Correctif** (`src/ui.js`) : **surcharge d'instance** de `lgCanvas.processNodeSelected`
+(même pattern que les menus contextuels, **sans patcher la lib**) — si le nœud cliqué est
+**déjà sélectionné** et qu'aucun modificateur (Ctrl/Shift/Cmd) n'est pressé, on **conserve
+la sélection** (retour anticipé) au lieu de la réduire à ce nœud. LiteGraph déplace ensuite
+tous les `selected_nodes` (le `node_dragged` est posé avant l'appel). Cliquer un nœud **non
+sélectionné** garde le comportement natif (sélection unique) ; Ctrl/Shift conservent
+l'ajout/bascule. La sélection rectangle (Ctrl + glisser) n'est pas touchée.
+
+**État** : validé par `tools/smoke-multiselect.js` — geste réel (souris Playwright) : Ctrl +
+glisser sélectionne 2 tâches, puis clic-glisser **sans SHIFT** déplace **les deux** ; + tests
+unitaires de la surcharge (conserve la multi-sélection au clic sur un sélectionné ; réduit à
+une sélection unique au clic sur un non-sélectionné ; SHIFT bascule toujours). Non-régression
+smoke S4/général (copier-coller, menus, sélection). ⚠️ Pièges de **test** rencontrés (pas des
+bugs applicatifs) : le hit-test souris s'appuie sur `visible_nodes` (peuplé au 1er rendu →
+attendre une frame) ; deux `mousedown` à moins de **300 ms** sont vus comme un **double-clic**
+par LiteGraph (espacer les gestes dans le test). **Validé par l'utilisateur ; mergé sur `main`,
+tagué v0.14.1, poussé** (rituel de fin de session appliqué).
+
+### Réorganisation à deux niveaux — enchaînement puis groupe ✅ TERMINÉE (06/07/2026, tag **v0.14.1**)
 Amélioration de la réorganisation chronologique (`pertAutoLayout`), sur la branche
 `evo/reorg-enchainements`. **Demande utilisateur** : jusqu'ici la réorg regroupait les
 tâches **d'abord par groupe** (bandes WP, S7). Un PERT étant fait d'**enchaînements** de
@@ -1548,8 +1577,8 @@ disjointes pour 2 chaînes de même groupe ; (2) **compacité anti-zigzag** = ch
 alternés sur un seul couloir + tâche parallèle sur un 2ᵉ couloir ; (3) isolés en bande finale ;
 (4) abscisse ∝ ES ; (5) chaînes convergeant vers un même jalon de sortie séparées) + smoke S5/S6/S7/S10
 + smoke général sans régression + capture de contrôle (enchaînement Meca→Prod→Meca **rectiligne**).
-**Validation visuelle utilisateur à confirmer avant merge/tag v0.15** (même schéma que les sessions
-précédentes).
+**Validé par l'utilisateur ; mergé sur `main`, tagué v0.14.1, poussé** (rituel de fin de session
+appliqué : bundle `--tag v0.14.1` régénéré + versionné).
 
 ---
 
@@ -1924,5 +1953,18 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
 - Validé : `tools/smoke-reorg.js` (bandes d'enchaînement disjointes ; **compacité anti-zigzag** =
   chaîne linéaire sur un seul couloir ; isolés en bande finale ; abscisse ∝ ES ; chaînes convergeant
   vers un jalon de sortie séparées) + smoke S5/S6/S7/S10 + smoke général sans régression + capture
-  de contrôle (enchaînement Meca→Prod→Meca rectiligne). **Validation visuelle utilisateur à confirmer
-  avant merge/tag `v0.15`.**
+  de contrôle (enchaînement Meca→Prod→Meca rectiligne). **Validé par l'utilisateur, mergé sur `main`,
+  tagué `v0.14.1`, poussé** (avec le correctif sélection multiple ci-dessous, même lot).
+
+### Évolution post-roadmap (07/07/2026) — déplacement d'une sélection multiple au clic-glisser
+- Sur la branche `evo/reorg-enchainements` (même lot que la réorg, avant le tag `v0.14.1`). Détail dans
+  la section « Évolutions post-roadmap » plus haut. **Demande utilisateur** : déplacer une sélection
+  multiple (faite par Ctrl + glisser une zone) en cliquant-glissant un élément exigeait de maintenir
+  SHIFT — écart aux standards. Correctif = **surcharge d'instance** de `lgCanvas.processNodeSelected`
+  (`src/ui.js`, sans patcher la lib) : clic sur un nœud **déjà sélectionné sans modificateur** →
+  conserve la sélection (LiteGraph déplace alors tous les `selected_nodes`) ; clic sur un nœud non
+  sélectionné → sélection unique native ; Ctrl/Shift inchangés. Sélection rectangle (Ctrl) intacte.
+- Validé : `tools/smoke-multiselect.js` (geste réel souris : Ctrl+zone → 2 sélectionnés, puis
+  clic-glisser sans SHIFT déplace les 2 ; + unitaires de la surcharge) + non-régression S4/général.
+  Pièges de test notés (visible_nodes au 1er rendu ; double-clic < 300 ms). **Validé par l'utilisateur,
+  mergé sur `main`, tagué `v0.14.1`, poussé** (rituel : bundle `--tag v0.14.1` régénéré + versionné).

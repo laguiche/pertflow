@@ -1391,7 +1391,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"05/07/2026 22:28","tag":"v0.14"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"07/07/2026 00:46","tag":"v0.14.1"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -37540,12 +37540,17 @@ function pertAutoLayout() {
 
   const topLanes = pertPackLanes(top, PERT_LAYOUT_MARGIN_Y, rowH, xOf);
   const restTop = PERT_LAYOUT_MARGIN_Y + (top.length ? topLanes * rowH : 0);
-  // S7 (B) : packing conscient du groupe. L'abscisse (∝ ES) reste inchangee
+  // Packing a DEUX niveaux (evolution reorg). L'abscisse (∝ ES) reste inchangee
   // (coherence temporelle facon Gantt) ; seule l'affectation des couloirs verticaux
-  // tient compte du groupe → les taches d'un meme WP/groupe se posent sur des
-  // couloirs voisins (bande verticale contigue) pour rester lisibles "de loin" (#4)
-  // apres reorganisation. Les taches sans groupe sont packees normalement.
-  pertPackLanesGrouped(rest, restTop, rowH, xOf);
+  // change. Regroupement PRIMAIRE = enchainement (composante connexe de liens : les
+  // taches reliees entre elles restent ensemble → moins de liens qui se croisent),
+  // puis packing COMPACT a l'interieur (une chaine directe reste sur une ligne, le
+  // groupe n'etant qu'une preference secondaire). Le besoin "voir tout un groupe" est
+  // couvert par le filtre. Les nœuds isoles (aucun lien) sont regroupes en bande finale.
+  const compOf = pertConnectedComponents(rest, preds, succs);
+  const efOf = {};
+  placeable.forEach(n => { efOf[n.id] = n.ef; });
+  pertPackLanesConnected(rest, restTop, rowH, xOf, compOf, preds, efOf);
 
   // #15 Les Labels n'ont pas de ES → ils ne sont pas places par le layout et
   // peuvent se retrouver sous une activite/jalon repositionne. On reloge ceux qui
@@ -37604,39 +37609,147 @@ function pertGroupKey(n) {
     ? String(n.properties.group).trim() : "";
 }
 
-// S7 (B) : packing par couloirs CONSCIENT DU GROUPE. On partitionne la liste par
-// groupe et on empile les bandes verticalement (une bande contigue de couloirs par
-// groupe), de sorte que les taches d'un meme groupe restent voisines a l'ecran.
-// L'abscisse (xOf, ∝ ES) n'est jamais modifiee → le calage temporel facon Gantt est
-// preserve ; le groupe ne joue que sur la dimension verticale. La non-superposition
-// reste prioritaire (chaque bande est packee par pertPackLanes). Quand aucun groupe
-// n'est utilise, tout retombe dans une seule bande "" → comportement identique a
-// l'ancien packing (best-effort, decision utilisateur du 28/06/2026).
-function pertPackLanesGrouped(list, topY, rowH, xOf) {
+// Composantes faiblement connexes (liens traites comme NON orientes) restreintes a
+// la liste fournie : deux nœuds relies par une chaine de liens (dans un sens ou
+// l'autre) appartiennent au meme enchainement. Retourne un objet id → identifiant de
+// composante (entier). Un nœud sans lien (au sein de la liste) forme sa propre
+// composante de taille 1. preds/succs sont les adjacences globales du graphe → on
+// restreint les voisins a la liste (via inSet) pour ne pas relier deux enchainements
+// qui ne convergent que par un jalon de sortie (place dans sa bande a part).
+function pertConnectedComponents(list, preds, succs) {
+  const inSet = new Set(list.map(n => n.id));
+  const comp = {};
+  let next = 0;
+  for (const seed of list) {
+    if (comp[seed.id] !== undefined) continue;
+    comp[seed.id] = next;
+    const stack = [seed.id];
+    while (stack.length) {
+      const id = stack.pop();
+      const neigh = preds[id].concat(succs[id]);
+      for (const m of neigh) {
+        if (inSet.has(m) && comp[m] === undefined) { comp[m] = next; stack.push(m); }
+      }
+    }
+    next++;
+  }
+  return comp;
+}
+
+// Packing par couloirs A DEUX NIVEAUX. Niveau 1 = enchainement (composante connexe
+// compOf) : chaque enchainement occupe une bande verticale contigue, de sorte que
+// les taches reliees entre elles restent groupees (moins de liens croises). Niveau 2
+// (a l'interieur de chaque bande) = packing COMPACT (pertPackLanesCompact) qui
+// privilegie la compacite : une tache en enchainement direct reste sur le couloir de
+// son predecesseur → une chaine lineaire tient sur une seule ligne (pas de zigzag),
+// le groupe n'etant qu'une preference secondaire (departage entre couloirs deja
+// libres, jamais un couloir en plus). Les nœuds isoles (composante de taille 1, aucun
+// lien) sont regroupes dans une bande finale unique (aucun lien → aucun croisement)
+// pour eviter d'eparpiller un couloir par nœud isole. L'abscisse (xOf, ∝ ES) n'est
+// jamais modifiee → calage temporel facon Gantt preserve ; l'enchainement ne joue que
+// sur la dimension verticale. Renvoie le nombre total de couloirs occupes.
+function pertPackLanesConnected(list, topY, rowH, xOf, compOf, preds, efOf) {
   if (!list.length) return 0;
 
-  const buckets = new Map();
+  const size = {};
+  for (const n of list) size[compOf[n.id]] = (size[compOf[n.id]] || 0) + 1;
+
+  const comps = new Map(); // composantes multi-nœuds : id → nœuds
+  const singles = [];      // nœuds isoles (composante de taille 1)
   for (const n of list) {
-    const k = pertGroupKey(n);
-    if (!buckets.has(k)) buckets.set(k, []);
-    buckets.get(k).push(n);
+    const c = compOf[n.id];
+    if (size[c] <= 1) { singles.push(n); continue; }
+    if (!comps.has(c)) comps.set(c, []);
+    comps.get(c).push(n);
   }
 
-  // Ordre des bandes : groupes nommes d'abord, tries par ES min croissant (lecture
-  // dans le sens du temps) puis par nom ; la bande "sans groupe" ("") en dernier.
-  const minX = k => buckets.get(k).reduce((m, n) => Math.min(m, xOf[n.id]), Infinity);
-  const keys = Array.from(buckets.keys()).sort((a, b) => {
-    if (a === "") return 1;
-    if (b === "") return -1;
-    return (minX(a) - minX(b)) || a.localeCompare(b, "fr");
-  });
+  // Ordre des bandes : ES min croissant (lecture dans le sens du temps), puis taille
+  // decroissante et id pour un rendu stable ; la bande des isoles vient en dernier.
+  const minX = arr => arr.reduce((m, n) => Math.min(m, xOf[n.id]), Infinity);
+  const keys = Array.from(comps.keys()).sort((a, b) =>
+    (minX(comps.get(a)) - minX(comps.get(b))) ||
+    (comps.get(b).length - comps.get(a).length) || (a - b));
 
   let laneTop = topY;
-  for (const k of keys) {
-    const used = pertPackLanes(buckets.get(k), laneTop, rowH, xOf);
-    laneTop += used * rowH; // bande suivante posee sous la precedente
+  for (const c of keys) {
+    laneTop += pertPackLanesCompact(comps.get(c), laneTop, rowH, xOf, preds, efOf) * rowH;
   }
-  return keys.length;
+  if (singles.length) {
+    laneTop += pertPackLanesCompact(singles, laneTop, rowH, xOf, preds, efOf) * rowH;
+  }
+  return Math.round((laneTop - topY) / rowH);
+}
+
+// Packing par couloirs COMPACT (niveau 2, appele par enchainement). Objectif :
+// minimiser la surface de travail et eviter les zigzags → une chaine directe reste
+// sur une seule ligne. Les taches sont posees dans l'ordre des ES (donc un
+// predecesseur est traite avant ses successeurs) ; pour chaque tache on choisit son
+// couloir dans cet ordre de preference, sans JAMAIS ouvrir un couloir tant qu'il en
+// reste un de libre (→ nombre de couloirs = concurrence temporelle maximale, optimal) :
+//   1) le couloir du predecesseur CONTRAIGNANT (EF max) s'il est libre → la chaine
+//      principale reste rectiligne (regle demandee : "enchainement direct → meme
+//      couloir si pas en concurrence") ;
+//   2) sinon, parmi les couloirs libres, un du MEME groupe (cohesion visuelle a cout
+//      nul en compacite — on ne fait que choisir lequel des couloirs deja libres) ;
+//   3) sinon, le premier couloir libre (compacite) ;
+//   4) sinon seulement, un nouveau couloir.
+// L'abscisse (xOf, ∝ ES) n'est jamais modifiee. preds = adjacence globale (filtree a
+// la liste) ; efOf = { id: ef } pour reperer le predecesseur contraignant. Renvoie le
+// nombre TOTAL de couloirs occupes (extent vertical), pour l'empilement des bandes.
+function pertPackLanesCompact(list, topY, rowH, xOf, preds, efOf) {
+  if (!list.length) return 0;
+
+  // Tri par abscisse (ES) puis groupe puis id : les predecesseurs (ES plus petit) sont
+  // traites avant leurs successeurs ; le tri par groupe rapproche les taches de meme
+  // groupe quand elles sont en concurrence (aucun couloir partageable → couloirs
+  // adjacents). id en dernier pour un rendu stable.
+  list.sort((a, b) =>
+    (xOf[a.id] - xOf[b.id]) ||
+    pertGroupKey(a).localeCompare(pertGroupKey(b), "fr") ||
+    (a.id - b.id));
+
+  const idSet = new Set(list.map(n => n.id));
+  const lanes = [];   // { right, group } par couloir
+  const laneOf = {};  // id -> index de couloir
+
+  for (const n of list) {
+    const x = xOf[n.id];
+    const free = i => x >= lanes[i].right + PERT_LAYOUT_GAP_X;
+    let lane = -1;
+
+    // 1) Compacite : rester dans le couloir du predecesseur contraignant (EF max) libre.
+    let best = null;
+    for (const p of preds[n.id]) {
+      if (!idSet.has(p)) continue;
+      const pl = laneOf[p];
+      if (pl === undefined || !free(pl)) continue;
+      if (best === null || efOf[p] > best.ef) best = { lane: pl, ef: efOf[p] };
+    }
+    if (best) lane = best.lane;
+
+    // 2) Affinite de groupe : parmi les couloirs libres, en preferer un du meme groupe.
+    if (lane === -1) {
+      const g = pertGroupKey(n);
+      for (let i = 0; i < lanes.length; i++) {
+        if (free(i) && lanes[i].group === g) { lane = i; break; }
+      }
+    }
+
+    // 3) N'importe quel couloir libre (le plus haut = compacite).
+    if (lane === -1) {
+      for (let i = 0; i < lanes.length; i++) { if (free(i)) { lane = i; break; } }
+    }
+
+    // 4) Nouveau couloir.
+    if (lane === -1) { lane = lanes.length; lanes.push({ right: 0, group: "" }); }
+
+    n.pos[0] = x;
+    n.pos[1] = topY + lane * rowH;
+    lanes[lane].right = x + n.size[0];
+    lanes[lane].group = pertGroupKey(n); // le couloir adopte le groupe de sa derniere tache
+    laneOf[n.id] = lane;
+  }
+  return lanes.length;
 }
 
 // ─── #7 Tracé du chemin critique (coloration des connexions) ─────────────────────
@@ -40066,6 +40179,23 @@ document.addEventListener("DOMContentLoaded", () => {
   // On neutralise la barre de recherche LiteGraph (#28), inutile pour un usage
   // PERT et qui s'ouvrait de façon parasite au double-clic sur le fond.
   lgCanvas.allow_searchbox = false;
+
+  // ── Déplacement d'une sélection multiple au simple clic-glisser (ergonomie) ──
+  // LiteGraph, au mousedown sur un nœud DÉJÀ sélectionné sans modificateur,
+  // réinitialise la sélection à ce seul nœud (processNodeSelected → selectNode sans
+  // « add ») → il fallait maintenir SHIFT pour déplacer tout le groupe, ce qui n'est
+  // pas le standard. On conserve la sélection courante quand on clique un nœud qui en
+  // fait déjà partie (sans Ctrl/Shift/Cmd) → le clic-glisser déplace alors toute la
+  // sélection (LiteGraph déplace tous les selected_nodes). Cliquer un nœud NON
+  // sélectionné garde le comportement natif (sélection unique) ; Ctrl/Shift conservent
+  // l'ajout/bascule. Surcharge d'instance, sans patcher la lib.
+  const origProcessNodeSelected = lgCanvas.processNodeSelected;
+  lgCanvas.processNodeSelected = function (node, e) {
+    if (node && node.is_selected && !(e && (e.shiftKey || e.ctrlKey || e.metaKey))) {
+      return; // garder la sélection multiple intacte → permet de la déplacer d'un bloc
+    }
+    return origProcessNodeSelected.call(this, node, e);
+  };
 
   // Position graphe du dernier clic droit, pour ajouter le nœud sous le curseur.
   // processContextMenu reçoit l'événement souris ; on le convertit en coords graphe
