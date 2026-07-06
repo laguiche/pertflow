@@ -722,6 +722,39 @@ livrable applicatif reste `v0.14`. **La roadmap est terminée.**
 
 ---
 
+### Évolution post-roadmap — réorganisation à deux niveaux (✅ 06/07/2026, tag prévu v0.15)
+
+**Roadmap terminée → place aux évolutions mineures et corrections.** Première d'entre elles :
+améliorer la **réorganisation chronologique automatique**. Jusqu'ici elle regroupait les tâches
+**d'abord par groupe** (bandes WP, héritage de la Session 7). Retour utilisateur : un planning PERT
+est fait d'**enchaînements** de tâches reliées par des liens ; il est plus naturel de **regrouper
+d'abord les tâches reliées entre elles** (l'enchaînement). Bénéfice concret : **beaucoup moins de
+liens qui se croisent** (deux chaînes ne sont plus entremêlées dans une même bande de couleur). Et
+pour « voir toutes les tâches d'un groupe », il reste le **filtre**.
+
+- **Décision produit (en 2 temps, sur retour utilisateur).** *Temps 1* : regroupement à deux niveaux
+  — primaire = enchaînement, secondaire = groupe (sous-bandes par groupe *dans* l'enchaînement).
+  *Temps 2, après 1re validation* : l'utilisateur constate qu'une chaîne linéaire à groupes alternés
+  **zigzague** entre deux lignes — aucun gain de lisibilité, surface de travail étalée. **Le PERT est
+  un exercice visuel → priorité à la compacité.** Le groupe devient une **préférence secondaire** :
+  une tâche en enchaînement direct **reste sur le couloir de son prédécesseur** s'il est libre (chaîne
+  rectiligne), et le groupe ne sert plus qu'à départager entre couloirs *déjà libres* — jamais à
+  ajouter un couloir. On ne touche **que** la position verticale : l'abscisse reste ∝ dates au plus
+  tôt (calage temporel façon Gantt intact).
+- **Choix technique** : composantes calculées sur les seules activités/jalons intermédiaires → deux
+  chaînes qui ne se rejoignent **que** par un jalon de sortie (déjà isolé dans sa bande haute)
+  restent deux enchaînements distincts. Les tâches **isolées** (sans lien) sont regroupées dans une
+  bande finale pour ne pas gaspiller de place. Packing par couloirs « glouton » : on n'ouvre jamais
+  un couloir tant qu'il en reste un de libre → nombre de couloirs minimal (= concurrence maximale).
+- **Apport méthode/IA** : périmètre cadré à partir de la demande, **itération rapide sur retour de
+  validation** (le zigzag jugé gênant → bascule de « partition par groupe » à « compacité d'abord »
+  en une passe), correction au passage d'un **bug latent** (une fonction de packing renvoyait le
+  mauvais compteur, sans conséquence tant qu'elle n'était appelée qu'une fois), et validation en
+  navigateur réel (test dédié `smoke-reorg.js` incluant un cas anti-zigzag + non-régression des tests
+  existants + capture de contrôle montrant une chaîne à groupes alternés rectiligne).
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)
