@@ -46,6 +46,23 @@ document.addEventListener("DOMContentLoaded", () => {
   // PERT et qui s'ouvrait de façon parasite au double-clic sur le fond.
   lgCanvas.allow_searchbox = false;
 
+  // ── Déplacement d'une sélection multiple au simple clic-glisser (ergonomie) ──
+  // LiteGraph, au mousedown sur un nœud DÉJÀ sélectionné sans modificateur,
+  // réinitialise la sélection à ce seul nœud (processNodeSelected → selectNode sans
+  // « add ») → il fallait maintenir SHIFT pour déplacer tout le groupe, ce qui n'est
+  // pas le standard. On conserve la sélection courante quand on clique un nœud qui en
+  // fait déjà partie (sans Ctrl/Shift/Cmd) → le clic-glisser déplace alors toute la
+  // sélection (LiteGraph déplace tous les selected_nodes). Cliquer un nœud NON
+  // sélectionné garde le comportement natif (sélection unique) ; Ctrl/Shift conservent
+  // l'ajout/bascule. Surcharge d'instance, sans patcher la lib.
+  const origProcessNodeSelected = lgCanvas.processNodeSelected;
+  lgCanvas.processNodeSelected = function (node, e) {
+    if (node && node.is_selected && !(e && (e.shiftKey || e.ctrlKey || e.metaKey))) {
+      return; // garder la sélection multiple intacte → permet de la déplacer d'un bloc
+    }
+    return origProcessNodeSelected.call(this, node, e);
+  };
+
   // Position graphe du dernier clic droit, pour ajouter le nœud sous le curseur.
   // processContextMenu reçoit l'événement souris ; on le convertit en coords graphe
   // AVANT de laisser LiteGraph construire le menu (qui appelle getMenuOptions).

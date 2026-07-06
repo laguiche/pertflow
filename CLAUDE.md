@@ -1473,6 +1473,115 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 
 ---
 
+## ÉVOLUTIONS POST-ROADMAP
+
+> La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
+> demandées ensuite sont consignées ici, du plus récent au plus ancien.
+
+### Déplacement d'une sélection multiple au simple clic-glisser ✅ TERMINÉE (07/07/2026, tag **v0.14.1**)
+Correctif d'ergonomie sur la branche `evo/reorg-enchainements` (même lot que la réorg,
+avant le tag). **Demande utilisateur** : après avoir sélectionné plusieurs tâches
+(**Ctrl + glisser une zone** — conforme aux standards, inchangé), déplacer le groupe en
+**cliquant-glissant sur l'un des éléments** exigeait de maintenir **SHIFT** (peu standard).
+Attendu : le simple clic-glisser sur un élément déjà sélectionné déplace toute la sélection.
+
+**Cause** : LiteGraph, au `mousedown` sur un nœud **déjà sélectionné sans modificateur**,
+réinitialise la sélection à ce seul nœud (`processNodeSelected` → `selectNode` sans « add »)
+→ seul ce nœud se déplaçait ; il fallait SHIFT pour préserver la multi-sélection.
+
+**Correctif** (`src/ui.js`) : **surcharge d'instance** de `lgCanvas.processNodeSelected`
+(même pattern que les menus contextuels, **sans patcher la lib**) — si le nœud cliqué est
+**déjà sélectionné** et qu'aucun modificateur (Ctrl/Shift/Cmd) n'est pressé, on **conserve
+la sélection** (retour anticipé) au lieu de la réduire à ce nœud. LiteGraph déplace ensuite
+tous les `selected_nodes` (le `node_dragged` est posé avant l'appel). Cliquer un nœud **non
+sélectionné** garde le comportement natif (sélection unique) ; Ctrl/Shift conservent
+l'ajout/bascule. La sélection rectangle (Ctrl + glisser) n'est pas touchée.
+
+**État** : validé par `tools/smoke-multiselect.js` — geste réel (souris Playwright) : Ctrl +
+glisser sélectionne 2 tâches, puis clic-glisser **sans SHIFT** déplace **les deux** ; + tests
+unitaires de la surcharge (conserve la multi-sélection au clic sur un sélectionné ; réduit à
+une sélection unique au clic sur un non-sélectionné ; SHIFT bascule toujours). Non-régression
+smoke S4/général (copier-coller, menus, sélection). ⚠️ Pièges de **test** rencontrés (pas des
+bugs applicatifs) : le hit-test souris s'appuie sur `visible_nodes` (peuplé au 1er rendu →
+attendre une frame) ; deux `mousedown` à moins de **300 ms** sont vus comme un **double-clic**
+par LiteGraph (espacer les gestes dans le test). **Validé par l'utilisateur ; mergé sur `main`,
+tagué v0.14.1, poussé** (rituel de fin de session appliqué).
+
+### Réorganisation à deux niveaux — enchaînement puis groupe ✅ TERMINÉE (06/07/2026, tag **v0.14.1**)
+Amélioration de la réorganisation chronologique (`pertAutoLayout`), sur la branche
+`evo/reorg-enchainements`. **Demande utilisateur** : jusqu'ici la réorg regroupait les
+tâches **d'abord par groupe** (bandes WP, S7). Un PERT étant fait d'**enchaînements** de
+tâches reliées par des liens, il est plus lisible de **regrouper d'abord par enchaînement**
+(tâches reliées entre elles). Bénéfice : **moins de liens qui se croisent** (les chaînes ne sont
+plus entremêlées entre bandes WP). Le besoin « voir toutes les tâches d'un groupe » reste couvert
+par le **filtre** (S7).
+
+> **Affinement (retour utilisateur en cours de validation)** : une première version rangeait, *à
+> l'intérieur* d'un enchaînement, les tâches par groupe dans des sous-bandes distinctes. Résultat :
+> une chaîne linéaire à groupes alternés (ex. Meca→Prod→Meca) **zigzaguait** entre deux lignes —
+> aucun gain de lisibilité, surface de travail inutilement étalée. Décision : **la compacité prime**,
+> le groupe n'est plus qu'une **préférence secondaire** (départage entre couloirs *déjà libres*,
+> jamais un couloir en plus). Le PERT est un exercice visuel → on privilégie une **zone de travail
+> compacte** ; les groupes éventuellement « mixés » se retrouvent via le **filtre**.
+
+**Ce qui change (uniquement l'affectation des couloirs verticaux)** :
+- **Niveau 1 (primaire) = enchaînement** : composante faiblement connexe des liens (liens
+  traités comme non orientés). Chaque enchaînement occupe une **bande verticale contiguë**.
+- **Niveau 2 (à l'intérieur d'une bande) = packing COMPACT** : les tâches sont posées dans l'ordre
+  des ES et l'on choisit leur couloir par ordre de préférence, **sans jamais ouvrir un couloir tant
+  qu'il en reste un de libre** (⇒ nombre de couloirs = concurrence temporelle maximale, optimal) :
+  **(1)** le couloir du **prédécesseur contraignant (EF max)** s'il est libre → une **chaîne directe
+  reste rectiligne** (règle demandée : « enchaînement direct → même couloir si pas en concurrence ») ;
+  **(2)** sinon, parmi les couloirs libres, un du **même groupe** (cohésion à coût nul en compacité —
+  on ne fait que choisir *lequel* des couloirs déjà libres) ; **(3)** sinon le premier couloir libre ;
+  **(4)** sinon seulement, un nouveau couloir.
+- **Nœuds isolés** (aucun lien) : regroupés dans **une bande finale unique** (même packer compact),
+  pour ne pas éparpiller un couloir par nœud isolé.
+- **Invariants préservés** : l'**abscisse reste ∝ ES** (calage temporel façon Gantt intact ; le
+  regroupement ne joue que sur Y) ; les **jalons de sortie** gardent leur bande haute séparée ;
+  la relocalisation des Labels (#15) est inchangée. Déclenchement toujours **manuel** (bouton).
+
+**Décision de conception** : les composantes connexes sont calculées **sur `rest` seul**
+(activités + jalons intermédiaires), voisins restreints à `rest`. Conséquence : deux chaînes
+qui ne convergent **que** par un jalon de sortie (placé dans sa bande haute à part) restent des
+**enchaînements distincts** — elles ne fusionnent pas en une seule bande. Ordre des bandes
+d'enchaînement = **ES min croissant** (lecture dans le sens du temps), départage taille
+décroissante puis id ; bande des isolés en dernier. **Rappel du compromis largeur** : une tâche
+très courte (durée ≲ 2,3 u.) a une largeur *mini* (`ACT_MIN_W`) qui dépasse son empan ∝ ES → son
+successeur direct peut ne pas tenir sur le même couloir (chevauchement géométrique) et bascule
+alors sur un couloir voisin. C'est le compromis largeur/lisibilité **pré-existant** (documenté),
+pas un zigzag de groupe.
+
+**Implémentation** (`src/pert_engine.js`) :
+- `pertConnectedComponents(list, preds, succs)` : composantes non orientées restreintes à `list`
+  (BFS, voisins = `preds ∪ succs` filtrés par `inSet`).
+- `pertPackLanesConnected(list, topY, rowH, xOf, compOf, preds, efOf)` : niveau 1 — partitionne
+  par composante, empile les bandes (multi-nœuds triées par ES min, puis les isolés), délègue chaque
+  bande à `pertPackLanesCompact`. Remplace l'appel direct à `pertPackLanesGrouped` dans
+  `pertAutoLayout`.
+- `pertPackLanesCompact(list, topY, rowH, xOf, preds, efOf)` : niveau 2 (compacité, cf. règles
+  (1)→(4) ci-dessus). Tri par `(ES, groupe, id)` → un prédécesseur est traité avant ses successeurs,
+  et le tri par groupe rapproche les tâches de même groupe *en concurrence* (couloirs adjacents).
+  `efOf = { id: ef }` sert à repérer le prédécesseur contraignant. **Remplace** `pertPackLanesGrouped`
+  (supprimé : la partition dure par groupe causait le zigzag).
+- `pertAutoLayout` calcule `efOf` (depuis `n.ef`) et passe `preds`/`efOf` à `pertPackLanesConnected`.
+
+**Non-régression par construction** : quand il n'y a qu'un seul enchaînement (ou des tâches sans
+lien), on retombe sur un packing par couloirs classique ; les tâches sans groupe se comportent
+comme avant. Le test S7-B (4 activités sans lien, 2 groupes) reste vert : toutes en concurrence
+(même ES) → un couloir chacune ; le tri par groupe les empile en couloirs adjacents → Alpha au-dessus
+de Beta, disjoints.
+
+**État** : implémenté et validé par test headless navigateur (`tools/smoke-reorg.js` : (1) bandes
+disjointes pour 2 chaînes de même groupe ; (2) **compacité anti-zigzag** = chaîne linéaire à groupes
+alternés sur un seul couloir + tâche parallèle sur un 2ᵉ couloir ; (3) isolés en bande finale ;
+(4) abscisse ∝ ES ; (5) chaînes convergeant vers un même jalon de sortie séparées) + smoke S5/S6/S7/S10
++ smoke général sans régression + capture de contrôle (enchaînement Meca→Prod→Meca **rectiligne**).
+**Validé par l'utilisateur ; mergé sur `main`, tagué v0.14.1, poussé** (rituel de fin de session
+appliqué : bundle `--tag v0.14.1` régénéré + versionné).
+
+---
+
 ### Long terme / écarté (hors roadmap planifiée)
 Issu du retour Mickael (27/06/2026), volontairement non planifié :
 - **#38** Sous-PERT — fonctionnalité de l'application « pro », beaucoup plus tard
@@ -1824,3 +1933,38 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   fonctionnelles. **Roadmap terminée.** Fichiers : `docs/manuel-utilisateur.{md,html,pdf}`,
   `docs/conception.{md,html,pdf}`, `docs/maintenance.{md,html,pdf}`, `docs/images/manuel/*.png`,
   CLAUDE.md + journal (`tools/build-docs.js`, `_md2html.py`, `doc-shots.js` = outillage gitignoré).
+
+### Évolution post-roadmap (06/07/2026) — réorganisation à deux niveaux (enchaînement + compacité)
+- Sur la branche `evo/reorg-enchainements`. Détail et décisions dans la section « Évolutions
+  post-roadmap » plus haut. **Demande utilisateur** : la réorg chronologique regroupait les tâches
+  d'abord par groupe (S7) ; la regrouper **d'abord par enchaînement** (composante connexe de liens)
+  est plus lisible et réduit les croisements de liens (le filtre couvre le besoin « voir tout un
+  groupe »). **Affinement après 1re validation** : la sous-partition par groupe *à l'intérieur* d'un
+  enchaînement faisait **zigzaguer** une chaîne linéaire à groupes alternés → **la compacité prime**,
+  le groupe devient une simple préférence secondaire (départage entre couloirs déjà libres).
+- `src/pert_engine.js` : `pertConnectedComponents` (composantes non orientées restreintes à `rest`)
+  + `pertPackLanesConnected(…, preds, efOf)` (niveau 1 enchaînement, délègue à
+  `pertPackLanesCompact` par bande ; isolés en bande finale) + `pertPackLanesCompact` (niveau 2 :
+  couloir du prédécesseur contraignant EF max si libre → chaîne rectiligne ; puis affinité de groupe
+  sur couloirs libres ; puis 1er libre ; puis nouveau couloir — jamais un couloir de plus s'il en
+  reste un libre). `pertPackLanesGrouped` **supprimé** (la partition dure causait le zigzag).
+  `pertAutoLayout` calcule `efOf` et appelle `pertPackLanesConnected`. Abscisse ∝ ES et bande haute
+  des jalons de sortie inchangées.
+- Validé : `tools/smoke-reorg.js` (bandes d'enchaînement disjointes ; **compacité anti-zigzag** =
+  chaîne linéaire sur un seul couloir ; isolés en bande finale ; abscisse ∝ ES ; chaînes convergeant
+  vers un jalon de sortie séparées) + smoke S5/S6/S7/S10 + smoke général sans régression + capture
+  de contrôle (enchaînement Meca→Prod→Meca rectiligne). **Validé par l'utilisateur, mergé sur `main`,
+  tagué `v0.14.1`, poussé** (avec le correctif sélection multiple ci-dessous, même lot).
+
+### Évolution post-roadmap (07/07/2026) — déplacement d'une sélection multiple au clic-glisser
+- Sur la branche `evo/reorg-enchainements` (même lot que la réorg, avant le tag `v0.14.1`). Détail dans
+  la section « Évolutions post-roadmap » plus haut. **Demande utilisateur** : déplacer une sélection
+  multiple (faite par Ctrl + glisser une zone) en cliquant-glissant un élément exigeait de maintenir
+  SHIFT — écart aux standards. Correctif = **surcharge d'instance** de `lgCanvas.processNodeSelected`
+  (`src/ui.js`, sans patcher la lib) : clic sur un nœud **déjà sélectionné sans modificateur** →
+  conserve la sélection (LiteGraph déplace alors tous les `selected_nodes`) ; clic sur un nœud non
+  sélectionné → sélection unique native ; Ctrl/Shift inchangés. Sélection rectangle (Ctrl) intacte.
+- Validé : `tools/smoke-multiselect.js` (geste réel souris : Ctrl+zone → 2 sélectionnés, puis
+  clic-glisser sans SHIFT déplace les 2 ; + unitaires de la surcharge) + non-régression S4/général.
+  Pièges de test notés (visible_nodes au 1er rendu ; double-clic < 300 ms). **Validé par l'utilisateur,
+  mergé sur `main`, tagué `v0.14.1`, poussé** (rituel : bundle `--tag v0.14.1` régénéré + versionné).
