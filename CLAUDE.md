@@ -1628,8 +1628,8 @@ week-end, T0 samedi/dimanche recalé, cible de jalon en week-end, **non-régress
 cohérence `+5 j == +1 sem`, offsets négatifs, durées fractionnaires, perf O(1)) + smoke
 navigateur sans régression (`smoke.js`, `smoke-critical.js`, `smoke-s5.js`, `smoke-s85.js`,
 `smoke-s9.js`, `smoke-s10.js`, `smoke-reorg.js` — 0 erreur console).
-**Reste à faire** : validation visuelle utilisateur → rituel de fin de session (bundle
-`--tag v0.14.2`) → merge `main` → tag `v0.14.2`.
+**Validé par l'utilisateur ; mergé sur `main`, tagué `v0.14.2`, poussé** (rituel de fin de
+session appliqué : bundle `--tag v0.14.2` régénéré + versionné).
 
 > ⚠️ **Dérive de chemins constatée (non corrigée)** : `tools/smoke.js` attend
 > `C_PERT_exemple.xlsm` à la **racine** du repo, et `tools/smoke-s9.js` / `smoke-s10.js`
@@ -1713,8 +1713,8 @@ régression** (`smoke`, `smoke-critical`, `smoke-s4` à `smoke-s10`, `smoke-reor
 `smoke-multiselect`, `smoke-autosave`, `smoke-center-toolbar`, `smoke-jour-ouvre`),
 0 erreur console. `tools/lib.js` adapté (la fenêtre s'intercale avant le sélecteur de
 fichier) + helpers `importPert` / `pickImportFormat` / `resolveUnitDialog`.
-**Reste** : validation visuelle utilisateur → rituel (bundle `--tag v0.15`) → merge `main`
-→ tag `v0.15`.
+**Validé par l'utilisateur ; mergé sur `main`, tagué `v0.15`, poussé** (rituel appliqué :
+bundle `--tag v0.15` régénéré + versionné).
 
 > Dérive de chemins des fixtures **corrigée au passage** : `smoke.js` lit désormais
 > `test_cases/C_PERT_exemple.xlsm`, `smoke-s9`/`smoke-s10` résolvent `pert_a_exporter.pert`
@@ -2237,8 +2237,8 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   sur `[-60, 500]`, T0 week-end recalé, cible de jalon week-end, non-régression `sem` et `mois`,
   cohérence `+5 j == +1 sem`, offsets négatifs, durées fractionnaires, perf) + smoke navigateur sans
   régression (`smoke`, `smoke-critical`, `smoke-s5`, `smoke-s85`, `smoke-s9`, `smoke-s10`,
-  `smoke-reorg`), 0 erreur console. **Reste : validation visuelle utilisateur → rituel (bundle
-  `--tag v0.14.2`) → merge `main` → tag `v0.14.2`**, puis attaquer le lot 2.
+  `smoke-reorg`), 0 erreur console. **Validé par l'utilisateur, mergé sur `main`, tagué `v0.14.2`,
+  poussé** (rituel : bundle `--tag v0.14.2` régénéré + versionné), puis le lot 2 a été attaqué.
 - ⚠️ Dérive de chemins des fixtures constatée au passage (non corrigée, hors périmètre) : `smoke.js`
   attend `C_PERT_exemple.xlsm` à la racine, `smoke-s9`/`smoke-s10` lisent `../test_cases/…` (donc ne
   tournent que depuis `tools/`) ; les fixtures vivent maintenant dans `test_cases/` (non versionné).
@@ -2266,7 +2266,8 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
 - Validé : `tools/smoke-import.js` (**40 assertions**) + toute la suite smoke sans régression, 0 erreur
   console, captures de contrôle des 3 dialogues. `tools/lib.js` adapté (la fenêtre s'intercale avant le
   sélecteur de fichier) ; dérive de chemins des fixtures corrigée (`smoke.js`, `smoke-s9`, `smoke-s10`).
-  **Reste : validation visuelle utilisateur → rituel (bundle `--tag v0.15`) → merge `main` → tag `v0.15`.**
+  **Validé par l'utilisateur, mergé sur `main`, tagué `v0.15`, poussé** (rituel : bundle `--tag v0.15`
+  régénéré + versionné).
 
 ### Peaufinage post-roadmap (08/07/2026) — notes de Jalon & nœud Label (tag v0.15.1)
 - Sur la branche `evo/peaufinage-notes-label`. Détail et décisions dans la section « ÉVOLUTIONS
