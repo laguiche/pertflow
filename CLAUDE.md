@@ -1478,6 +1478,49 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Peaufinage — notes de Jalon & nœud Label (visuel + police) ✅ TERMINÉ (08/07/2026, tag **v0.15.1**)
+Petite session de finition sur retours d'usage, sur la branche `evo/peaufinage-notes-label`.
+**Numérotation patch** : `v0.15.1` (v0.15 = import multi-format).
+**Objectifs** :
+- [x] **Note libre sur les Jalons** — champ `properties.notes` repris de l'Activité (#12, S8) :
+  **panneau latéral uniquement, jamais rendu sur le nœud** (une note peut être longue). Effet de
+  bord gratuit : l'export micro-jalonnement alimente déjà sa colonne « Commentaires » depuis
+  `properties.notes` pour **tous** les nœuds → les jalons en profitent sans code supplémentaire.
+- [x] **Label — correction du gel de taille** : un Label redimensionné à la main reprenait sa
+  taille d'origine dès qu'on éditait son texte (`updateSize` recalculait toujours depuis le
+  contenu). Drapeau `properties.manual_size` posé sur `onResize` → gèle l'auto-dimensionnement.
+  La position, elle, n'était déjà pas affectée (bug de taille seul).
+- [x] **Label — taille de police réglable** (nice-to-have) : boutons −/+ dans le panneau
+  (`properties.font_size`, défaut 12, bornes 8..48, pas de 2 px) ; rendu ET auto-fit adaptés
+  (interligne ∝ police).
+
+**Implémentation — décisions notables (08/07/2026)** :
+- **Écueil de round-trip (Label)** : `configure()` de LiteGraph rejoue `onPropertyChanged`
+  propriété par propriété **dans l'ordre de sérialisation** — donc `text` restauré (et taille
+  recalculée en auto) **avant** `manual_size`, et comme `size` est désérialisé **avant**
+  `properties` (ordre de `serialize()`), la taille manuelle restaurée était aussitôt écrasée.
+  Correctif : **retirer `updateSize` de `LabelNode.onPropertyChanged`** — l'auto-dimensionnement
+  est piloté explicitement (handler de saisie + stepper de police dans `ui.js`, rejeu `updateSize`
+  après chargement en `storage.js` l.128), tous **postérieurs** à `manual_size`. Le garde
+  `if (this.properties.manual_size) return;` en tête de `updateSize` traite le bug de frappe (la
+  frappe passe par le panneau, où `manual_size` est déjà vrai).
+- **Sérialisation** : `notes` (Jalon), `font_size`/`manual_size` (Label) vivent dans
+  `node.properties` et `size` est sérialisé nativement par LiteGraph → **aucun changement de
+  `storage.js`** ; round-trip `.pert` garanti (drapeau `manual_size` indispensable au chargement,
+  sinon le rejeu `updateSize` recalculerait la taille auto).
+- `MilestoneNode.onPropertyChanged` **inchangé** (rendu/tag du jalon en dépendent) — seul
+  `LabelNode.onPropertyChanged` perd son `updateSize` (il ne garde que `setDirtyCanvas`).
+- **Fichiers** : `src/nodes.js` (notes Jalon ; Label : constantes `LABEL_*_FONT`, `font_size`/
+  `manual_size`, `onResize`, `updateSize` gardé+paramétré par la police, `onPropertyChanged`, rendu
+  `onDrawForeground`), `src/ui.js` (champ Notes du Jalon, helper `buildLabelFontStepper`),
+  `css/style.css` (`.font-stepper*`), `docs/journal-developpement.md`. Tests : `tools/smoke-label.js`
+  (nouveau) + `tools/smoke-s8.js` étendu (note de Jalon) — gitignorés.
+
+**Critère de validation** : la note de Jalon se saisit et survit au `.pert` ; un Label agrandi à la
+main garde sa taille à la frappe **et** au rechargement ; les boutons −/+ changent la police.
+**Validé par l'utilisateur** ; mergé sur `main`, tagué **v0.15.1**, poussé (rituel appliqué : bundle
+`--tag v0.15.1` régénéré + versionné).
+
 ### Refonte de l'import — CHANTIER EN COURS (08/07/2026), découpé en 2 lots
 
 > **Section auto-suffisante** : concept approfondi avec l'utilisateur AVANT de coder
@@ -2224,3 +2267,22 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   console, captures de contrôle des 3 dialogues. `tools/lib.js` adapté (la fenêtre s'intercale avant le
   sélecteur de fichier) ; dérive de chemins des fixtures corrigée (`smoke.js`, `smoke-s9`, `smoke-s10`).
   **Reste : validation visuelle utilisateur → rituel (bundle `--tag v0.15`) → merge `main` → tag `v0.15`.**
+
+### Peaufinage post-roadmap (08/07/2026) — notes de Jalon & nœud Label (tag v0.15.1)
+- Sur la branche `evo/peaufinage-notes-label`. Détail et décisions dans la section « ÉVOLUTIONS
+  POST-ROADMAP » plus haut. Trois finitions issues de retours d'usage : (1) **note libre sur les
+  Jalons** (`properties.notes`, panneau seul, jamais rendue — reprise de l'Activité S8 ; bénéficie
+  gratuitement à la colonne « Commentaires » de l'export micro-jalonnement) ; (2) **correction du
+  gel de taille du Label** — un Label redimensionné manuellement reprenait sa taille dès qu'on
+  éditait le texte (`updateSize` recalculait toujours) → drapeau `properties.manual_size` posé sur
+  `onResize` ; (3) **taille de police du Label réglable** via boutons −/+ (`properties.font_size`,
+  helper `buildLabelFontStepper`).
+- Écueil notable : le round-trip `.pert` du Label écrasait la taille manuelle car `configure()`
+  rejoue `onPropertyChanged` propriété par propriété (texte avant `manual_size`, et `size`
+  désérialisé avant `properties`) → correctif = retirer `updateSize` de `LabelNode.onPropertyChanged`
+  (auto-dimensionnement piloté explicitement, toujours postérieur à `manual_size`). Rien dans
+  `storage.js` (tout sérialisé nativement dans `node.properties` + `size`).
+- `src/nodes.js`, `src/ui.js`, `css/style.css`, `docs/journal-developpement.md` ; tests
+  `tools/smoke-label.js` (nouveau) + `tools/smoke-s8.js` (étendu), gitignorés. Validé (smoke-label
+  + non-régression `smoke`/`smoke-s8`, 0 erreur console). **Validé par l'utilisateur, mergé sur
+  `main`, tagué `v0.15.1`, poussé** (rituel : bundle `--tag v0.15.1` régénéré + versionné).
