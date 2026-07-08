@@ -1596,68 +1596,91 @@ navigateur sans régression (`smoke.js`, `smoke-critical.js`, `smoke-s5.js`, `sm
 
 ---
 
-#### Lot 2 — Refonte de l'import (branche `evo/import-multiformat`, → tag **v0.15**) — À IMPLÉMENTER
+#### Lot 2 — Refonte de l'import ✅ TERMINÉ (08/07/2026, branche `evo/import-multiformat`, → tag **v0.15**)
 
-Spec figée ; rien n'est encore codé. **Ordre de livraison conseillé** (incrémental,
-testable à chaque étape) :
+**Livré** : un seul bouton **« 📥 Importer »** ouvre une fenêtre de choix du format
+(**CPERT Excel `.xlsm`** / **Projet PertFlow `.pert`**), les deux concaténés au projet
+courant. `📂 Ouvrir` reste séparé et inchangé (il *remplace* le projet).
 
-1. **Bouton + fenêtre d'import** — remplacer `#btn-import` (« 📥 Importer Excel ») par un
-   `#btn-import` générique + `#import-dialog`. **Réutiliser le pattern data-driven de la
-   fenêtre d'export S9** : registre `PERT_IMPORT_FORMATS` + `pertRegisterImportFormat({id,
-   icon, label, desc, order, accept, run})`, chaque module s'enregistrant à son chargement
-   → l'ordre d'affichage ne dépend pas de l'ordre des `<script>`. Non-régression : le
-   chemin CPERT existant (`handleExcelFile` → `promptImportGroup` → `applyImportModel`)
-   n'est que **rebranché** derrière la fenêtre.
-2. **Résolution T0/unité commune aux 2 formats** — extraire un helper
-   `pertResolveImportMeta(importedT0, importedUnit)` appelé par les deux chemins :
-   - unité : si projet vide → adopter ; sinon si divergente → **dialogue 3 issues**
-     (Ignorer / Convertir / Annuler) ; retourne le facteur de conversion à appliquer aux
-     durées importées (ou `null` = ignorer, ou `abort`).
-   - T0 : `min(courant, importé)` ; retourne quel bloc doit être **ancré** (celui dont le
-     T0 est postérieur au nouveau T0) et à quelle date.
-   - Helper de conversion : `pertConvertDuration(d, fromUnit, toUnit)` avec facteurs en
-     jours ouvrés `{ j: 1, sem: 5, mois: 261/12 }`, arrondi 2 décimales.
-3. **Ancrage par jalon entrant** — `pertAnchorRoots(nodes, dateISO, label)` : crée un
-   Jalon `due_date = dateISO`, le connecte aux **racines** de `nodes` (activités/jalons
-   sans lien entrant), et le pose à gauche du bloc. Appelé sur le bloc importé **ou** sur
-   le bloc préexistant, selon lequel des deux T0 est le plus tardif. **Cas particuliers** :
-   projet vide (pas d'ancrage) ; T0 identiques (pas d'ancrage) ; bloc déjà pourvu d'un
-   jalon entrant daté sur toutes ses racines (pas d'ancrage redondant).
-4. **Import `.pert`** — `src/import_pert.js` : `<input type="file">` + `FileReader.readAsText`
-   (**jamais `fetch`**, contrainte `file://`), `JSON.parse`, puis **concaténation** :
-   - instancier les nœuds via `LiteGraph.createNode(type)` + copie de `properties` (ne PAS
-     faire `graph.configure()` : ça remplacerait le graphe) ; recréer les liens depuis
-     `data.graph.links` en remappant les ids ; décaler les positions à droite du graphe
-     existant (même logique que `applyImportModel`) ;
-   - **`pertEnsureUids()` obligatoire après coup** (uid dupliqués entre les deux projets) ;
-   - fusion de `meta.groups` : **le projet courant gagne** sur conflit de couleur ;
-   - dialogue dédié : radio « Conserver les groupes du fichier » (défaut) / « Tout
-     rattacher au groupe [combobox] + couleur » (→ `pertApplyGroup`), + avertissement
-     listant les groupes en conflit de couleur ;
-   - Labels importés : recopiés tels quels.
-5. **Câblage** : `pertHistoryMark()` avant/après import, `refreshFilterOptions()`,
-   `pertRecalc()`, `updateStatus()`, `pertZoomToFit()`, toast récapitulatif (n nœuds,
-   n liens, ancrage éventuel, conversion éventuelle).
+**Implémentation — décisions notables (08/07/2026)** :
+- **Fenêtre d'import = copie conforme du pattern S9** : registre `PERT_IMPORT_FORMATS` +
+  `pertRegisterImportFormat({id, icon, label, desc, order, run})`, tri par `order` →
+  l'ordre d'affichage ne dépend pas de l'ordre des `<script>`. Chaque `run()` déclenche
+  son propre `<input type="file">` masqué (`#excel-input`, `#pert-input`) et est enrobé
+  par `guardUI`. Ajouter un format = un appel, aucune modif de `index.html`.
+- **`pertResolveImportMeta(t0, unit, onResolved)` (dans `src/import.js`) = point de
+  passage COMMUN aux deux formats** — c'est là que vivent les deux règles de fond, donc
+  aucun risque de divergence entre CPERT et `.pert`. Elle produit un `plan =
+  { unit, convertFrom, t0, anchor }` consommé par `applyImportModel` (CPERT) et
+  `applyPertImport` (`.pert`). Asynchrone (callback) car l'arbitrage d'unité passe par
+  un dialogue.
+- **T0** : `pertResolveT0` retient le plus antérieur (comparaison lexicographique, valide
+  sur de l'ISO `YYYY-MM-DD`) et désigne le bloc à ancrer (`{side:"imported"|"existing",
+  date}`). Les deux écrasements historiques (`if (model.t0) …` / `if (model.unit) …`)
+  ont **disparu** de `applyImportModel`.
+- **`pertAnchorRoots(nodes, dateISO, label)`** crée un Jalon `due_date = dateISO` branché
+  sur les racines du bloc. **Subtilité importante** : on **exclut les racines qui sont
+  déjà des jalons entrants datés** — les brancher leur ferait perdre ce statut (un jalon
+  avec prédécesseur devient un checkpoint dont la `due_date` ne borne plus que le LF),
+  ce qui **détruirait** la contrainte. Si toutes les racines sont déjà ancrées, aucun
+  jalon n'est créé (pas de doublon). Cas typique : un CPERT dont les nœuds `E` ancrent
+  déjà toutes les chaînes.
+- **Conversion de durées** : `pertConvertDuration` via un pivot en **jours ouvrés**
+  (`PERT_UNIT_WORKDAYS = { j:1, sem:5, mois:261/12 }`), arrondi 2 décimales — cohérent
+  avec la sémantique du moteur depuis le lot 1. Les `due_date` (absolues) ne sont jamais
+  converties. Dialogue `promptUnitConflict` à 3 boutons ; il ne s'ouvre que si l'unité
+  diverge **et** que le projet contient déjà un nœud PERT (`pertProjectHasNodes` — un
+  graphe de Labels seuls compte comme vide).
+- **Import `.pert` (`src/import_pert.js`)** : `FileReader.readAsText` + `JSON.parse`
+  (jamais `fetch`). **Surtout pas `graph.configure()`** (il repartirait d'un graphe vide,
+  c'est le chemin « Ouvrir ») → `LiteGraph.createNode(type)` + `Object.assign` des
+  `properties`, puis liens recréés depuis `data.graph.links`
+  (`[id, origin_id, origin_slot, target_id, target_slot, type]`) avec **remap des ids**.
+  `target_slot` n'est **pas** rejoué tel quel : les slots d'entrée sont dynamiques →
+  `freeInputSlot(dst)`. `pertEnsureUids()` systématique (uid dupliqués si le même `.pert`
+  est importé deux fois).
+- **Groupes à l'import `.pert`** : le dialogue `promptImportGroup` reçoit un 3ᵉ argument
+  `opts` (`allowKeep`, `conflicts`, `title`) et un 4ᵉ chemin coché par défaut,
+  « Conserver les groupes et couleurs du fichier » → `onChoose(color, group, keep)`.
+  Sans `opts`, le comportement S7 est **strictement inchangé**. Fusion du registre : on
+  n'ajoute que les groupes **inconnus** → un groupe déjà connu garde sa couleur (le
+  projet gagne) et `pertApplyGroup` fait **hériter** cette teinte aux tâches importées
+  (#4 préservé). Les conflits sont listés en avertissement dans le dialogue.
+- **`applyImportModel(model, color, group, plan)`** : `plan` est **optionnel** — omis
+  (appel direct, tests headless), on retombe sur un plan sans dialogue (unité du projet
+  conservée, pas de conversion, T0 = min + ancrage). Jamais l'ancien écrasement.
 
-**Fichiers attendus** : `src/import.js` (fenêtre + registre + `pertResolveImportMeta` +
-`pertAnchorRoots`), `src/import_pert.js` (nouveau), `src/import_excel.js` (inchangé sur
-le parsing ; seul `applyImportModel` dans `ui.js` perd l'écrasement T0/unité au profit du
-helper), `index.html` (bouton + `#import-dialog` + `<script>`), `css/style.css` (réutiliser
-`.export-*` → renommer en styles partagés ou dupliquer), `tools/smoke-import.js`.
+**Fichiers** : `src/import.js` (nouveau : registre + fenêtre + `pertResolveImportMeta` /
+`pertResolveT0` / `pertAnchorRoots` / `pertConvertDuration` / `promptUnitConflict`),
+`src/import_pert.js` (nouveau), `src/ui.js` (`promptImportGroup` étendu, `finishExcelImport`
+et `applyImportModel` branchés sur le plan, bouton → fenêtre), `index.html` (bouton
+« 📥 Importer », `#import-dialog`, `#pert-input`, 2 `<script>`), `css/style.css` (styles
+de liste de formats **partagés** export/import + `.dialog-radios` / `.dialog-warn`),
+`tools/smoke-import.js`. Le builder inline les 2 nouveaux modules par regex — vérifié sur
+le bundle, aucune modif de `scripts/build-bundle.js`.
 
-**Points de vigilance** :
-- `scripts/build-bundle.js` inline tous les `<script src="src/…">` par regex → les nouveaux
-  modules devraient être captés automatiquement, **à contrôler sur le bundle**.
-- Ne pas casser le **fallback de choix de feuille** (`promptSheetChoice`) du CPERT.
-- L'ancrage crée un nœud : il doit être **undoable** (donc après `pertHistoryMark`) et ne
-  pas perturber `pertAutoLayout` (le jalon entrant n'est pas terminal → bande normale).
-- Vérifier l'interaction ancrage × jalon entrant à `due_date < T0` (planché à T0, cf.
-  correctif pré-S8) : par construction l'ancrage date **≥** nouveau T0, donc pas de plancher.
+**État** : implémenté et validé par test headless navigateur `tools/smoke-import.js`
+(**40 assertions** : fenêtre/ordre des formats, conversions, `pertResolveT0` sur 5 cas,
+ancrage + racines déjà ancrées ignorées, import `.pert` dans projet vide, T0 importé
+postérieur → ancrage du bloc importé (dates des deux blocs préservées), T0 importé
+antérieur → ancrage du bloc **existant**, dialogue d'unité sur ses 3 issues + absence de
+dialogue si unités identiques, groupes conservés / conflit de couleur gagné par le projet /
+retag, uid dédoublonnés, non-régression CPERT sur l'unité) + **toute la suite smoke sans
+régression** (`smoke`, `smoke-critical`, `smoke-s4` à `smoke-s10`, `smoke-reorg`,
+`smoke-multiselect`, `smoke-autosave`, `smoke-center-toolbar`, `smoke-jour-ouvre`),
+0 erreur console. `tools/lib.js` adapté (la fenêtre s'intercale avant le sélecteur de
+fichier) + helpers `importPert` / `pickImportFormat` / `resolveUnitDialog`.
+**Reste** : validation visuelle utilisateur → rituel (bundle `--tag v0.15`) → merge `main`
+→ tag `v0.15`.
+
+> Dérive de chemins des fixtures **corrigée au passage** : `smoke.js` lit désormais
+> `test_cases/C_PERT_exemple.xlsm`, `smoke-s9`/`smoke-s10` résolvent `pert_a_exporter.pert`
+> depuis `lib.ROOT` (ils ne tournaient que depuis `tools/`). `test_cases/` est ajouté au
+> `.gitignore` (lot 1).
 
 **Critère de validation** : un seul bouton d'import ; CPERT et `.pert` concaténés sans
 perte ; aucune date absolue ne bouge à l'import (ancrage) ; l'unité du projet n'est jamais
 écrasée en silence ; groupes/couleurs conservés à l'import `.pert`.
-
 ### Déplacement d'une sélection multiple au simple clic-glisser ✅ TERMINÉE (07/07/2026, tag **v0.14.1**)
 Correctif d'ergonomie sur la branche `evo/reorg-enchainements` (même lot que la réorg,
 avant le tag). **Demande utilisateur** : après avoir sélectionné plusieurs tâches
@@ -2176,3 +2199,28 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
 - ⚠️ Dérive de chemins des fixtures constatée au passage (non corrigée, hors périmètre) : `smoke.js`
   attend `C_PERT_exemple.xlsm` à la racine, `smoke-s9`/`smoke-s10` lisent `../test_cases/…` (donc ne
   tournent que depuis `tools/`) ; les fixtures vivent maintenant dans `test_cases/` (non versionné).
+
+### Chantier post-roadmap (08/07/2026) — refonte de l'import, lot 2 : import multi-format (branche `evo/import-multiformat`)
+- Suite du lot 1 (jour ouvré, `v0.14.2`). Spec figée dans la section « Refonte de l'import » plus haut,
+  décisions d'implémentation dans son sous-bloc « Lot 2 ». **Un seul bouton « 📥 Importer »** ouvre une
+  fenêtre de choix du format (CPERT Excel / Projet PertFlow `.pert`), tous deux **concaténés** au projet
+  courant ; `📂 Ouvrir` reste séparé et *remplace* le projet.
+- Deux bugs de fond corrigés au passage, tous deux nés de l'écrasement aveugle des métadonnées à
+  l'import : **`meta.t0`** est désormais le plus **antérieur** des deux T0, et le bloc qui démarrait le
+  plus tard reçoit un **jalon entrant daté** (`pertAnchorRoots`) → aucune date absolue ne bouge ;
+  **`meta.unit`** n'est plus jamais écrasée en silence (elle réinterprétait toutes les durées
+  existantes, stockées en unités) → dialogue à 3 issues (Ignorer / Convertir / Annuler).
+- `src/import.js` (nouveau) héberge le registre de formats, la fenêtre, et surtout
+  `pertResolveImportMeta` — **point de passage commun aux deux formats**, donc pas de divergence
+  possible entre CPERT et `.pert`. `src/import_pert.js` (nouveau) concatène un `.pert` : jamais
+  `graph.configure()` (qui repartirait d'un graphe vide, c'est le chemin « Ouvrir ») mais
+  `LiteGraph.createNode` + remap des liens + `pertEnsureUids()`. Subtilité de l'ancrage : on
+  **n'ancre pas** les racines qui sont déjà des jalons entrants datés — les brancher leur ferait
+  perdre ce statut et détruirait la contrainte.
+- `promptImportGroup` gagne un 4e chemin « Conserver les groupes et couleurs du fichier » (défaut à
+  l'import `.pert`) ; à nom de groupe identique et couleur différente, **le projet courant gagne** et
+  les tâches importées héritent de sa teinte (#4 préservé), avec avertissement dans le dialogue.
+- Validé : `tools/smoke-import.js` (**40 assertions**) + toute la suite smoke sans régression, 0 erreur
+  console, captures de contrôle des 3 dialogues. `tools/lib.js` adapté (la fenêtre s'intercale avant le
+  sélecteur de fichier) ; dérive de chemins des fixtures corrigée (`smoke.js`, `smoke-s9`, `smoke-s10`).
+  **Reste : validation visuelle utilisateur → rituel (bundle `--tag v0.15`) → merge `main` → tag `v0.15`.**

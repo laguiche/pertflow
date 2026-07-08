@@ -90,7 +90,7 @@
     <div class="tb-sep"></div>
     <button id="btn-settings" title="Paramètres du projet">⚙ Paramètres</button>
     <div class="tb-sep"></div>
-    <button id="btn-import" title="Importer un planning Excel legacy (.xlsm) et le concaténer">📥 Importer Excel</button>
+    <button id="btn-import" title="Importer et concaténer un planning (CPERT Excel, projet PertFlow)">📥 Importer</button>
     <div class="tb-sep"></div>
     <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
@@ -109,6 +109,22 @@
       <div id="about-content"></div>
       <div class="dialog-buttons">
         <button id="about-close" class="primary">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dialogue d'import (choix du format) — Lot 2 refonte import ────────── -->
+  <div id="import-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog import-dialog-box">
+      <h3>Importer un planning</h3>
+      <!-- Liste des formats construite dynamiquement (src/import.js) -->
+      <div id="import-format-list"></div>
+      <p class="dialog-note">
+        Le contenu importé est <b>concaténé</b> au projet courant (pour le remplacer,
+        utilisez « 📂 Ouvrir »).
+      </p>
+      <div class="dialog-buttons">
+        <button id="import-cancel">Fermer</button>
       </div>
     </div>
   </div>
@@ -178,6 +194,8 @@
   <input type="file" id="file-input" accept=".pert,.json" style="display:none">
   <!-- Import Excel legacy (Session 3, #8) -->
   <input type="file" id="excel-input" accept=".xlsm,.xlsx" style="display:none">
+  <!-- Import par concatenation d'un projet PertFlow (distinct de #file-input, qui remplace) -->
+  <input type="file" id="pert-input" accept=".pert,.json" style="display:none">
 
   <script src="lib/litegraph.js"></script>
   <script src="lib/jspdf.umd.min.js"></script>
@@ -185,6 +203,8 @@
   <script src="src/nodes.js"></script>
   <script src="src/pert_engine.js"></script>
   <script src="src/import_excel.js"></script>
+  <script src="src/import.js"></script>
+  <script src="src/import_pert.js"></script>
   <script src="src/history.js"></script>
   <script src="src/autosave.js"></script>
   <script src="src/storage.js"></script>

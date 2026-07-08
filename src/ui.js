@@ -330,14 +330,17 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-undo").addEventListener("click", () => pertUndo());
   document.getElementById("btn-redo").addEventListener("click", () => pertRedo());
 
-  // Import Excel legacy (#8) : ouvre le selecteur de fichier
-  document.getElementById("btn-import").addEventListener("click", () => {
-    document.getElementById("excel-input").value = ""; // re-selection du meme fichier OK
-    document.getElementById("excel-input").click();
-  });
+  // Import (lot 2) : un seul bouton → fenetre de choix du format (src/import.js).
+  // Chaque format y declenche son propre <input type="file"> masque.
+  document.getElementById("btn-import").addEventListener("click", () => pertOpenImportDialog());
+  document.getElementById("import-cancel").addEventListener("click", () => pertCloseImportDialog());
   document.getElementById("excel-input").addEventListener("change", (e) => {
     const file = e.target.files && e.target.files[0];
     if (file) handleExcelFile(file);
+  });
+  document.getElementById("pert-input").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) handlePertImportFile(file);
   });
 
   // Bouton « À propos » : auteur, licence, date de génération du bundle et tag main.
@@ -1364,13 +1367,18 @@ function pickDefaultImportColor() {
 // Demande le GROUPE (et la couleur qui en decoule) des taches importees, puis
 // concatene le modele. Point de passage commun aux deux chemins d'import. S7 (A) :
 // le dialogue est desormais centre groupe (cf. promptImportGroup).
+// Lot 2 : le choix groupe/couleur est suivi de la resolution T0/unite (commune aux
+// deux formats d'import, cf. src/import.js) avant la concatenation proprement dite.
 function finishExcelImport(model) {
   if (!model || !model.nodes || !model.nodes.length) {
     showToast("Aucun nœud à importer");
     return;
   }
-  promptImportGroup(pickDefaultImportColor(),
-    (color, group) => applyImportModel(model, color, group));
+  promptImportGroup(pickDefaultImportColor(), (color, group) => {
+    pertResolveImportMeta(model.t0 || "", model.unit || "", (plan) => {
+      applyImportModel(model, color, group, plan);
+    });
+  });
 }
 
 // S7 (A) — Dialogue d'import CENTRE GROUPE. Un seul groupe par lot d'import, avec
@@ -1382,7 +1390,17 @@ function finishExcelImport(model) {
 //   3. AUCUN groupe (champ laisse vide) → on choisit juste une couleur, taches
 //      importees SANS groupe (comportement historique preserve).
 // Le rattachement effectif au groupe est fait par applyImportModel via pertApplyGroup.
-function promptImportGroup(defaultColor, onChoose) {
+//
+// Lot 2 (08/07/2026) — le dialogue est partage avec l'import .pert, dont les taches
+// portent DEJA groupes et couleurs. D'ou `opts` :
+//   opts.allowKeep : ajoute un 4e chemin, coche par defaut, « Conserver les groupes et
+//     couleurs du fichier » → onChoose(color, group, keep=true) et champs desactives.
+//   opts.conflicts : [{name, current, file}] groupes de meme nom mais de couleur
+//     differente → avertissement (le projet courant gagne, cf. pertApplyGroup).
+//   opts.title     : titre du dialogue.
+// Sans `opts`, le comportement S7 est strictement inchange (onChoose(color, group)).
+function promptImportGroup(defaultColor, onChoose, opts) {
+  opts = opts || {};
   let dlg = document.getElementById("color-dialog");
   if (dlg) dlg.remove();
   dlg = document.createElement("div");
@@ -1393,10 +1411,41 @@ function promptImportGroup(defaultColor, onChoose) {
   const box = document.createElement("div");
   box.className = "dialog";
   const h = document.createElement("h3");
-  h.textContent = "Groupe et couleur des tâches importées";
+  h.textContent = opts.title || "Groupe et couleur des tâches importées";
   box.appendChild(h);
 
   let current = defaultColor; // couleur courante (modifiable sauf groupe existant)
+
+  // ── Chemin « conserver » (import .pert uniquement) ───────────────────────────
+  let keepRadio = null;
+  if (opts.allowKeep) {
+    if (opts.conflicts && opts.conflicts.length) {
+      const warn = document.createElement("p");
+      warn.className = "dialog-note dialog-warn";
+      warn.textContent = "⚠ " + opts.conflicts.length + " groupe(s) du fichier ("
+        + opts.conflicts.map(c => c.name).join(", ")
+        + ") existent déjà avec une autre couleur : la couleur du projet courant est conservée.";
+      box.appendChild(warn);
+    }
+    const grp = document.createElement("div");
+    grp.className = "dialog-radios";
+    const mkRadio = (labelText, value, checked) => {
+      const lab = document.createElement("label");
+      lab.className = "dialog-radio";
+      const r = document.createElement("input");
+      r.type = "radio";
+      r.name = "import-group-mode";
+      r.value = value;
+      r.checked = !!checked;
+      lab.appendChild(r);
+      lab.appendChild(document.createTextNode(" " + labelText));
+      grp.appendChild(lab);
+      return r;
+    };
+    keepRadio = mkRadio("Conserver les groupes et couleurs du fichier", "keep", true);
+    mkRadio("Tout rattacher à un groupe unique", "retag", false);
+    box.appendChild(grp);
+  }
 
   // ── Champ Groupe (combobox enrichissable : datalist des groupes connus) ──────
   const groupLabel = document.createElement("label");
@@ -1453,6 +1502,15 @@ function promptImportGroup(defaultColor, onChoose) {
   const refreshColorState = () => {
     const g = groupInput.value.trim();
     const reg = pertGroups();
+    if (keepRadio && keepRadio.checked) {
+      // Chemin 4 (.pert) : on ne touche a rien, les champs sont sans objet.
+      groupInput.disabled = true;
+      picker.disabled = true;
+      swatches.classList.add("locked");
+      note.textContent = "Chaque tâche conserve le groupe et la couleur du fichier importé.";
+      return;
+    }
+    groupInput.disabled = false;
     if (g && reg[g]) {
       // Chemin 1 : groupe existant → couleur heritee, verrouillee.
       current = reg[g];
@@ -1474,6 +1532,11 @@ function promptImportGroup(defaultColor, onChoose) {
     syncSelected();
   };
   groupInput.addEventListener("input", refreshColorState);
+  if (keepRadio) {
+    // NB : `box` n'est rattache a `dlg` qu'en fin de fonction → on interroge `box`.
+    box.querySelectorAll("input[name=import-group-mode]")
+      .forEach(r => r.addEventListener("change", refreshColorState));
+  }
   refreshColorState();
 
   const btns = document.createElement("div");
@@ -1485,9 +1548,10 @@ function promptImportGroup(defaultColor, onChoose) {
   ok.textContent = "Importer";
   ok.className = "primary";
   ok.onclick = () => {
-    const g = groupInput.value.trim();
+    const keep = !!(keepRadio && keepRadio.checked);
+    const g = keep ? "" : groupInput.value.trim();
     dlg.remove();
-    onChoose(current, g);
+    onChoose(current, g, keep);
   };
   btns.appendChild(cancel);
   btns.appendChild(ok);
@@ -1501,13 +1565,25 @@ function promptImportGroup(defaultColor, onChoose) {
 // Concatene le modele d'import dans le graphe courant. importColor = couleur
 // appliquee aux Activites importees ; importGroup (optionnel) = groupe auquel les
 // rattacher (S7 A) → l'heritage/premier-venu de pertApplyGroup prend le relais.
-function applyImportModel(model, importColor, importGroup) {
+// plan (lot 2) = { unit, convertFrom, t0, anchor } produit par pertResolveImportMeta :
+// T0 = min + ancrage, unite du projet jamais ecrasee. Omis (appel direct, tests), on
+// retombe sur un plan sans dialogue : unite du projet conservee, aucune conversion,
+// T0 = le plus anterieur + ancrage — jamais l'ancien ecrasement pur et simple.
+function applyImportModel(model, importColor, importGroup, plan) {
   const graph = window.pertGraph;
   if (!model || !model.nodes || !model.nodes.length) {
     showToast("Aucun nœud à importer");
     return;
   }
+  if (!plan) {
+    plan = Object.assign(
+      { unit: window.pertMeta.unit || model.unit, convertFrom: null },
+      pertResolveT0(model.t0 || "", !pertProjectHasNodes()));
+  }
   const EMU = PertExcel.EMU_PER_PX;
+
+  // Noeuds preexistants, captures AVANT l'ajout : « bloc existant » pour l'ancrage.
+  const before = graph._nodes.slice();
 
   // Origine des positions importees (coin haut-gauche du bloc Excel).
   let impMinX = Infinity, impMinY = Infinity;
@@ -1519,9 +1595,9 @@ function applyImportModel(model, importColor, importGroup) {
   // Decalage pour poser le bloc importe a droite du graphe existant (concatenation
   // sans recouvrement). Si le graphe est vide, on cale pres de l'origine.
   let baseX = 60, baseY = 60;
-  if (graph._nodes.length) {
+  if (before.length) {
     let maxX = -Infinity;
-    graph._nodes.forEach(n => { maxX = Math.max(maxX, n.pos[0] + n.size[0]); });
+    before.forEach(n => { maxX = Math.max(maxX, n.pos[0] + n.size[0]); });
     baseX = maxX + 80;
   }
   const dx = baseX - impMinX;
@@ -1529,6 +1605,7 @@ function applyImportModel(model, importColor, importGroup) {
 
   // 1) Creation des noeuds (map srcName → instance pour les liens)
   const created = {};
+  const importedNodes = [];
   model.nodes.forEach(n => {
     const node = LiteGraph.createNode(
       n.type === "milestone" ? "pert/milestone" : "pert/activity");
@@ -1537,7 +1614,12 @@ function applyImportModel(model, importColor, importGroup) {
       node.properties.due_date = n.due_date || "";
     } else {
       node.properties.label = n.label || "Activité";
-      node.properties.duration = (n.duration != null ? n.duration : 1);
+      let dur = (n.duration != null ? n.duration : 1);
+      // Unites divergentes et conversion demandee : la duree lue dans le fichier est
+      // exprimee dans SON unite → on la ramene dans celle du projet (les due_date des
+      // jalons, absolues, ne sont jamais converties).
+      if (plan && plan.convertFrom) dur = pertConvertDuration(dur, plan.convertFrom, plan.unit);
+      node.properties.duration = dur;
       if (importColor) {
         node.properties.color = importColor;
         node.color = importColor;
@@ -1556,6 +1638,7 @@ function applyImportModel(model, importColor, importGroup) {
     node.pos = [n.off.x / EMU + dx, n.off.y / EMU + dy];
     graph.add(node);
     created[n.srcName] = node;
+    importedNodes.push(node);
   });
 
   // 2) Creation des liens (sortie 0 → premier slot d'entree libre de la cible)
@@ -1566,9 +1649,24 @@ function applyImportModel(model, importColor, importGroup) {
     if (src.connect(0, dst, freeInputSlot(dst))) nbLinks++;
   });
 
-  // 3) Metadonnees projet (T0 / unite) issues de la config MANUEL
-  if (model.t0) window.pertMeta.t0 = model.t0;
-  if (model.unit) window.pertMeta.unit = model.unit;
+  // 3) Metadonnees projet (lot 2) : T0 = le plus anterieur des deux, unite du projet
+  // preservee (jamais ecrasee par celle du fichier). L'ancrage ci-dessous garantit
+  // qu'aucune date absolue ne bouge malgre un T0 devenu plus precoce.
+  window.pertMeta.t0 = plan.t0;
+  window.pertMeta.unit = plan.unit;
+
+  // 4) Ancrage : le bloc qui demarrait le plus tard recoit un jalon entrant date a son
+  // T0 d'origine, branche sur ses racines → il conserve sa date de demarrage.
+  let anchored = null;
+  if (plan.anchor) {
+    const target = plan.anchor.side === "imported" ? importedNodes : before;
+    const label = plan.anchor.side === "imported"
+      ? "Début import" + (model.sheet ? " " + model.sheet : "")
+      : "Début " + (window.pertMeta.title || "projet");
+    anchored = pertAnchorRoots(target, plan.anchor.date, label);
+  }
+  window.pertLastImportAnchor = anchored;  // expose pour les tests headless
+
   // L'unite influe sur la largeur des Activites → recalcul des tailles
   graph._nodes.forEach(n => { if (n.updateSize) n.updateSize(); });
 
@@ -1576,8 +1674,11 @@ function applyImportModel(model, importColor, importGroup) {
   updateStatus();
   refreshFilterOptions();   // S7 (C) : nouveaux groupes/couleurs dispo dans le filtre
   pertZoomToFit();
-  showToast(model.nodes.length + " nœud(s) et " + nbLinks + " lien(s) importés"
-    + (model.sheet ? " (feuille « " + model.sheet + " »)" : ""));
+  let msg = model.nodes.length + " nœud(s) et " + nbLinks + " lien(s) importés"
+    + (model.sheet ? " (feuille « " + model.sheet + " »)" : "");
+  if (plan.convertFrom) msg += " — durées converties";
+  if (anchored) msg += " — jalon d'ancrage « " + anchored.properties.label + " » créé";
+  showToast(msg);
 }
 
 // Premier slot d'entree libre d'un noeud (les Activites/Jalons ont des entrees
