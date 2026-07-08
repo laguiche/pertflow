@@ -128,7 +128,7 @@ pertflow/
 ### Conventions
 - **T0** = date de début du projet (saisie dans le panneau paramètres)
 - **Durée** exprimée en jours, semaines ou mois (selon `meta.unit` : `"j"` | `"sem"` | `"mois"`)
-- **Calcul interne en unités** (offset depuis T0) ; conversion en dates calendaires à l'affichage. Jours (j=1) et semaines (sem=7 j) = facteurs exacts ; **mois = mois CALENDAIRES réels** (via `Date.setMonth`, longueurs de mois et bissextiles gérées) — PAS un facteur fixe 30 j (corrigé pré-S8 : le facteur 30 dérivait de ~6 j/an, gênant sur les projets longs). On convertit toujours l'offset cumulé depuis T0 (jamais pas-à-pas) → conversions inversibles et sans dérive. Implémentation : `pertAddUnits` / `pertOffsetToDate` / `pertDateToOffset` dans `pert_engine.js`.
+- **Calcul interne en unités** (offset depuis T0) ; conversion en dates calendaires à l'affichage. **Chaque unité est comptée dans son arithmétique naturelle, jamais via un facteur fixe en jours** : **`mois` = mois CALENDAIRES réels** (via `Date.setMonth`, longueurs de mois et bissextiles gérées) — PAS un facteur fixe 30 j (corrigé pré-S8 : le facteur 30 dérivait de ~6 j/an, gênant sur les projets longs) ; **`sem` = N × 7 jours calendaires exacts** (une semaine reste une semaine, elle n'est pas décomposée en 5 jours ouvrés parcourus un par un) ; **`j` = jours OUVRÉS** (samedis/dimanches sautés ; **jours fériés comptés comme ouvrés**, assumé — lot 1 du 08/07/2026, cf. « Refonte de l'import »). Une date tombant un week-end (T0, date-cible de jalon) est **recalée sur le jour ouvré suivant**, et seulement en unité `j`. Cohérence sem/j : depuis un jour de semaine, +5 jours ouvrés == +7 jours calendaires. On convertit toujours l'offset cumulé depuis T0 (jamais pas-à-pas) → conversions inversibles et sans dérive. Implémentation : `pertAddUnits` / `pertOffsetToDate` / `pertDateToOffset` (+ `pertWorkdayIndex` / `pertWorkdayFromIndex`, formule O(1)) dans `pert_engine.js`.
 - **ES** du premier nœud = T0
 - **EF** = ES + durée
 - **ES** d'un nœud = max(EF de tous ses prédécesseurs)
@@ -1478,6 +1478,186 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Refonte de l'import — CHANTIER EN COURS (08/07/2026), découpé en 2 lots
+
+> **Section auto-suffisante** : concept approfondi avec l'utilisateur AVANT de coder
+> (échanges + `AskUserQuestion` du 08/07/2026), pour reprise sereine même après
+> interruption. Toutes les décisions sont figées ci-dessous.
+
+**Demande utilisateur (08/07/2026)** — « De la même manière qu'on a revu l'export (S9),
+je souhaite revoir l'import » :
+- **Un seul bouton « 📥 Importer »** ouvrant une **fenêtre de choix du format** (même
+  pattern que la fenêtre d'export S9), avec **2 formats** :
+  - **CPERT — Excel (`.xlsm`)** : l'import legacy existant, inchangé sur le fond ;
+  - **Projet PertFlow (`.pert`)** : **nouveau**, concaténé au projet courant.
+- Les règles d'import existantes sont **conservées** : intégration au projet courant
+  (concaténation), choix de la couleur et/ou du groupe.
+- **Question soulevée par l'utilisateur** : le T0 importé **écrase** aujourd'hui le T0
+  du projet (`applyImportModel` → `if (model.t0) window.pertMeta.t0 = model.t0;`) — ce
+  qui interagit mal avec la règle des jalons entrants (correctif pré-S8). Idem, découvert
+  au passage, pour **`meta.unit`** (`if (model.unit) …`) : importer un CPERT en semaines
+  dans un projet en mois **réinterprète silencieusement toutes les durées existantes**
+  (elles sont stockées en unités, pas en jours).
+
+**Décisions figées (arbitrages utilisateur du 08/07/2026)** :
+1. **T0 = `min(T0_courant, T0_importé)` + ANCRAGE AUTOMATIQUE.** Pour le bloc dont le T0
+   d'origine est postérieur au nouveau T0 projet, on crée un **jalon entrant daté à son
+   T0 d'origine**, branché sur ses racines (nœuds sans prédécesseur) → **aucune date
+   absolue ne bouge**. Réutilise la règle « jalon entrant » (aucun entrant + ≥1 sortant +
+   `due_date` → `ES = EF = offset(due_date)`) plutôt que d'étendre le modèle de données.
+2. **Unité divergente → l'utilisateur tranche**, via un dialogue d'avertissement à
+   **3 issues** : **Ignorer l'unité du fichier** (durées importées lues telles quelles
+   dans l'unité du projet) / **Convertir les durées** / **Annuler l'import** (rien n'est
+   ajouté). Le dialogue ne s'ouvre **que si divergence réelle ET projet non vide** ;
+   projet vide ou unités identiques → adoption silencieuse (comportement actuel).
+3. **Conversion de durées = facteurs moyens** (`j=1`, `sem=5 j ouvrés`, `mois≈21,7 j
+   ouvrés` = 261/12), arrondi à 2 décimales. Une **durée** n'a pas d'ancrage calendaire :
+   les mois calendaires réels de `pertAddUnits` y sont inapplicables. **Ne PAS dériver
+   `mois` de `hours_per_month / hours_per_day`** (135/8 ≈ 16,9) : ces 135 h sont une
+   **charge** avec abattement congés/absences, pas un empan calendaire. Les `due_date`
+   des jalons sont absolues → **non converties**.
+4. **Unité « jour » = jour OUVRÉ dans le moteur** (cf. Lot 1 ci-dessous) — conséquence
+   directe de la remarque utilisateur « quand il s'agit de jours on raisonne plutôt en
+   jours ouvrés ». Sorti en lot séparé.
+5. **Import `.pert` : groupes/couleurs du fichier CONSERVÉS par défaut**, avec **option
+   de retag** (« tout rattacher à un groupe unique », comme le CPERT). Registre
+   `meta.groups` **fusionné** ; à **nom de groupe identique mais couleur différente**,
+   **la couleur du projet courant gagne** (+ avertissement dans le dialogue).
+6. **`📂 Ouvrir` est conservé tel quel**, à côté de `📥 Importer`. Deux gestes distincts,
+   deux boutons : `Ouvrir` **remplace** le projet, `Importer` **concatène**. Aucun geste
+   destructif caché dans un menu.
+7. **Découpage en 2 lots successifs** (chacun validable et annulable indépendamment).
+
+---
+
+#### Lot 1 — Unité « jour » = jours ouvrés dans le moteur (branche `fix/jour-ouvre`, → tag **v0.14.2**)
+
+**Constat** : `pert_engine.js` comptait le jour en jours **calendaires**
+(`daysPerUnit = unit === "sem" ? 7 : 1`) → une tâche de 10 j s'étalait sur 10 jours
+calendaires, week-ends compris. Divergence interne : le **modèle de coût** (S8.5), lui,
+compte déjà `semaine = 5 × hours_per_day`, soit 5 jours **ouvrés**.
+
+**Périmètre réel = 3 fonctions.** Toute la frontière unités↔dates est confinée dans
+`pertAddUnits` / `pertOffsetToDate` / `pertDateToOffset` ; tout le reste (nœuds, exports
+CSV/Gantt/MSPDI/micro-jalons, panneau, layout) passe par elles. Le calcul interne du
+moteur reste 100 % en **unités abstraites** → chemin critique, marges et layout inchangés.
+
+**Sémantique par unité — chaque unité dans son arithmétique naturelle, jamais un facteur
+fixe en jours** :
+- **`mois`** : inchangé (mois calendaires réels, `setMonth`) — le correctif pré-S8 tient.
+- **`sem`** : inchangé — **N × 7 jours calendaires exacts**. **Précision utilisateur
+  explicite** : « en semaine il faut faire comme pour les mois, ajouter ou soustraire en
+  unité de semaine dans le moteur » → une semaine reste une semaine, on **ne la décompose
+  PAS** en 5 jours ouvrés parcourus un par un. Corollaire : `1,5 sem` = 10,5 j calendaires
+  (arrondi 11), et non « 7,5 jours ouvrés ».
+- **`j`** : **seule unité modifiée** → marche en **jours ouvrés** (samedis/dimanches
+  sautés). **Jours fériés comptés comme ouvrés** (assumé : dépendants du pays et de
+  l'entreprise, hors périmètre KISS).
+- **Cohérence sem/j** : depuis un jour de semaine, +5 jours ouvrés == +7 jours calendaires
+  → les deux unités restent alignées. **Zéro régression sur les plannings en semaines.**
+
+**Cas limites (arbitrage utilisateur)** : une date tombant un **week-end** (T0, `due_date`
+de jalon) est **recalée sur le jour ouvré suivant**. Conséquence : l'inversibilité
+`offset↔date` reste **exacte** (sinon deux dates donneraient le même offset). Ce recalage
+ne s'applique **qu'en unité `j`** — un T0 le samedi en `sem`/`mois` reste littéral
+(comportement historique préservé).
+
+**Implémentation — décisions notables** :
+- **Numéro de jour absolu** (`pertDayNumber`) calculé depuis les **composantes locales**
+  de la `Date` via `Date.UTC(y, m, d) / 86400000` — **pas** une soustraction de
+  timestamps, qui donne 23 h ou 25 h aux bascules d'heure d'été et fausse l'arrondi.
+- **`pertWorkdayIndex(d)` = formule O(1)**, pas de boucle jour-à-jour (un projet peut
+  couvrir des années) : `m = dayNumber - 4` (0 = lundi 05/01/1970), `w = floor(m/7)`,
+  `r = m - 7w` (0=lundi … 6=dimanche), `index = w*5 + min(r, 5)`. Le `min(r, 5)` fait que
+  **samedi et dimanche renvoient l'index du lundi suivant** → le recalage week-end est
+  gratuit, sans code dédié. `pertWorkdayFromIndex(i)` est son inverse (toujours lun–ven).
+- `pertAddUnits(ref, off, "j")` = `pertWorkdayFromIndex(pertWorkdayIndex(ref) + Math.round(off))`
+  (arrondi : une durée peut être fractionnaire, ex. `1,9` venu de l'import CPERT).
+- `pertDateToOffset(d)` en `j` = `pertWorkdayIndex(d) - pertWorkdayIndex(t0)` (entier).
+- **Effet rétroactif assumé** : les `.pert` existants en unité `j` voient leurs dates
+  s'allonger (c'est le but). Impact faible en pratique : les CPERT sont en mois (`J10=1`)
+  ou semaines (`J10=2`).
+
+**État** : implémenté, validé par test pur Node `tools/smoke-jour-ouvre.js` (**32
+assertions** : week-ends sautés, inversibilité sur `[-60, 500]` sans jamais produire de
+week-end, T0 samedi/dimanche recalé, cible de jalon en week-end, **non-régression `sem`**
+(×7 exact, T0 week-end non recalé) et **`mois`** (février court, bissextile, round-trip),
+cohérence `+5 j == +1 sem`, offsets négatifs, durées fractionnaires, perf O(1)) + smoke
+navigateur sans régression (`smoke.js`, `smoke-critical.js`, `smoke-s5.js`, `smoke-s85.js`,
+`smoke-s9.js`, `smoke-s10.js`, `smoke-reorg.js` — 0 erreur console).
+**Reste à faire** : validation visuelle utilisateur → rituel de fin de session (bundle
+`--tag v0.14.2`) → merge `main` → tag `v0.14.2`.
+
+> ⚠️ **Dérive de chemins constatée (non corrigée)** : `tools/smoke.js` attend
+> `C_PERT_exemple.xlsm` à la **racine** du repo, et `tools/smoke-s9.js` / `smoke-s10.js`
+> lisent `../test_cases/pert_a_exporter.pert` (donc ne tournent que depuis `tools/`). Les
+> fixtures vivent désormais dans `test_cases/` (répertoire **non versionné**). Contournement :
+> lancer S9/S10 depuis `tools/`, et créer un lien symbolique temporaire pour `smoke.js`.
+
+---
+
+#### Lot 2 — Refonte de l'import (branche `evo/import-multiformat`, → tag **v0.15**) — À IMPLÉMENTER
+
+Spec figée ; rien n'est encore codé. **Ordre de livraison conseillé** (incrémental,
+testable à chaque étape) :
+
+1. **Bouton + fenêtre d'import** — remplacer `#btn-import` (« 📥 Importer Excel ») par un
+   `#btn-import` générique + `#import-dialog`. **Réutiliser le pattern data-driven de la
+   fenêtre d'export S9** : registre `PERT_IMPORT_FORMATS` + `pertRegisterImportFormat({id,
+   icon, label, desc, order, accept, run})`, chaque module s'enregistrant à son chargement
+   → l'ordre d'affichage ne dépend pas de l'ordre des `<script>`. Non-régression : le
+   chemin CPERT existant (`handleExcelFile` → `promptImportGroup` → `applyImportModel`)
+   n'est que **rebranché** derrière la fenêtre.
+2. **Résolution T0/unité commune aux 2 formats** — extraire un helper
+   `pertResolveImportMeta(importedT0, importedUnit)` appelé par les deux chemins :
+   - unité : si projet vide → adopter ; sinon si divergente → **dialogue 3 issues**
+     (Ignorer / Convertir / Annuler) ; retourne le facteur de conversion à appliquer aux
+     durées importées (ou `null` = ignorer, ou `abort`).
+   - T0 : `min(courant, importé)` ; retourne quel bloc doit être **ancré** (celui dont le
+     T0 est postérieur au nouveau T0) et à quelle date.
+   - Helper de conversion : `pertConvertDuration(d, fromUnit, toUnit)` avec facteurs en
+     jours ouvrés `{ j: 1, sem: 5, mois: 261/12 }`, arrondi 2 décimales.
+3. **Ancrage par jalon entrant** — `pertAnchorRoots(nodes, dateISO, label)` : crée un
+   Jalon `due_date = dateISO`, le connecte aux **racines** de `nodes` (activités/jalons
+   sans lien entrant), et le pose à gauche du bloc. Appelé sur le bloc importé **ou** sur
+   le bloc préexistant, selon lequel des deux T0 est le plus tardif. **Cas particuliers** :
+   projet vide (pas d'ancrage) ; T0 identiques (pas d'ancrage) ; bloc déjà pourvu d'un
+   jalon entrant daté sur toutes ses racines (pas d'ancrage redondant).
+4. **Import `.pert`** — `src/import_pert.js` : `<input type="file">` + `FileReader.readAsText`
+   (**jamais `fetch`**, contrainte `file://`), `JSON.parse`, puis **concaténation** :
+   - instancier les nœuds via `LiteGraph.createNode(type)` + copie de `properties` (ne PAS
+     faire `graph.configure()` : ça remplacerait le graphe) ; recréer les liens depuis
+     `data.graph.links` en remappant les ids ; décaler les positions à droite du graphe
+     existant (même logique que `applyImportModel`) ;
+   - **`pertEnsureUids()` obligatoire après coup** (uid dupliqués entre les deux projets) ;
+   - fusion de `meta.groups` : **le projet courant gagne** sur conflit de couleur ;
+   - dialogue dédié : radio « Conserver les groupes du fichier » (défaut) / « Tout
+     rattacher au groupe [combobox] + couleur » (→ `pertApplyGroup`), + avertissement
+     listant les groupes en conflit de couleur ;
+   - Labels importés : recopiés tels quels.
+5. **Câblage** : `pertHistoryMark()` avant/après import, `refreshFilterOptions()`,
+   `pertRecalc()`, `updateStatus()`, `pertZoomToFit()`, toast récapitulatif (n nœuds,
+   n liens, ancrage éventuel, conversion éventuelle).
+
+**Fichiers attendus** : `src/import.js` (fenêtre + registre + `pertResolveImportMeta` +
+`pertAnchorRoots`), `src/import_pert.js` (nouveau), `src/import_excel.js` (inchangé sur
+le parsing ; seul `applyImportModel` dans `ui.js` perd l'écrasement T0/unité au profit du
+helper), `index.html` (bouton + `#import-dialog` + `<script>`), `css/style.css` (réutiliser
+`.export-*` → renommer en styles partagés ou dupliquer), `tools/smoke-import.js`.
+
+**Points de vigilance** :
+- `scripts/build-bundle.js` inline tous les `<script src="src/…">` par regex → les nouveaux
+  modules devraient être captés automatiquement, **à contrôler sur le bundle**.
+- Ne pas casser le **fallback de choix de feuille** (`promptSheetChoice`) du CPERT.
+- L'ancrage crée un nœud : il doit être **undoable** (donc après `pertHistoryMark`) et ne
+  pas perturber `pertAutoLayout` (le jalon entrant n'est pas terminal → bande normale).
+- Vérifier l'interaction ancrage × jalon entrant à `due_date < T0` (planché à T0, cf.
+  correctif pré-S8) : par construction l'ancrage date **≥** nouveau T0, donc pas de plancher.
+
+**Critère de validation** : un seul bouton d'import ; CPERT et `.pert` concaténés sans
+perte ; aucune date absolue ne bouge à l'import (ancrage) ; l'unité du projet n'est jamais
+écrasée en silence ; groupes/couleurs conservés à l'import `.pert`.
+
 ### Déplacement d'une sélection multiple au simple clic-glisser ✅ TERMINÉE (07/07/2026, tag **v0.14.1**)
 Correctif d'ergonomie sur la branche `evo/reorg-enchainements` (même lot que la réorg,
 avant le tag). **Demande utilisateur** : après avoir sélectionné plusieurs tâches
@@ -1968,3 +2148,31 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   clic-glisser sans SHIFT déplace les 2 ; + unitaires de la surcharge) + non-régression S4/général.
   Pièges de test notés (visible_nodes au 1er rendu ; double-clic < 300 ms). **Validé par l'utilisateur,
   mergé sur `main`, tagué `v0.14.1`, poussé** (rituel : bundle `--tag v0.14.1` régénéré + versionné).
+
+### Chantier post-roadmap (08/07/2026) — refonte de l'import, lot 1 : jour ouvré (branche `fix/jour-ouvre`)
+- **Concept approfondi avec l'utilisateur AVANT de coder** (échanges + `AskUserQuestion`), à la manière
+  de la S9 : la demande initiale « revoir l'import » (bouton + fenêtre unique, `.pert` concaténable,
+  T0 importé) a fait émerger deux problèmes de fond — l'écrasement silencieux de `meta.t0` **et** de
+  `meta.unit` par `applyImportModel` — puis, sur remarque utilisateur (« quand il s'agit de jours on
+  raisonne plutôt en jours ouvrés »), une **incohérence du moteur lui-même**. Spec complète et
+  auto-suffisante dans la section « Refonte de l'import » plus haut. **Découpage en 2 lots** (arbitrage
+  utilisateur) : lot 1 = moteur jour ouvré (`v0.14.2`), lot 2 = refonte de l'import (`v0.15`).
+- **Lot 1 livré (code + tests)** : `src/pert_engine.js` — l'unité `j` compte désormais en **jours
+  ouvrés** (week-ends sautés, fériés ignorés) ; `sem` (×7 j calendaires) et `mois` (calendaire réel)
+  **inchangés** sur précision explicite de l'utilisateur (« en semaine, ajouter/soustraire en unité de
+  semaine, comme pour les mois »). Ajout de `pertDayNumber` / `pertDateFromDayNumber` /
+  `pertWorkdayIndex` / `pertWorkdayFromIndex` : arithmétique **O(1)** (pas de boucle jour-à-jour) sur
+  un numéro de jour absolu calculé depuis les composantes locales (immunise contre les bascules
+  d'heure d'été, où une soustraction de timestamps donne 23 h ou 25 h). Le `min(r, 5)` de
+  `pertWorkdayIndex` fait que samedi/dimanche renvoient l'index du lundi suivant → **recalage
+  week-end gratuit** et inversibilité `offset↔date` exacte. Périmètre : **3 fonctions** (toute la
+  frontière unités↔dates y est confinée) — chemin critique, marges, layout, coûts et exports intacts.
+- Validé : `tools/smoke-jour-ouvre.js` (**32 assertions**, pur Node : week-ends sautés, inversibilité
+  sur `[-60, 500]`, T0 week-end recalé, cible de jalon week-end, non-régression `sem` et `mois`,
+  cohérence `+5 j == +1 sem`, offsets négatifs, durées fractionnaires, perf) + smoke navigateur sans
+  régression (`smoke`, `smoke-critical`, `smoke-s5`, `smoke-s85`, `smoke-s9`, `smoke-s10`,
+  `smoke-reorg`), 0 erreur console. **Reste : validation visuelle utilisateur → rituel (bundle
+  `--tag v0.14.2`) → merge `main` → tag `v0.14.2`**, puis attaquer le lot 2.
+- ⚠️ Dérive de chemins des fixtures constatée au passage (non corrigée, hors périmètre) : `smoke.js`
+  attend `C_PERT_exemple.xlsm` à la racine, `smoke-s9`/`smoke-s10` lisent `../test_cases/…` (donc ne
+  tournent que depuis `tools/`) ; les fixtures vivent maintenant dans `test_cases/` (non versionné).

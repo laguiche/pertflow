@@ -15,17 +15,28 @@
 
 // ─── Conversion unités ⇄ dates calendaires ──────────────────────────────────────
 //
-// Choix de conception : les MOIS sont comptés en mois CALENDAIRES réels (via les
-// méthodes de Date), pas approximés à 30 jours. Une tâche de N mois depuis T0 tombe
-// exactement N mois calendaires plus loin (longueurs de mois et années bissextiles
-// gérées nativement) → plus aucune dérive cumulée sur les projets longs (le bug du
-// facteur fixe 30 j décalait de ~6 jours par an). Les jours (j=1) et les semaines
-// (sem=7 j, exactes) restaient justes : seul le mois posait problème.
+// Chaque unité est comptée dans SA propre arithmétique naturelle — jamais ramenée à
+// un facteur fixe en jours :
+//   - MOIS  : mois CALENDAIRES réels (via setMonth). Une tâche de N mois depuis T0
+//     tombe exactement N mois calendaires plus loin (longueurs de mois et années
+//     bissextiles gérées nativement) → aucune dérive cumulée sur les projets longs
+//     (le facteur fixe 30 j décalait de ~6 jours par an).
+//   - SEM   : semaines calendaires, N × 7 jours exacts. Une semaine reste une
+//     semaine : on ne la décompose PAS en 5 jours ouvrés parcourus un par un
+//     (décision utilisateur — symétrie avec le mois).
+//   - J     : jours OUVRÉS (décision utilisateur) — samedis et dimanches sont
+//     sautés. C'est ainsi qu'un planning en jours se lit en gestion de projet.
+//     Les jours fériés, eux, sont comptés comme ouvrés (pas de calendrier des
+//     fériés : dépendant du pays/de l'entreprise, hors périmètre KISS).
+//
+// Cohérence sem/j : partir d'un jour de semaine et avancer de 5 jours ouvrés tombe
+// exactement sur +7 jours calendaires → les deux unités restent alignées.
 //
 // Invariant conservé : offset→date et date→offset restent exactement inverses pour
-// un offset entier de mois, ce qui est indispensable pour comparer une date-cible de
-// jalon (calendaire) à une valeur calculée (en unités). On convertit toujours
-// l'offset CUMULÉ depuis T0 (jamais pas-à-pas) → pas d'accumulation d'erreur.
+// un offset entier (mois calendaires, semaines, jours ouvrés), ce qui est
+// indispensable pour comparer une date-cible de jalon (calendaire) à une valeur
+// calculée (en unités). On convertit toujours l'offset CUMULÉ depuis T0 (jamais
+// pas-à-pas) → pas d'accumulation d'erreur.
 //
 // Le calcul interne du moteur reste 100% en unités abstraites : seule cette frontière
 // unités↔dates change (chemin critique, marges et layout sont inchangés).
@@ -35,10 +46,50 @@ function pertDaysInMonth(d) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 }
 
+// ── Arithmétique des jours ouvrés (unité "j") ───────────────────────────────────
+//
+// On travaille sur un NUMERO DE JOUR absolu, calculé depuis les composantes locales
+// de la Date : insensible au fuseau et aux bascules d'heure d'été (une soustraction
+// de timestamps, elle, peut donner 23 h ou 25 h et fausser l'arrondi).
+
+// Numéro de jour absolu de d. Jour 0 = jeudi 01/01/1970 ; jour 4 = lundi 05/01/1970.
+function pertDayNumber(d) {
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+}
+
+// Date locale (minuit) correspondant à un numéro de jour absolu.
+function pertDateFromDayNumber(n) {
+  const u = new Date(n * 86400000);
+  return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate());
+}
+
+// Index de jour ouvré : nombre de jours ouvrés écoulés depuis le lundi 05/01/1970.
+// Un samedi et un dimanche donnent le MÊME index que le lundi suivant → une date de
+// week-end est de fait recalée sur le jour ouvré suivant (T0, date-cible de jalon…),
+// ce qui préserve l'inversibilité offset↔date. Formule O(1) (pas de boucle : un
+// projet peut couvrir des années).
+function pertWorkdayIndex(d) {
+  const m = pertDayNumber(d) - 4;   // 0 = lundi 05/01/1970 (Math.floor gère le négatif)
+  const w = Math.floor(m / 7);      // numéro de semaine
+  const r = m - 7 * w;              // rang dans la semaine : 0 = lundi … 6 = dimanche
+  return w * 5 + Math.min(r, 5);    // samedi (5) et dimanche (6) → index du lundi suivant
+}
+
+// Inverse de pertWorkdayIndex : renvoie toujours un jour ouvré (lundi..vendredi).
+function pertWorkdayFromIndex(i) {
+  const w = Math.floor(i / 5);
+  const r = i - 5 * w;              // 0..4
+  return pertDateFromDayNumber(4 + 7 * w + r);
+}
+
 // Ajoute un décalage exprimé en unités à une date de référence (objet Date).
-// "mois" → arithmétique calendaire (setMonth) ; partie fractionnaire au prorata des
-// jours du mois atteint. "sem"/"j" → multiple de jours exact.
+// "mois" → arithmétique calendaire (setMonth), partie fractionnaire au prorata des
+// jours du mois atteint. "sem" → multiple de 7 jours exact. "j" → jours ouvrés.
 function pertAddUnits(refDate, offsetUnits, unit) {
+  if (unit === "j") {
+    // Offset arrondi au jour ouvré entier (une durée peut être fractionnaire, ex. 1,9).
+    return pertWorkdayFromIndex(pertWorkdayIndex(refDate) + Math.round(offsetUnits));
+  }
   const d = new Date(refDate.getTime());
   if (unit === "mois") {
     const whole = Math.trunc(offsetUnits);
@@ -49,8 +100,7 @@ function pertAddUnits(refDate, offsetUnits, unit) {
     }
     return d;
   }
-  const daysPerUnit = unit === "sem" ? 7 : 1;
-  d.setDate(d.getDate() + Math.round(offsetUnits * daysPerUnit));
+  d.setDate(d.getDate() + Math.round(offsetUnits * 7)); // "sem" : semaines calendaires
   return d;
 }
 
@@ -65,9 +115,9 @@ function pertOffsetToDate(offsetUnits) {
 }
 
 // Date calendaire (string "YYYY-MM-DD") → décalage en unités depuis T0, ou null.
-// Inverse exact de pertOffsetToDate pour un offset entier de mois ; pour une date
-// quelconque, partie entière = mois calendaires complets, fraction = part du mois
-// courant (jour atteint / longueur du mois) → cohérent avec pertAddUnits.
+// Inverse exact de pertOffsetToDate pour un offset entier de mois / semaines / jours
+// ouvrés ; pour une date quelconque en mois, partie entière = mois calendaires
+// complets, fraction = part du mois courant (jour atteint / longueur du mois).
 function pertDateToOffset(dateStr) {
   const meta = window.pertMeta || {};
   if (!dateStr || !meta.t0) return null;
@@ -81,8 +131,12 @@ function pertDateToOffset(dateStr) {
     if (Math.abs(dayDiff) > 1e-9) months += dayDiff / pertDaysInMonth(base);
     return months;
   }
-  const daysPerUnit = meta.unit === "sem" ? 7 : 1;
-  return (d.getTime() - t0.getTime()) / 86400000 / daysPerUnit;
+  if (meta.unit === "j") {
+    // Jours ouvrés entre T0 et d (week-ends exclus ; une date de week-end compte
+    // comme le jour ouvré suivant, cf. pertWorkdayIndex).
+    return pertWorkdayIndex(d) - pertWorkdayIndex(t0);
+  }
+  return (d.getTime() - t0.getTime()) / 86400000 / 7; // "sem"
 }
 
 // ─── Accès au modèle de graphe ──────────────────────────────────────────────────

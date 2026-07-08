@@ -17,5 +17,9 @@ node_modules/
 # Outillage de validation/captures (Playwright local, hors livraison)
 tools/
 
+# Fichiers d'exemple servant de reference aux tests (CPERT reels, exports attendus).
+# Non versionnes : ce sont les fichiers de travail de l'utilisateur.
+test_cases/
+
 # Le bundle HTML standalone (dist/pertflow.html) EST versionne : il est regenere et
 # committe a chaque fin de session (cf. CLAUDE.md « Rituel de fin de session »).
