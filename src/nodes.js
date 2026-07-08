@@ -335,7 +335,9 @@ function MilestoneNode() {
     // #17 Type de jalon (importance contractuelle) : "" | "DOTD" | "COTD" | "ING".
     // Rendu en pastille coloree (cf. PERT_MILESTONE_TAGS) ; sans incidence sur le
     // calcul PERT ni sur la couleur de tenue de cible.
-    tag: ""
+    tag: "",
+    // Note libre (comme l'Activite, #12) : panneau uniquement, jamais rendue sur le nœud.
+    notes: ""
   };
 
   this.ef = null; this.lf = null;
@@ -520,25 +522,56 @@ MilestoneNode.prototype.onDrawForeground = function(ctx) {
 // ─── Nœud Label ───────────────────────────────────────────────────────────────
 
 function LabelNode() {
-  this.properties = { text: "Note libre..." };
+  this.properties = {
+    text: "Note libre...",
+    // Taille de police d'affichage (nice-to-have) — pilotee par les boutons +/- du
+    // panneau. Le rendu ET l'auto-dimensionnement s'y adaptent.
+    font_size: LABEL_DEFAULT_FONT,
+    // Redimensionnement manuel : passe a true des que l'utilisateur tire la poignee
+    // (onResize). Gele alors l'auto-dimensionnement (le visuel prime sur l'auto-fit) —
+    // sinon toute frappe ramenait le Label a sa taille "texte" (bug corrige).
+    // Serialise nativement (node.properties) → conserve au round-trip .pert.
+    manual_size: false
+  };
   this.size = [200, 80];
   this.bgcolor = "#1a1a2e";
   this.updateSize();
 }
 
+// Police par defaut du Label + bornes des boutons +/- (nice-to-have visuel).
+const LABEL_DEFAULT_FONT = 12;
+const LABEL_MIN_FONT = 8;
+const LABEL_MAX_FONT = 48;
+
 LabelNode.title = "Label";
 LabelNode.title_mode = LiteGraph.NO_TITLE;
 
+// NB : on n'appelle PAS updateSize ici. onPropertyChanged est declenche par LiteGraph
+// pour CHAQUE propriete pendant configure() (chargement/undo/clone), dans l'ordre de
+// serialisation — donc AVANT que manual_size ne soit restaure. Y recalculer la taille
+// ecraserait la taille manuelle restauree (size est deserialise avant properties).
+// L'auto-dimensionnement est pilote explicitement : handler de saisie + stepper de
+// police (ui.js) et rejeu apres chargement (storage.js), tous posterieurs a manual_size.
 LabelNode.prototype.onPropertyChanged = function() {
-  this.updateSize();
   this.setDirtyCanvas(true, true);
 };
 
+// L'utilisateur tire la poignee de redimensionnement → il "s'approprie" la taille :
+// on gele l'auto-dimensionnement pour que l'edition du texte ne la reinitialise plus.
+LabelNode.prototype.onResize = function() {
+  this.properties.manual_size = true;
+};
+
 LabelNode.prototype.updateSize = function() {
+  // Taille manuelle assumee → on n'y touche plus (le visuel choisi par l'utilisateur
+  // prime, y compris a la frappe et au rechargement du .pert).
+  if (this.properties.manual_size) return;
+  const fs = this.properties.font_size || LABEL_DEFAULT_FONT;
+  const lineH = Math.round(fs * 1.33);
   const lines = (this.properties.text || "").split("\n");
-  const maxW = Math.max(...lines.map(l => measureText(l, "12px sans-serif")));
+  const maxW = Math.max(...lines.map(l => measureText(l, fs + "px sans-serif")));
   this.size[0] = Math.max(160, maxW + 20);
-  this.size[1] = Math.max(50, lines.length * 16 + 20);
+  this.size[1] = Math.max(50, lines.length * lineH + 20);
 };
 
 LabelNode.prototype.onDrawBackground = function(ctx) {
@@ -558,13 +591,15 @@ LabelNode.prototype.onDrawForeground = function(ctx) {
   ctx.strokeRect(1, 1, w - 2, h - 2);
   ctx.setLineDash([]);
 
+  const fs = this.properties.font_size || LABEL_DEFAULT_FONT;
+  const lineH = Math.round(fs * 1.33);
   ctx.fillStyle = "#444";
-  ctx.font = "12px sans-serif";
+  ctx.font = fs + "px sans-serif";
   ctx.textAlign = "left";
 
   const lines = (this.properties.text || "").split("\n");
   lines.forEach((line, i) => {
-    ctx.fillText(line, 10, 18 + i * 16, w - 20);
+    ctx.fillText(line, 10, Math.round(fs * 1.2) + 4 + i * lineH, w - 20);
   });
 
   // #16 Voile d'estompage (un Label est estompe des qu'un filtre est actif).

@@ -620,6 +620,12 @@ function showProperties(node) {
       node.setDirtyCanvas(true, true);
     });
 
+    // Note libre (comme l'Activite, #12). Panneau uniquement — jamais rendue sur le
+    // nœud. Pas de updateSize ni de setDirtyCanvas : la note n'affecte pas l'apparence.
+    buildTextarea(content, "Notes (hypothèses, contexte)", node.properties.notes, v => {
+      node.properties.notes = v;
+    });
+
     buildCalcSection(content, node);
 
   } else if (node.type === "pert/label") {
@@ -628,6 +634,8 @@ function showProperties(node) {
       node.updateSize();           // la boite s'ajuste au texte (largeur + lignes)
       node.setDirtyCanvas(true, true);
     });
+    // Nice-to-have visuel : taille de police du Label via boutons − / +.
+    buildLabelFontStepper(content, node);
   }
 
   // Bouton supprimer
@@ -1062,6 +1070,44 @@ function buildTextarea(parent, labelText, value, onChange) {
   label.appendChild(ta);
   parent.appendChild(label);
   return ta;
+}
+
+// Boutons − / + pour la taille de police du Label (nice-to-have visuel). Bornes
+// LABEL_MIN_FONT..LABEL_MAX_FONT (nodes.js). Rafraichit taille + rendu et marque
+// l'historique. updateSize refit la boite si elle est en taille auto, et ne fait
+// rien si l'utilisateur l'a redimensionnee manuellement (manual_size).
+function buildLabelFontStepper(parent, node) {
+  const label = document.createElement("label");
+  label.textContent = "Taille du texte";
+  const row = document.createElement("div");
+  row.className = "font-stepper";
+
+  const value = document.createElement("span");
+  value.className = "font-stepper-value";
+  const render = () => { value.textContent = (node.properties.font_size || LABEL_DEFAULT_FONT) + " px"; };
+
+  const step = delta => {
+    const cur = node.properties.font_size || LABEL_DEFAULT_FONT;
+    const next = Math.min(LABEL_MAX_FONT, Math.max(LABEL_MIN_FONT, cur + delta));
+    if (next === cur) return;                 // deja a la borne
+    node.properties.font_size = next;
+    node.updateSize();
+    node.setDirtyCanvas(true, true);
+    render();
+    pertHistoryMark();
+  };
+
+  const minus = document.createElement("button");
+  minus.className = "font-stepper-btn"; minus.textContent = "−"; minus.title = "Diminuer la police";
+  minus.addEventListener("click", () => step(-2));
+  const plus = document.createElement("button");
+  plus.className = "font-stepper-btn"; plus.textContent = "+"; plus.title = "Augmenter la police";
+  plus.addEventListener("click", () => step(+2));
+
+  render();
+  row.appendChild(minus); row.appendChild(value); row.appendChild(plus);
+  label.appendChild(row);
+  parent.appendChild(label);
 }
 
 // Liste deroulante simple (label + <select>). options = [{value, label}]. Sert au

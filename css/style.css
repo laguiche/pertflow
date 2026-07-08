@@ -242,6 +242,38 @@ body {
   color: #fff;
 }
 
+/* Stepper − / + de taille de police du Label */
+.font-stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.font-stepper-btn {
+  width: 30px;
+  height: 28px;
+  background: #1e2a40;
+  border: 1px solid #34507a;
+  border-radius: 4px;
+  color: #b9d2f5;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.font-stepper-btn:hover {
+  background: #2a3c5c;
+  color: #fff;
+}
+
+.font-stepper-value {
+  min-width: 46px;
+  text-align: center;
+  font-size: 12px;
+  color: #dde3ec;
+}
+
 /* ─── Status bar ────────────────────────────────────────────────────────────── */
 #statusbar {
   display: flex;

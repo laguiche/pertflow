@@ -774,6 +774,94 @@ n'est pas le standard.
 
 ---
 
+### Refonte de l'import, lot 1 — l'unité « jour » devient « jour ouvré » (✅ 08/07/2026, tag v0.14.2)
+
+Sur une demande de « revoir l'import » (à la manière de la refonte des exports), la discussion
+préalable a fait remonter une **incohérence de fond du moteur lui-même** : l'unité « jour » était
+comptée en jours **calendaires** (week-ends inclus), alors que le calcul de charge/coût comptait déjà
+la semaine comme **5 jours ouvrés**. Une même durée « en jours » et « en semaines » ne tombait donc
+pas sur la même date. Sortie en lot séparé avant la refonte de l'import proprement dite.
+
+- **Décision utilisateur** : l'unité « jour » compte désormais en **jours ouvrés** (samedis/dimanches
+  sautés ; jours fériés laissés « ouvrés », car dépendants du pays et de l'entreprise — hors périmètre
+  d'un outil volontairement simple). La **semaine** (7 jours calendaires) et le **mois** (mois
+  calendaire réel) restent inchangés, sur consigne explicite : « en semaine, on raisonne en unités de
+  semaine, comme pour les mois » — une semaine reste une semaine, on ne la décompose pas jour par jour.
+- **Portée chirurgicale** : toute la frontière « unités internes ↔ dates du calendrier » est confinée
+  dans **3 fonctions** ; le reste de l'application (calcul, marges, chemin critique, mise en page,
+  exports) passe par elles et n'a pas bougé. Le cœur du moteur continue de raisonner en unités
+  abstraites — chemin critique et marges strictement identiques.
+- **Écueil / apport IA** : deux pièges non évidents identifiés et neutralisés — (1) calculer un
+  « numéro de jour » à partir des composantes de la date (année/mois/jour) et non par soustraction de
+  dates, sinon les changements d'heure d'été (jours de 23 h ou 25 h) faussent l'arrondi ; (2) une
+  formule **directe** (sans boucler jour par jour, un projet pouvant courir sur des années) qui, en
+  prime, recale « gratuitement » une date tombant un week-end sur le lundi suivant tout en gardant la
+  conversion date↔unité parfaitement réversible. Validé par un test hors navigateur de **32
+  vérifications** (week-ends, réversibilité, non-régression semaines/mois, cohérence « +5 jours ouvrés
+  = +1 semaine »).
+
+---
+
+### Refonte de l'import, lot 2 — un import multi-format sans perte de dates (✅ 08/07/2026, tag v0.15)
+
+Suite du lot 1. Sur le modèle de la refonte des exports, un **bouton unique « Importer »** ouvre une
+**fenêtre de choix du format** : planning **CPERT Excel** (l'import historique) ou **projet PertFlow
+`.pert`** (nouveau). Les deux sont **concaténés** au projet en cours ; le bouton « Ouvrir » reste
+distinct et **remplace** le projet — deux gestes clairement séparés, aucun écrasement caché.
+
+- **Deux bugs de fond corrigés au passage**, tous deux issus d'un écrasement aveugle des paramètres du
+  projet par ceux du fichier importé : la **date de début (T0)** importée écrasait celle du projet, et
+  l'**unité** importée réinterprétait silencieusement **toutes les durées existantes** (stockées en
+  unités, pas en jours) — importer un fichier « en semaines » dans un projet « en mois » déformait tout
+  le planning déjà saisi.
+- **Décisions utilisateur** : (1) le T0 du projet devient le **plus ancien** des deux, et le bloc qui
+  démarrait plus tard reçoit automatiquement un **jalon d'entrée daté** à son ancien T0 → **aucune date
+  absolue ne bouge** (on réutilise la règle des jalons entrants plutôt que d'alourdir le modèle) ; (2)
+  si l'unité diverge, l'utilisateur **tranche** via un dialogue à trois issues (ignorer l'unité du
+  fichier / convertir les durées / annuler l'import) ; (3) à l'import d'un `.pert`, les **groupes et
+  couleurs du fichier sont conservés** par défaut, et en cas de même nom de groupe avec une couleur
+  différente, **c'est le projet courant qui gagne** (avec avertissement).
+- **Principe d'architecture** : les deux règles de fond vivent dans **un point de passage commun aux
+  deux formats** → impossible qu'Excel et `.pert` divergent. Subtilité repérée sur l'ancrage : ne pas
+  re-brancher une racine qui est **déjà** un jalon d'entrée daté, sous peine de lui faire perdre son
+  statut et de détruire la contrainte qu'on cherchait justement à préserver.
+- **Apport méthode/IA** : concept entièrement **cadré avec l'utilisateur avant d'écrire une ligne**
+  (échanges + questions ciblées), décisions figées par écrit pour une reprise sereine même après
+  interruption ; validation par **40 vérifications** dédiées + rejeu de **toute la batterie de tests
+  existante** sans régression.
+
+---
+
+### Peaufinage — notes de Jalon & nœud Label (visuel + police) (✅ 08/07/2026, tag v0.15.1 prévu)
+
+Phase de finition sur des retours d'usage fins. Trois petites choses, dont un écueil de débogage
+instructif.
+
+- **Note libre sur les Jalons** : le champ « Notes » existait sur les tâches (hypothèses, contenu
+  réel) ; il est ajouté à l'identique sur les Jalons — **panneau latéral uniquement, jamais affiché
+  sur le nœud** (une note peut être longue). Bénéfice gratuit : l'export « micro-jalonnement » remplit
+  déjà sa colonne « Commentaires » à partir de ces notes → les jalons en profitent aussi.
+- **Correction du nœud Label** : on pouvait agrandir un Label à la main (utile — un Label, c'est autant
+  du visuel que du texte), mais **dès qu'on éditait son texte, il reprenait sa taille d'origine**. Un
+  Label redimensionné à la main **gèle** désormais sa taille (la frappe ne la réinitialise plus).
+- **Écueil marquant (bon exemple pour la restitution)** : une fois le gel en place, la taille manuelle
+  se perdait pourtant **au rechargement du fichier**. Diagnostic : au chargement, la bibliothèque
+  graphique restaure les propriétés **une par une, dans l'ordre d'enregistrement**, en déclenchant à
+  chaque fois un recalcul de taille — donc le texte était restauré (et la taille recalculée en « auto »)
+  **avant** que le drapeau « taille manuelle » ne soit rétabli, écrasant la taille sauvegardée. Le
+  correctif retire ce recalcul automatique du point de restauration et pilote le dimensionnement
+  explicitement là où c'est voulu (saisie, boutons de police, rejeu après chargement) — tous postérieurs
+  au drapeau. Cas typique où lire finement le comportement de la lib, plutôt que la contourner, a permis
+  un correctif minimal.
+- **Amélioration (nice-to-have)** : boutons **− / +** dans le panneau pour régler la **taille de police**
+  du Label (toujours une question de visuel) ; le rendu et l'ajustement automatique de la boîte s'y
+  adaptent. Taille sauvegardée avec le projet.
+- **Validation** : nouveau test dédié au Label (défauts, ajustement auto, gel après redimensionnement
+  manuel — à la frappe **et** au chargement — réglage de police) + non-régression de la batterie
+  existante.
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)
