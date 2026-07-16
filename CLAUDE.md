@@ -1499,6 +1499,17 @@ bundle régénéré.
   `CLAUDE.md` + `docs/journal-developpement.md`, `dist/pertflow.html` (bundle `--tag v0.15.3`).
 **Validé par l'utilisateur** ; mergé sur `main`, tagué **v0.15.3**, poussé.
 
+> **Enrichissement pédagogique du manuel (16/07/2026, docs-only, PAS de tag)** — sur retour
+> utilisateur, deux chapitres rendus plus visuels : **§1 « Prise en main rapide » = une capture par
+> action** (8 captures d'un projet démo construit pas à pas, étapes 2→9) ; **§4 « Moteur PERT » = 2
+> synoptiques SVG rendus en PNG** (`pert-anatomie-dates` : barres au plus tôt/au plus tard + marge ;
+> `pert-propagation-dates` : ES = max des EF prédécesseurs) + gros plan du panneau des valeurs
+> calculées + vue du chemin critique. **12 nouvelles captures** (`tools/doc-shots-manuel2.js`, gitignoré ;
+> les synoptiques sont des SVG fond clair rendus via `page.setContent`). **Piège** : une liste
+> numérotée Markdown se **fragmente** quand on y intercale des images (indent 3 espaces insuffisant
+> pour python-markdown) → quick-start réécrit en **paragraphes « Étape N » en gras** (robuste). Manuel
+> régénéré en 3 formats (manuel seul). Aucun code touché → **pas de bundle, pas de tag** (reste v0.15.3).
+
 ### Peaufinage — 2e réorganisation, mise en forme des Labels, boîte d'alignement ✅ TERMINÉ (16/07/2026, tag **v0.15.2**)
 Trois évolutions de confort demandées ensemble, sur la branche `evo/labels-alignement-reorg`.
 **Numérotation patch** : `v0.15.2` (v0.15.1 = notes de Jalon + Label). Toutes **cosmétiques**
