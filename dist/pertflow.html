@@ -1432,7 +1432,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"08/07/2026 23:34","tag":"v0.15.1"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"16/07/2026 08:37","tag":"v0.15.2"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -1499,7 +1499,7 @@ body {
     <button id="btn-add-milestone" title="Ajouter un nœud Jalon">◈ Jalon</button>
     <button id="btn-add-label" title="Ajouter un nœud Label">❏ Label</button>
     <div class="tb-sep"></div>
-    <button id="btn-layout" title="Ré-arranger les nœuds chronologiquement (selon les dates au plus tôt)">⤓ Réorganiser</button>
+    <button id="btn-layout" title="Réorganiser les nœuds : chronologique complète, ou sur l'axe du temps seul (ordonnées conservées)">⤓ Réorganiser ▾</button>
     <button id="btn-zoom-out" title="Dézoomer (utile sans molette ni pavé tactile multipoint)">➖</button>
     <button id="btn-fit" title="Ajuster le zoom pour afficher tout le planning à l'écran">🔍 Tout afficher</button>
     <button id="btn-zoom-in" title="Zoomer (utile sans molette ni pavé tactile multipoint)">➕</button>
@@ -37111,6 +37111,13 @@ function LabelNode() {
     // Taille de police d'affichage (nice-to-have) — pilotee par les boutons +/- du
     // panneau. Le rendu ET l'auto-dimensionnement s'y adaptent.
     font_size: LABEL_DEFAULT_FONT,
+    // Peaufinage visuel du Label (sans notion de filtre associee — decision
+    // utilisateur). Tout vit dans properties → serialise nativement (round-trip .pert
+    // gratuit, aucun changement dans storage.js).
+    text_align: "left",             // justification : "left" | "center" | "right"
+    bold: false,                    // gras applique a tout le texte (optionnel)
+    text_color: LABEL_DEFAULT_TEXT, // couleur du texte
+    bg_color: LABEL_DEFAULT_BG,     // couleur de fond de la boite
     // Redimensionnement manuel : passe a true des que l'utilisateur tire la poignee
     // (onResize). Gele alors l'auto-dimensionnement (le visuel prime sur l'auto-fit) —
     // sinon toute frappe ramenait le Label a sa taille "texte" (bug corrige).
@@ -37126,6 +37133,10 @@ function LabelNode() {
 const LABEL_DEFAULT_FONT = 12;
 const LABEL_MIN_FONT = 8;
 const LABEL_MAX_FONT = 48;
+// Couleurs par defaut du Label (equivalent opaque de l'ancien creme translucide et
+// de l'ancien gris de texte en dur). Configurables via le panneau.
+const LABEL_DEFAULT_TEXT = "#444444";
+const LABEL_DEFAULT_BG = "#fffedc";
 
 LabelNode.title = "Label";
 LabelNode.title_mode = LiteGraph.NO_TITLE;
@@ -37153,20 +37164,22 @@ LabelNode.prototype.updateSize = function() {
   const fs = this.properties.font_size || LABEL_DEFAULT_FONT;
   const lineH = Math.round(fs * 1.33);
   const lines = (this.properties.text || "").split("\n");
-  const maxW = Math.max(...lines.map(l => measureText(l, fs + "px sans-serif")));
+  // Le gras elargit le texte → l'auto-fit doit mesurer avec la meme graisse.
+  const fontSpec = (this.properties.bold ? "bold " : "") + fs + "px sans-serif";
+  const maxW = Math.max(...lines.map(l => measureText(l, fontSpec)));
   this.size[0] = Math.max(160, maxW + 20);
   this.size[1] = Math.max(50, lines.length * lineH + 20);
 };
 
 LabelNode.prototype.onDrawBackground = function(ctx) {
-  ctx.fillStyle = "#1a1a2e";
+  ctx.fillStyle = this.properties.bg_color || LABEL_DEFAULT_BG;
   ctx.fillRect(0, 0, this.size[0], this.size[1]);
 };
 
 LabelNode.prototype.onDrawForeground = function(ctx) {
   const w = this.size[0], h = this.size[1];
 
-  ctx.fillStyle = "rgba(255, 255, 220, 0.90)";
+  ctx.fillStyle = this.properties.bg_color || LABEL_DEFAULT_BG;
   ctx.fillRect(0, 0, w, h);
 
   ctx.setLineDash([5, 4]);
@@ -37177,13 +37190,19 @@ LabelNode.prototype.onDrawForeground = function(ctx) {
 
   const fs = this.properties.font_size || LABEL_DEFAULT_FONT;
   const lineH = Math.round(fs * 1.33);
-  ctx.fillStyle = "#444";
-  ctx.font = fs + "px sans-serif";
-  ctx.textAlign = "left";
+  ctx.fillStyle = this.properties.text_color || LABEL_DEFAULT_TEXT;
+  ctx.font = (this.properties.bold ? "bold " : "") + fs + "px sans-serif";
+
+  // Justification : abscisse d'ancrage selon l'alignement (marge 10 px de chaque bord).
+  const align = this.properties.text_align || "left";
+  ctx.textAlign = align;
+  const tx = align === "center" ? Math.round(w / 2)
+           : align === "right"  ? w - 10
+           : 10;
 
   const lines = (this.properties.text || "").split("\n");
   lines.forEach((line, i) => {
-    ctx.fillText(line, 10, Math.round(fs * 1.2) + 4 + i * lineH, w - 20);
+    ctx.fillText(line, tx, Math.round(fs * 1.2) + 4 + i * lineH, w - 20);
   });
 
   // #16 Voile d'estompage (un Label est estompe des qu'un filtre est actif).
@@ -37704,6 +37723,33 @@ function pertAutoLayout() {
   // peuvent se retrouver sous une activite/jalon repositionne. On reloge ceux qui
   // chevauchent un nœud place, dans une bande libre sous le graphe.
   pertRelocateOverlappingLabels(graph, placeable);
+
+  graph.setDirtyCanvas(true, true);
+}
+
+// Reorganisation "axe temps seul" (2e variante, demande utilisateur) : on ne
+// deplace les nœuds QUE sur l'abscisse (le temps), l'ordonnee (pos[1]) reste celle
+// choisie manuellement par l'utilisateur, quels que soient les chevauchements.
+// Contrairement a pertAutoLayout, on n'applique PAS le decalage rang × gap : c'est
+// un X PUR ∝ ES (decision utilisateur) → deux taches de meme ES se retrouvent a la
+// meme abscisse, et les lignes horizontales voulues par l'utilisateur restent
+// lisibles. Aucun packing par couloir, aucune relocalisation de Label.
+function pertAutoLayoutTimeOnly() {
+  const graph = window.pertGraph;
+  if (!graph) return;
+
+  // ES a jour avant de recaler l'abscisse
+  pertRecalc();
+
+  const { nodes } = pertBuildAdjacency(graph);
+  const placeable = nodes.filter(n => n.es !== null);
+  if (!placeable.length) return;
+
+  placeable.forEach(n => {
+    // X pur ∝ ES : pas de rang × gap (l'ordonnee manuelle porte la lisibilite)
+    n.pos[0] = PERT_LAYOUT_MARGIN_X + n.es * PERT_PX_PER_UNIT;
+    // pos[1] volontairement inchange (on ne touche pas a l'axe des ordonnees)
+  });
 
   graph.setDirtyCanvas(true, true);
 }
@@ -40773,6 +40819,120 @@ window.pertApplyLinkMode = pertApplyLinkMode;
 
 </script>
   <script>
+/* src/align.js */
+// ─── Alignement / repartition d'une selection multiple ──────────────────────────
+//
+// Boite a outils d'organisation des nœuds selectionnes (demande utilisateur).
+// Operations de GEOMETRIE PURE sur node.pos : elles ne touchent NI au calcul PERT
+// (les positions n'influencent ni ES/EF ni le chemin critique) NI a la taille des
+// nœuds → pas de pertRecalc, juste un cran d'historique + un redraw.
+//
+// Surface UI : sous-menu « Aligner ▸ » du menu contextuel de nœud (cf. ui.js),
+// visible des que >=2 nœuds sont selectionnes (>=3 pour la repartition).
+
+// Nœuds actuellement selectionnes (tableau). Ordre non garanti → on trie dans
+// chaque operation qui en depend (repartition).
+function pertSelectedNodes() {
+  const canvas = window.pertCanvas;
+  return canvas ? Object.values(canvas.selected_nodes || {}) : [];
+}
+
+function pertNodeCenterX(n) { return n.pos[0] + n.size[0] / 2; }
+function pertNodeCenterY(n) { return n.pos[1] + n.size[1] / 2; }
+
+// Finalise une operation d'alignement : redraw + cran d'historique.
+function pertFinishAlign() {
+  if (window.pertGraph) window.pertGraph.setDirtyCanvas(true, true);
+  pertHistoryMark();
+}
+
+// Aligne / repartit la selection selon le mode demande.
+// Modes : "left" | "right" | "top" | "bottom" | "center-x" | "center-y"
+//         | "distribute-h" | "distribute-v"
+// center-x = centres alignes sur une meme verticale (colonne) ;
+// center-y = centres alignes sur une meme horizontale (ligne).
+function pertAlignSelection(mode) {
+  const sel = pertSelectedNodes();
+  const minCount = (mode === "distribute-h" || mode === "distribute-v") ? 3 : 2;
+  if (sel.length < minCount) return;
+
+  switch (mode) {
+    case "left": {
+      const x = Math.min(...sel.map(n => n.pos[0]));
+      sel.forEach(n => { n.pos[0] = x; });
+      break;
+    }
+    case "right": {
+      const r = Math.max(...sel.map(n => n.pos[0] + n.size[0]));
+      sel.forEach(n => { n.pos[0] = r - n.size[0]; });
+      break;
+    }
+    case "top": {
+      const y = Math.min(...sel.map(n => n.pos[1]));
+      sel.forEach(n => { n.pos[1] = y; });
+      break;
+    }
+    case "bottom": {
+      const b = Math.max(...sel.map(n => n.pos[1] + n.size[1]));
+      sel.forEach(n => { n.pos[1] = b - n.size[1]; });
+      break;
+    }
+    case "center-x": {
+      // Aligne les centres horizontaux sur la moyenne → colonne verticale.
+      const cx = sel.reduce((s, n) => s + pertNodeCenterX(n), 0) / sel.length;
+      sel.forEach(n => { n.pos[0] = Math.round(cx - n.size[0] / 2); });
+      break;
+    }
+    case "center-y": {
+      // Aligne les centres verticaux sur la moyenne → ligne horizontale.
+      const cy = sel.reduce((s, n) => s + pertNodeCenterY(n), 0) / sel.length;
+      sel.forEach(n => { n.pos[1] = Math.round(cy - n.size[1] / 2); });
+      break;
+    }
+    case "distribute-h": {
+      // Espacement egal des centres entre le plus a gauche et le plus a droite.
+      const s = sel.slice().sort((a, b) => pertNodeCenterX(a) - pertNodeCenterX(b));
+      const first = pertNodeCenterX(s[0]);
+      const last = pertNodeCenterX(s[s.length - 1]);
+      const step = (last - first) / (s.length - 1);
+      s.forEach((n, i) => { n.pos[0] = Math.round(first + i * step - n.size[0] / 2); });
+      break;
+    }
+    case "distribute-v": {
+      const s = sel.slice().sort((a, b) => pertNodeCenterY(a) - pertNodeCenterY(b));
+      const first = pertNodeCenterY(s[0]);
+      const last = pertNodeCenterY(s[s.length - 1]);
+      const step = (last - first) / (s.length - 1);
+      s.forEach((n, i) => { n.pos[1] = Math.round(first + i * step - n.size[1] / 2); });
+      break;
+    }
+    default:
+      return;
+  }
+  pertFinishAlign();
+}
+
+// Options du sous-menu « Aligner ▸ » (partagees si besoin). Chaque entree appelle
+// pertAlignSelection. Les entrees de repartition sont proposees des >=2 mais ne font
+// rien sous 3 nœuds (garde dans pertAlignSelection) — on ne les affiche qu'a >=3.
+function pertAlignMenuOptions(selCount) {
+  const opts = [
+    { content: "⇤ Aligner à gauche",   callback: () => pertAlignSelection("left") },
+    { content: "⇥ Aligner à droite",   callback: () => pertAlignSelection("right") },
+    { content: "⤒ Aligner en haut",    callback: () => pertAlignSelection("top") },
+    { content: "⤓ Aligner en bas",     callback: () => pertAlignSelection("bottom") },
+    { content: "↕ Centrer (colonne)",  callback: () => pertAlignSelection("center-x") },
+    { content: "↔ Centrer (ligne)",    callback: () => pertAlignSelection("center-y") }
+  ];
+  if (selCount >= 3) {
+    opts.push({ content: "⇹ Répartir horizontalement", callback: () => pertAlignSelection("distribute-h") });
+    opts.push({ content: "⤨ Répartir verticalement",   callback: () => pertAlignSelection("distribute-v") });
+  }
+  return opts;
+}
+
+</script>
+  <script>
 /* src/ui.js */
 // ─── État global ──────────────────────────────────────────────────────────────
 
@@ -40887,9 +41047,8 @@ document.addEventListener("DOMContentLoaded", () => {
       { content: "◈ Ajouter un Jalon",     callback: () => addNodeAt("pert/milestone", pos) },
       { content: "❏ Ajouter un Label",     callback: () => addNodeAt("pert/label", pos) },
       null,
-      { content: "⤓ Réorganiser", callback: () => {
-          pertAutoLayout(); pertHistoryMark(); pertZoomToFit();
-        } },
+      { content: "⤓ Réorganiser", has_submenu: true,
+        submenu: { options: pertReorgMenuOptions() } },
       { content: "🔍 Tout afficher", callback: () => pertZoomToFit() }
     ];
   };
@@ -40897,7 +41056,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Menu d'un nœud : francisé et limité aux actions utiles (remplace le menu natif
   // anglais Inputs/Outputs/Properties/Title/Mode/Resize/Collapse/Pin/Colors/Shapes).
   lgCanvas.getNodeMenuOptions = function (node) {
-    return [
+    const opts = [
       { content: "⧉ Dupliquer", callback: () => {
           const clone = node.clone();
           if (!clone) return;
@@ -40906,10 +41065,18 @@ document.addEventListener("DOMContentLoaded", () => {
           graph.add(clone);          // déclenche onNodeAdded → recalc + historique
           pertEnsureUids();          // #34 le clone recopie l'uid → on le regenere
           pertRecalc();
-        } },
-      null,
-      { content: "🗑 Supprimer", callback: () => { graph.remove(node); } }
+        } }
     ];
+    // Boite a outils d'alignement : proposee des qu'au moins 2 nœuds sont
+    // selectionnes (sous-menu ▸). Geometrie pure, pas de recalc PERT.
+    const selCount = Object.keys(lgCanvas.selected_nodes || {}).length;
+    if (selCount >= 2) {
+      opts.push({ content: "⊞ Aligner", has_submenu: true,
+        submenu: { options: pertAlignMenuOptions(selCount) } });
+    }
+    opts.push(null);
+    opts.push({ content: "🗑 Supprimer", callback: () => { graph.remove(node); } });
+    return opts;
   };
 
   // #25 Cohérence linguistique : neutraliser les derniers panneaux/menus natifs
@@ -41053,11 +41220,12 @@ document.addEventListener("DOMContentLoaded", () => {
     addNodeAt("pert/label");
   });
 
-  document.getElementById("btn-layout").addEventListener("click", () => {
-    pertAutoLayout();
-    pertHistoryMark();   // les positions changent → cran d'historique
-    showToast("Nœuds réorganisés chronologiquement");
-    pertZoomToFit();
+  // Deux modes de reorganisation (demande utilisateur) : le bouton ouvre un petit
+  // menu (meme principe que le menu de lien), le menu contextuel de fond propose un
+  // sous-menu symetrique. « Complete » = pertAutoLayout (X∝ES + couloirs) ; « axe
+  // temps seul » = pertAutoLayoutTimeOnly (X∝ES pur, ordonnees conservees).
+  document.getElementById("btn-layout").addEventListener("click", (e) => {
+    new LiteGraph.ContextMenu(pertReorgMenuOptions(), { event: e });
   });
 
   document.getElementById("btn-fit").addEventListener("click", () => {
@@ -41412,6 +41580,30 @@ function showProperties(node) {
     });
     // Nice-to-have visuel : taille de police du Label via boutons − / +.
     buildLabelFontStepper(content, node);
+
+    // Justification du texte (gauche / centre / droite).
+    buildSelect(content, "Alignement du texte", node.properties.text_align, [
+      { value: "left",   label: "Gauche" },
+      { value: "center", label: "Centré" },
+      { value: "right",  label: "Droite" }
+    ], v => {
+      node.properties.text_align = v;
+      node.setDirtyCanvas(true, true);   // n'affecte pas la taille
+    });
+
+    // Gras sur tout le texte (optionnel). Modifie la largeur du texte → updateSize
+    // (ignore si taille manuelle, garde interne a updateSize).
+    buildLabelBoldToggle(content, node);
+
+    // Couleur du texte et couleur de fond de la boite (sans notion de filtre).
+    buildField(content, "Couleur du texte", "color", node.properties.text_color, v => {
+      node.properties.text_color = v;
+      node.setDirtyCanvas(true, true);
+    });
+    buildField(content, "Couleur du fond", "color", node.properties.bg_color, v => {
+      node.properties.bg_color = v;
+      node.setDirtyCanvas(true, true);
+    });
   }
 
   // Bouton supprimer
@@ -41852,6 +42044,30 @@ function buildTextarea(parent, labelText, value, onChange) {
 // LABEL_MIN_FONT..LABEL_MAX_FONT (nodes.js). Rafraichit taille + rendu et marque
 // l'historique. updateSize refit la boite si elle est en taille auto, et ne fait
 // rien si l'utilisateur l'a redimensionnee manuellement (manual_size).
+// Options du menu de reorganisation (partagees par le bouton toolbar et le
+// sous-menu du menu contextuel de fond). Deux modes, cf. pertRunReorg.
+function pertReorgMenuOptions() {
+  return [
+    { content: "⤓ Chronologique (complète)", callback: () => pertRunReorg("full") },
+    { content: "⇥ Axe du temps seul (ordonnées conservées)", callback: () => pertRunReorg("time") }
+  ];
+}
+
+// Execute une reorganisation puis marque l'historique et recadre la vue.
+// mode "full" = pertAutoLayout (X∝ES + packing par couloirs) ; mode "time" =
+// pertAutoLayoutTimeOnly (X∝ES pur, aucune modification des ordonnees).
+function pertRunReorg(mode) {
+  if (mode === "time") {
+    pertAutoLayoutTimeOnly();
+    showToast("Nœuds replacés sur l'axe du temps (ordonnées conservées)");
+  } else {
+    pertAutoLayout();
+    showToast("Nœuds réorganisés chronologiquement");
+  }
+  pertHistoryMark();   // les positions changent → cran d'historique
+  pertZoomToFit();
+}
+
 function buildLabelFontStepper(parent, node) {
   const label = document.createElement("label");
   label.textContent = "Taille du texte";
@@ -41888,6 +42104,25 @@ function buildLabelFontStepper(parent, node) {
 
 // Liste deroulante simple (label + <select>). options = [{value, label}]. Sert au
 // type de Jalon (#17). Marque l'historique a chaque changement.
+// Case a cocher « Texte en gras » pour le Label. Le gras change la largeur du texte
+// → on rejoue updateSize (garde interne : sans effet si taille manuelle).
+function buildLabelBoldToggle(parent, node) {
+  const label = document.createElement("label");
+  label.className = "settings-check";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = !!node.properties.bold;
+  cb.addEventListener("change", () => {
+    node.properties.bold = cb.checked;
+    node.updateSize();
+    node.setDirtyCanvas(true, true);
+    pertHistoryMark();
+  });
+  label.appendChild(cb);
+  label.appendChild(document.createTextNode(" Texte en gras"));
+  parent.appendChild(label);
+}
+
 function buildSelect(parent, labelText, value, options, onChange) {
   const label = document.createElement("label");
   label.textContent = labelText;

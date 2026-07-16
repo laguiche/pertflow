@@ -527,6 +527,13 @@ function LabelNode() {
     // Taille de police d'affichage (nice-to-have) — pilotee par les boutons +/- du
     // panneau. Le rendu ET l'auto-dimensionnement s'y adaptent.
     font_size: LABEL_DEFAULT_FONT,
+    // Peaufinage visuel du Label (sans notion de filtre associee — decision
+    // utilisateur). Tout vit dans properties → serialise nativement (round-trip .pert
+    // gratuit, aucun changement dans storage.js).
+    text_align: "left",             // justification : "left" | "center" | "right"
+    bold: false,                    // gras applique a tout le texte (optionnel)
+    text_color: LABEL_DEFAULT_TEXT, // couleur du texte
+    bg_color: LABEL_DEFAULT_BG,     // couleur de fond de la boite
     // Redimensionnement manuel : passe a true des que l'utilisateur tire la poignee
     // (onResize). Gele alors l'auto-dimensionnement (le visuel prime sur l'auto-fit) —
     // sinon toute frappe ramenait le Label a sa taille "texte" (bug corrige).
@@ -542,6 +549,10 @@ function LabelNode() {
 const LABEL_DEFAULT_FONT = 12;
 const LABEL_MIN_FONT = 8;
 const LABEL_MAX_FONT = 48;
+// Couleurs par defaut du Label (equivalent opaque de l'ancien creme translucide et
+// de l'ancien gris de texte en dur). Configurables via le panneau.
+const LABEL_DEFAULT_TEXT = "#444444";
+const LABEL_DEFAULT_BG = "#fffedc";
 
 LabelNode.title = "Label";
 LabelNode.title_mode = LiteGraph.NO_TITLE;
@@ -569,20 +580,22 @@ LabelNode.prototype.updateSize = function() {
   const fs = this.properties.font_size || LABEL_DEFAULT_FONT;
   const lineH = Math.round(fs * 1.33);
   const lines = (this.properties.text || "").split("\n");
-  const maxW = Math.max(...lines.map(l => measureText(l, fs + "px sans-serif")));
+  // Le gras elargit le texte → l'auto-fit doit mesurer avec la meme graisse.
+  const fontSpec = (this.properties.bold ? "bold " : "") + fs + "px sans-serif";
+  const maxW = Math.max(...lines.map(l => measureText(l, fontSpec)));
   this.size[0] = Math.max(160, maxW + 20);
   this.size[1] = Math.max(50, lines.length * lineH + 20);
 };
 
 LabelNode.prototype.onDrawBackground = function(ctx) {
-  ctx.fillStyle = "#1a1a2e";
+  ctx.fillStyle = this.properties.bg_color || LABEL_DEFAULT_BG;
   ctx.fillRect(0, 0, this.size[0], this.size[1]);
 };
 
 LabelNode.prototype.onDrawForeground = function(ctx) {
   const w = this.size[0], h = this.size[1];
 
-  ctx.fillStyle = "rgba(255, 255, 220, 0.90)";
+  ctx.fillStyle = this.properties.bg_color || LABEL_DEFAULT_BG;
   ctx.fillRect(0, 0, w, h);
 
   ctx.setLineDash([5, 4]);
@@ -593,13 +606,19 @@ LabelNode.prototype.onDrawForeground = function(ctx) {
 
   const fs = this.properties.font_size || LABEL_DEFAULT_FONT;
   const lineH = Math.round(fs * 1.33);
-  ctx.fillStyle = "#444";
-  ctx.font = fs + "px sans-serif";
-  ctx.textAlign = "left";
+  ctx.fillStyle = this.properties.text_color || LABEL_DEFAULT_TEXT;
+  ctx.font = (this.properties.bold ? "bold " : "") + fs + "px sans-serif";
+
+  // Justification : abscisse d'ancrage selon l'alignement (marge 10 px de chaque bord).
+  const align = this.properties.text_align || "left";
+  ctx.textAlign = align;
+  const tx = align === "center" ? Math.round(w / 2)
+           : align === "right"  ? w - 10
+           : 10;
 
   const lines = (this.properties.text || "").split("\n");
   lines.forEach((line, i) => {
-    ctx.fillText(line, 10, Math.round(fs * 1.2) + 4 + i * lineH, w - 20);
+    ctx.fillText(line, tx, Math.round(fs * 1.2) + 4 + i * lineH, w - 20);
   });
 
   // #16 Voile d'estompage (un Label est estompe des qu'un filtre est actif).

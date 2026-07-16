@@ -435,6 +435,33 @@ function pertAutoLayout() {
   graph.setDirtyCanvas(true, true);
 }
 
+// Reorganisation "axe temps seul" (2e variante, demande utilisateur) : on ne
+// deplace les nœuds QUE sur l'abscisse (le temps), l'ordonnee (pos[1]) reste celle
+// choisie manuellement par l'utilisateur, quels que soient les chevauchements.
+// Contrairement a pertAutoLayout, on n'applique PAS le decalage rang × gap : c'est
+// un X PUR ∝ ES (decision utilisateur) → deux taches de meme ES se retrouvent a la
+// meme abscisse, et les lignes horizontales voulues par l'utilisateur restent
+// lisibles. Aucun packing par couloir, aucune relocalisation de Label.
+function pertAutoLayoutTimeOnly() {
+  const graph = window.pertGraph;
+  if (!graph) return;
+
+  // ES a jour avant de recaler l'abscisse
+  pertRecalc();
+
+  const { nodes } = pertBuildAdjacency(graph);
+  const placeable = nodes.filter(n => n.es !== null);
+  if (!placeable.length) return;
+
+  placeable.forEach(n => {
+    // X pur ∝ ES : pas de rang × gap (l'ordonnee manuelle porte la lisibilite)
+    n.pos[0] = PERT_LAYOUT_MARGIN_X + n.es * PERT_PX_PER_UNIT;
+    // pos[1] volontairement inchange (on ne touche pas a l'axe des ordonnees)
+  });
+
+  graph.setDirtyCanvas(true, true);
+}
+
 // Reloge les Labels qui chevauchent un nœud place (placed) vers une bande
 // verticale libre sous le graphe. Les Labels non genants gardent leur position
 // (un placement manuel volontaire n'est pas bouscule sans raison).

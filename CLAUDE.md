@@ -1478,6 +1478,55 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Peaufinage — 2e réorganisation, mise en forme des Labels, boîte d'alignement ✅ TERMINÉ (16/07/2026, tag **v0.15.2**)
+Trois évolutions de confort demandées ensemble, sur la branche `evo/labels-alignement-reorg`.
+**Numérotation patch** : `v0.15.2` (v0.15.1 = notes de Jalon + Label). Toutes **cosmétiques**
+(mise en page / présentation) : aucune ne touche au moteur PERT, aux dates ni au chemin critique
+→ risque faible, périmètre cadré avec l'utilisateur (évaluation de faisabilité + arbitrages UI via
+`AskUserQuestion`) **avant** de coder. **Sérialisation gratuite** (tout en `node.properties`/`meta`),
+aucun changement dans `storage.js` ni `history.js`.
+**Objectifs** :
+- [x] **2e réorganisation « axe du temps seul »** : `pertAutoLayoutTimeOnly()` ne recale QUE
+  l'abscisse (`pos[0] = MARGIN_X + es × PERT_PX_PER_UNIT`, **X pur ∝ ES** — décision utilisateur,
+  **sans** le `rang × gap` de `pertAutoLayout`), l'ordonnée `pos[1]` **jamais touchée**, aucun
+  packing par couloir ni relocalisation de Label, chevauchements assumés. Le bouton « ⤓ Réorganiser ▾ »
+  ouvre un menu à 2 choix (complète / axe temps seul), le menu contextuel de fond a un sous-menu
+  symétrique (helpers `pertReorgMenuOptions` / `pertRunReorg`).
+- [x] **Mise en forme des Labels** (sans notion de filtre — décision utilisateur, la couleur est
+  purement décorative, contrairement à la couleur des Activités qui pilote le groupe) : **justification**
+  (`text_align` gauche/centre/droite), **gras** (`bold`, tout le texte), **couleur du texte**
+  (`text_color`) ET **couleur du fond** de la boîte (`bg_color`). L'auto-fit (`updateSize`) est
+  **conscient du gras** (mesure avec la graisse). Panneau : `buildSelect` (alignement) +
+  `buildLabelBoldToggle` (case) + 2 `buildField` couleur.
+- [x] **Boîte à outils d'alignement** (`src/align.js`, nouveau) : sous-menu **« ⊞ Aligner »** du menu
+  contextuel de nœud, visible dès **≥2 nœuds sélectionnés** (répartition H/V ajoutée dès **≥3**).
+  Modes : gauche/droite/haut/bas, centrer colonne (`center-x`) / ligne (`center-y`), répartir H/V.
+  **Géométrie pure sur `pos`** → pas de `pertRecalc` (les positions n'affectent pas le PERT), juste
+  `pertHistoryMark` + redraw. `pertSelectedNodes()` lit `window.pertCanvas.selected_nodes`.
+
+**Décisions notables (16/07/2026)** :
+- **X pur ∝ ES** pour le mode temps-seul (choix utilisateur explicite) : deux tâches de même ES se
+  retrouvent à la même abscisse, et les lignes horizontales voulues à la main restent lisibles.
+- **Label — fond configurable** : l'ancien crème *translucide* en dur (`rgba(255,255,220,0.90)`, à
+  DEUX endroits : `onDrawBackground` + le fill de `onDrawForeground`) devient un crème **opaque**
+  configurable (défaut `LABEL_DEFAULT_BG = "#fffedc"`, texte `LABEL_DEFAULT_TEXT = "#444444"`).
+  Visuellement quasi identique, mais c'était le prix pour rendre le fond choisissable.
+- **Piège `manual_size` respecté** : on ne rappelle toujours PAS `updateSize` dans
+  `LabelNode.onPropertyChanged` (cf. v0.15.1) ; le gras (qui change la largeur) rejoue `updateSize`
+  depuis son handler de panneau (garde interne : sans effet si taille manuelle).
+- **Menus = `LiteGraph.ContextMenu` + `submenu.options`** (support natif vérifié dans `litegraph.js`),
+  pas de nouveau composant DOM/CSS ni de menu custom à pastilles → surface de risque minimale.
+- **Fichiers** : `src/pert_engine.js` (`pertAutoLayoutTimeOnly`), `src/nodes.js` (4 props Label +
+  rendu + `updateSize` conscient du gras + constantes `LABEL_DEFAULT_TEXT/BG`), `src/ui.js` (menu
+  réorg, panneau Label, sous-menu Aligner dans `getNodeMenuOptions`), `src/align.js` (nouveau),
+  `index.html` (`<script src="src/align.js">`, tooltip bouton). Tests : `tools/smoke-evo-labels-align-reorg.js`
+  (gitignoré).
+
+**Critère de validation** : les deux réorganisations disponibles ; un Label justifiable/gras/coloré
+(texte + fond) survivant au `.pert` ; alignement/répartition d'une sélection multiple par clic droit.
+**Validé par l'utilisateur** ; mergé sur `main`, tagué **v0.15.2**, poussé (rituel appliqué : bundle
+`--tag v0.15.2` régénéré + versionné).
+
 ### Peaufinage — notes de Jalon & nœud Label (visuel + police) ✅ TERMINÉ (08/07/2026, tag **v0.15.1**)
 Petite session de finition sur retours d'usage, sur la branche `evo/peaufinage-notes-label`.
 **Numérotation patch** : `v0.15.1` (v0.15 = import multi-format).
@@ -2287,3 +2336,24 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   `tools/smoke-label.js` (nouveau) + `tools/smoke-s8.js` (étendu), gitignorés. Validé (smoke-label
   + non-régression `smoke`/`smoke-s8`, 0 erreur console). **Validé par l'utilisateur, mergé sur
   `main`, tagué `v0.15.1`, poussé** (rituel : bundle `--tag v0.15.1` régénéré + versionné).
+
+### Peaufinage post-roadmap (16/07/2026) — 2e réorganisation, mise en forme des Labels, boîte d'alignement (tag v0.15.2)
+- Sur la branche `evo/labels-alignement-reorg`. Trois évolutions de confort demandées ensemble,
+  toutes **cosmétiques** (mise en page / présentation), cadrées avec l'utilisateur (évaluation de
+  faisabilité + arbitrages UI par `AskUserQuestion`) **avant** de coder. Détail et décisions dans la
+  section « ÉVOLUTIONS POST-ROADMAP » plus haut. Aucune n'impacte le moteur PERT/dates/chemin
+  critique ; **sérialisation gratuite** (tout en `node.properties`/`meta`), `storage.js`/`history.js`
+  inchangés.
+- **(1) 2e réorganisation « axe du temps seul »** : `pertAutoLayoutTimeOnly` (`pert_engine.js`) recale
+  QUE l'abscisse (**X pur ∝ ES**, sans `rang × gap` — choix utilisateur), ordonnée conservée,
+  chevauchements assumés ; bouton « Réorganiser » → menu 2 choix + sous-menu de fond symétrique
+  (`pertReorgMenuOptions`/`pertRunReorg`). **(2) Mise en forme des Labels** (`nodes.js` : `text_align`,
+  `bold`, `text_color`, `bg_color` ; `updateSize` conscient du gras ; panneau `ui.js`) — sans notion
+  de filtre (couleur décorative). **(3) Boîte d'alignement** (`src/align.js` nouveau + sous-menu
+  « ⊞ Aligner » dans `getNodeMenuOptions`, dès ≥2 nœuds, répartition dès ≥3) — géométrie pure, pas de
+  recalc.
+- Fichiers : `src/pert_engine.js`, `src/nodes.js`, `src/ui.js`, `src/align.js` (nouveau), `index.html`.
+  Validé : `tools/smoke-evo-labels-align-reorg.js` (3 fonctions e2e + ouverture réelle des menus) +
+  toute la batterie smoke sans régression (`smoke`, `smoke-label`, `smoke-reorg`, `smoke-s8`,
+  `smoke-multiselect`), 0 erreur console. **Validé par l'utilisateur, mergé sur `main`, tagué
+  `v0.15.2`, poussé** (rituel : bundle `--tag v0.15.2` régénéré + versionné).

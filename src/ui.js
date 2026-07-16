@@ -111,9 +111,8 @@ document.addEventListener("DOMContentLoaded", () => {
       { content: "◈ Ajouter un Jalon",     callback: () => addNodeAt("pert/milestone", pos) },
       { content: "❏ Ajouter un Label",     callback: () => addNodeAt("pert/label", pos) },
       null,
-      { content: "⤓ Réorganiser", callback: () => {
-          pertAutoLayout(); pertHistoryMark(); pertZoomToFit();
-        } },
+      { content: "⤓ Réorganiser", has_submenu: true,
+        submenu: { options: pertReorgMenuOptions() } },
       { content: "🔍 Tout afficher", callback: () => pertZoomToFit() }
     ];
   };
@@ -121,7 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Menu d'un nœud : francisé et limité aux actions utiles (remplace le menu natif
   // anglais Inputs/Outputs/Properties/Title/Mode/Resize/Collapse/Pin/Colors/Shapes).
   lgCanvas.getNodeMenuOptions = function (node) {
-    return [
+    const opts = [
       { content: "⧉ Dupliquer", callback: () => {
           const clone = node.clone();
           if (!clone) return;
@@ -130,10 +129,18 @@ document.addEventListener("DOMContentLoaded", () => {
           graph.add(clone);          // déclenche onNodeAdded → recalc + historique
           pertEnsureUids();          // #34 le clone recopie l'uid → on le regenere
           pertRecalc();
-        } },
-      null,
-      { content: "🗑 Supprimer", callback: () => { graph.remove(node); } }
+        } }
     ];
+    // Boite a outils d'alignement : proposee des qu'au moins 2 nœuds sont
+    // selectionnes (sous-menu ▸). Geometrie pure, pas de recalc PERT.
+    const selCount = Object.keys(lgCanvas.selected_nodes || {}).length;
+    if (selCount >= 2) {
+      opts.push({ content: "⊞ Aligner", has_submenu: true,
+        submenu: { options: pertAlignMenuOptions(selCount) } });
+    }
+    opts.push(null);
+    opts.push({ content: "🗑 Supprimer", callback: () => { graph.remove(node); } });
+    return opts;
   };
 
   // #25 Cohérence linguistique : neutraliser les derniers panneaux/menus natifs
@@ -277,11 +284,12 @@ document.addEventListener("DOMContentLoaded", () => {
     addNodeAt("pert/label");
   });
 
-  document.getElementById("btn-layout").addEventListener("click", () => {
-    pertAutoLayout();
-    pertHistoryMark();   // les positions changent → cran d'historique
-    showToast("Nœuds réorganisés chronologiquement");
-    pertZoomToFit();
+  // Deux modes de reorganisation (demande utilisateur) : le bouton ouvre un petit
+  // menu (meme principe que le menu de lien), le menu contextuel de fond propose un
+  // sous-menu symetrique. « Complete » = pertAutoLayout (X∝ES + couloirs) ; « axe
+  // temps seul » = pertAutoLayoutTimeOnly (X∝ES pur, ordonnees conservees).
+  document.getElementById("btn-layout").addEventListener("click", (e) => {
+    new LiteGraph.ContextMenu(pertReorgMenuOptions(), { event: e });
   });
 
   document.getElementById("btn-fit").addEventListener("click", () => {
@@ -636,6 +644,30 @@ function showProperties(node) {
     });
     // Nice-to-have visuel : taille de police du Label via boutons − / +.
     buildLabelFontStepper(content, node);
+
+    // Justification du texte (gauche / centre / droite).
+    buildSelect(content, "Alignement du texte", node.properties.text_align, [
+      { value: "left",   label: "Gauche" },
+      { value: "center", label: "Centré" },
+      { value: "right",  label: "Droite" }
+    ], v => {
+      node.properties.text_align = v;
+      node.setDirtyCanvas(true, true);   // n'affecte pas la taille
+    });
+
+    // Gras sur tout le texte (optionnel). Modifie la largeur du texte → updateSize
+    // (ignore si taille manuelle, garde interne a updateSize).
+    buildLabelBoldToggle(content, node);
+
+    // Couleur du texte et couleur de fond de la boite (sans notion de filtre).
+    buildField(content, "Couleur du texte", "color", node.properties.text_color, v => {
+      node.properties.text_color = v;
+      node.setDirtyCanvas(true, true);
+    });
+    buildField(content, "Couleur du fond", "color", node.properties.bg_color, v => {
+      node.properties.bg_color = v;
+      node.setDirtyCanvas(true, true);
+    });
   }
 
   // Bouton supprimer
@@ -1076,6 +1108,30 @@ function buildTextarea(parent, labelText, value, onChange) {
 // LABEL_MIN_FONT..LABEL_MAX_FONT (nodes.js). Rafraichit taille + rendu et marque
 // l'historique. updateSize refit la boite si elle est en taille auto, et ne fait
 // rien si l'utilisateur l'a redimensionnee manuellement (manual_size).
+// Options du menu de reorganisation (partagees par le bouton toolbar et le
+// sous-menu du menu contextuel de fond). Deux modes, cf. pertRunReorg.
+function pertReorgMenuOptions() {
+  return [
+    { content: "⤓ Chronologique (complète)", callback: () => pertRunReorg("full") },
+    { content: "⇥ Axe du temps seul (ordonnées conservées)", callback: () => pertRunReorg("time") }
+  ];
+}
+
+// Execute une reorganisation puis marque l'historique et recadre la vue.
+// mode "full" = pertAutoLayout (X∝ES + packing par couloirs) ; mode "time" =
+// pertAutoLayoutTimeOnly (X∝ES pur, aucune modification des ordonnees).
+function pertRunReorg(mode) {
+  if (mode === "time") {
+    pertAutoLayoutTimeOnly();
+    showToast("Nœuds replacés sur l'axe du temps (ordonnées conservées)");
+  } else {
+    pertAutoLayout();
+    showToast("Nœuds réorganisés chronologiquement");
+  }
+  pertHistoryMark();   // les positions changent → cran d'historique
+  pertZoomToFit();
+}
+
 function buildLabelFontStepper(parent, node) {
   const label = document.createElement("label");
   label.textContent = "Taille du texte";
@@ -1112,6 +1168,25 @@ function buildLabelFontStepper(parent, node) {
 
 // Liste deroulante simple (label + <select>). options = [{value, label}]. Sert au
 // type de Jalon (#17). Marque l'historique a chaque changement.
+// Case a cocher « Texte en gras » pour le Label. Le gras change la largeur du texte
+// → on rejoue updateSize (garde interne : sans effet si taille manuelle).
+function buildLabelBoldToggle(parent, node) {
+  const label = document.createElement("label");
+  label.className = "settings-check";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = !!node.properties.bold;
+  cb.addEventListener("change", () => {
+    node.properties.bold = cb.checked;
+    node.updateSize();
+    node.setDirtyCanvas(true, true);
+    pertHistoryMark();
+  });
+  label.appendChild(cb);
+  label.appendChild(document.createTextNode(" Texte en gras"));
+  parent.appendChild(label);
+}
+
 function buildSelect(parent, labelText, value, options, onChange) {
   const label = document.createElement("label");
   label.textContent = labelText;
