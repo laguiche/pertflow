@@ -1172,7 +1172,7 @@ function buildLabelFontStepper(parent, node) {
 // → on rejoue updateSize (garde interne : sans effet si taille manuelle).
 function buildLabelBoldToggle(parent, node) {
   const label = document.createElement("label");
-  label.className = "settings-check";
+  label.className = "panel-check";   // case + libelle EN LIGNE (cf. css/style.css)
   const cb = document.createElement("input");
   cb.type = "checkbox";
   cb.checked = !!node.properties.bold;

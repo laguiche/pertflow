@@ -1478,6 +1478,27 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Manuel utilisateur — mise à jour v0.15.2 + correctif case panneau ✅ TERMINÉ (16/07/2026, tag **v0.15.3**)
+Mise à jour du **manuel utilisateur** pour couvrir les 3 évolutions v0.15.2, avec **8 captures
+dédiées** (mise en forme des Labels, panneau Label, menu Réorganiser 2 modes, réorg « axe temps »
+avant/après, menu Aligner, alignement avant/après). En régénérant les captures, un **défaut
+cosmétique** est apparu et a été corrigé : la case « Texte en gras » du panneau Label héritait du
+`flex-column` du panneau (case détachée de son libellé) → nouvelle classe `panel-check` +
+CSS `#properties-content label.panel-check` (case EN LIGNE avec son libellé). Comme cela touche
+`src/ui.js` + `css/style.css`, c'est un **patch code** (pas seulement docs) → tag `v0.15.3`,
+bundle régénéré.
+- **Captures** : `tools/doc-shots-evo.js` (nouveau, gitignoré) — scènes dédiées (Labels formatés,
+  réorg 2 rangées avant/après en mode temps-seul, 4 blocs alignés/répartis, menus via
+  `LiteGraph.ContextMenu`). Sorties dans `docs/images/manuel/` (versionnées).
+- **Docs 3 formats** : `docs/manuel-utilisateur.{md,html,pdf}` régénérés (le manuel seul, pour ne
+  pas horodater les PDF de conception/maintenance inchangés — HTML autonome images data-URI +
+  PDF via `_md2html.py` + Chromium). §2 (bouton Réorganiser ▾), §3 (Label : justif/gras/couleurs),
+  §5 (panneau Label), §6 (2 modes de réorg + sous-section « Aligner et répartir une sélection »).
+- **Fichiers** : `src/ui.js` (`buildLabelBoldToggle` → classe `panel-check`), `css/style.css`
+  (`.panel-check`), `docs/manuel-utilisateur.{md,html,pdf}`, `docs/images/manuel/*.png` (8 nouvelles),
+  `CLAUDE.md` + `docs/journal-developpement.md`, `dist/pertflow.html` (bundle `--tag v0.15.3`).
+**Validé par l'utilisateur** ; mergé sur `main`, tagué **v0.15.3**, poussé.
+
 ### Peaufinage — 2e réorganisation, mise en forme des Labels, boîte d'alignement ✅ TERMINÉ (16/07/2026, tag **v0.15.2**)
 Trois évolutions de confort demandées ensemble, sur la branche `evo/labels-alignement-reorg`.
 **Numérotation patch** : `v0.15.2` (v0.15.1 = notes de Jalon + Label). Toutes **cosmétiques**
@@ -2357,3 +2378,18 @@ Issu du retour Mickael (27/06/2026), volontairement non planifié :
   toute la batterie smoke sans régression (`smoke`, `smoke-label`, `smoke-reorg`, `smoke-s8`,
   `smoke-multiselect`), 0 erreur console. **Validé par l'utilisateur, mergé sur `main`, tagué
   `v0.15.2`, poussé** (rituel : bundle `--tag v0.15.2` régénéré + versionné).
+
+### Peaufinage post-roadmap (16/07/2026) — manuel v0.15.2 + correctif case panneau (tag v0.15.3)
+- Mise à jour du **manuel utilisateur** pour les 3 évolutions v0.15.2, avec **8 captures dédiées**
+  (`tools/doc-shots-evo.js`, gitignoré) : mise en forme des Labels, panneau Label, menu Réorganiser
+  (2 modes), réorg « axe du temps » avant/après, menu Aligner, alignement avant/après. Sections §2/§3/§5/§6
+  du manuel. Docs régénérées en 3 formats (`docs/manuel-utilisateur.{md,html,pdf}`) — **manuel seul**
+  (les PDF de conception/maintenance restent inchangés, non ré-horodatés). Détail dans la section
+  « ÉVOLUTIONS POST-ROADMAP » plus haut.
+- **Correctif cosmétique** trouvé en générant les captures : la case « Texte en gras » du panneau Label
+  s'affichait détachée de son libellé (héritage du `flex-column` du panneau) → classe `panel-check` +
+  `#properties-content label.panel-check` (`css/style.css`, `src/ui.js`). Comme du code change, patch
+  taggué `v0.15.3` + bundle régénéré.
+- Validé : captures relues + non-régression smoke (`smoke-evo-labels-align-reorg`, `smoke-label`,
+  `smoke`), 0 erreur console. **Validé par l'utilisateur, mergé sur `main`, tagué `v0.15.3`, poussé**
+  (rituel : bundle `--tag v0.15.3` régénéré + versionné).
