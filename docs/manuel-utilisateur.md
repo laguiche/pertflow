@@ -41,28 +41,54 @@ et le chemin critique, puis vous permet d'exporter le résultat (image, PDF, Exc
 
 ## 1. Prise en main rapide (quick start)
 
-Objectif : créer un premier PERT en quelques minutes.
+Objectif : créer un premier PERT en quelques minutes. Suivez les étapes ci-dessous, chacune
+illustrée par une capture d'écran.
 
-1. **Ouvrez PertFlow** (double-clic sur `pertflow.html`).
-2. **Réglez la date de début et l'unité** : cliquez sur **⚙ Paramètres**, saisissez la
-   **Date de début (T0)** de votre projet et l'**unité de durée** (jours, semaines ou mois),
-   puis **Valider**.
-3. **Ajoutez une tâche** : cliquez sur **▭ Activité** dans la barre d'outils. Un nœud apparaît
-   au centre. Il est sélectionné : le **panneau Propriétés** (à droite) affiche ses champs.
-4. **Renseignez la tâche** : dans le panneau, saisissez le **Libellé** (nom de la tâche) et la
-   **Durée**. Ajoutez au besoin un **Responsable**, un **Groupe** et une **couleur**.
-5. **Ajoutez d'autres tâches** et reliez-les : tirez un trait depuis le **point de sortie**
-   (à droite d'un nœud) vers le **point d'entrée** (à gauche) d'un autre nœud pour créer une
-   **dépendance** (« celui-ci doit finir avant que celui-là commence »).
-6. **Ajoutez un jalon de fin** : cliquez sur **◈ Jalon**, reliez-y la dernière tâche, et
-   donnez-lui éventuellement une **date-cible** à tenir.
-7. **Lisez les résultats** : chaque tâche affiche sa **date de fin au plus tôt** et sa
-   **marge**. Le **chemin critique** est tracé en **rouge**. La **barre de statut** (en bas)
-   indique la fin de projet, le nombre de tâches et les coûts.
-8. **Rangez le planning** : cliquez sur **⤓ Réorganiser** pour un placement chronologique
-   automatique, puis **🔍 Tout afficher** pour cadrer l'ensemble à l'écran.
-9. **Sauvegardez** : cliquez sur **💾 Sauvegarder** pour télécharger votre projet au format
-   `.pert` (rechargeable plus tard via **📂 Ouvrir**).
+**Étape 1 — Ouvrez PertFlow.** Double-cliquez sur `pertflow.html` : l'application s'ouvre dans
+votre navigateur, sans rien installer.
+
+**Étape 2 — Réglez la date de début et l'unité.** Cliquez sur **⚙ Paramètres**, saisissez la
+**Date de début (T0)** de votre projet et l'**unité de durée** (jours, semaines ou mois), puis
+**Valider**.
+
+![Étape 2 — le dialogue Paramètres (T0 et unité)](images/manuel/qs-2-parametres.png)
+
+**Étape 3 — Ajoutez une tâche.** Cliquez sur **▭ Activité** dans la barre d'outils. Un nœud
+apparaît au centre. Il est sélectionné : le **panneau Propriétés** (à droite) affiche ses champs.
+
+![Étape 3 — une première tâche ajoutée, sélectionnée](images/manuel/qs-3-activite.png)
+
+**Étape 4 — Renseignez la tâche.** Dans le panneau, saisissez le **Libellé** (nom de la tâche) et
+la **Durée**. Ajoutez au besoin un **Responsable**, un **Groupe** et une **couleur**.
+
+![Étape 4 — le libellé, la durée et le responsable saisis](images/manuel/qs-4-proprietes.png)
+
+**Étape 5 — Ajoutez d'autres tâches et reliez-les.** Tirez un trait depuis le **point de sortie**
+(à droite d'un nœud) vers le **point d'entrée** (à gauche) d'un autre nœud pour créer une
+**dépendance** (« celui-ci doit finir avant que celui-là commence »).
+
+![Étape 5 — une deuxième tâche reliée à la première](images/manuel/qs-5-lien.png)
+
+**Étape 6 — Ajoutez un jalon de fin.** Cliquez sur **◈ Jalon**, reliez-y la dernière tâche, et
+donnez-lui éventuellement une **date-cible** à tenir.
+
+![Étape 6 — un jalon de livraison relié, avec sa date-cible](images/manuel/qs-6-jalon.png)
+
+**Étape 7 — Lisez les résultats.** Chaque tâche affiche sa **date de fin au plus tôt** et sa
+**marge**. Le **chemin critique** est tracé en **rouge**. La **barre de statut** (en bas) indique
+la fin de projet, le nombre de tâches et les coûts.
+
+![Étape 7 — les dates calculées, le chemin critique en rouge et le panneau des valeurs](images/manuel/qs-7-resultats.png)
+
+**Étape 8 — Rangez le planning.** Cliquez sur **⤓ Réorganiser** (deux modes, voir §6) pour un
+placement chronologique automatique, puis **🔍 Tout afficher** pour cadrer l'ensemble à l'écran.
+
+![Étape 8 — le planning réorganisé et cadré à l'écran](images/manuel/qs-8-reorganiser.png)
+
+**Étape 9 — Sauvegardez.** Cliquez sur **💾 Sauvegarder** pour télécharger votre projet au format
+`.pert` (rechargeable plus tard via **📂 Ouvrir**). Une confirmation s'affiche en bas.
+
+![Étape 9 — la confirmation de sauvegarde du fichier .pert](images/manuel/qs-9-sauvegarde.png)
 
 Vous savez désormais construire un PERT. Les sections suivantes détaillent chaque fonctionnalité.
 
@@ -199,10 +225,34 @@ Pour chaque tâche, PertFlow calcule quatre repères :
 - **Fin au plus tard (LF)** = la date à ne pas dépasser sans retarder le projet.
 - **Début au plus tard (LS)** = LF − durée.
 
-La **Marge** (slack) = **LF − EF** : le « jeu » disponible.
+La **Marge** (slack) = **LF − EF** (aussi égale à **LS − ES**) : le « jeu » disponible, c'est-à-dire
+de combien la tâche peut **glisser** sans repousser la fin du projet.
 
-> Ces quatre repères (ES / EF / LS / LF), la marge et le coût estimé sont visibles dans la
-> section **Chemin critique** du panneau Propriétés lorsqu'une tâche est sélectionnée (voir §5).
+Le schéma ci-dessous résume cette **anatomie des dates** d'une tâche. La barre verte est la tâche
+**au plus tôt** (de ES à EF) ; la même durée, poussée le plus tard possible, va de LS à LF ; l'écart
+entre les deux est la **marge**.
+
+![Anatomie des dates d'une tâche : ES, EF, LS, LF et la marge](images/manuel/pert-anatomie-dates.png)
+
+> **À retenir.** Une **marge nulle** (la tâche ne peut pas glisser du tout) signifie que la tâche est
+> **critique** : tout retard sur elle retarde la fin du projet.
+
+**Comment ces dates se propagent-elles ?** Le calcul se fait en deux passes :
+
+- **Passe avant (les dates « au plus tôt »)** — de gauche à droite : le **début au plus tôt** d'une
+  tâche est la **fin au plus tôt la plus tardive** de ses prédécesseurs (elle attend que *tous* soient
+  finis).
+
+  ![Le début au plus tôt d'une tâche = la plus tardive des fins de ses prédécesseurs](images/manuel/pert-propagation-dates.png)
+
+- **Passe arrière (les dates « au plus tard »)** — de droite à gauche, en repartant de la fin du
+  projet : la **fin au plus tard** d'une tâche est le **début au plus tard le plus précoce** de ses
+  successeurs (elle ne doit pas les mettre en retard).
+
+Ces quatre repères (ES / EF / LS / LF), la marge et le coût estimé sont affichés dans la section
+**Valeurs calculées / Chemin critique** du panneau Propriétés lorsqu'une tâche est sélectionnée :
+
+![Le panneau affiche ES, EF, LS, LF, la marge et le coût de la tâche sélectionnée](images/manuel/ch4-panneau-calcul.png)
 
 ### Le chemin critique
 
@@ -212,6 +262,8 @@ retarde la fin du projet. PertFlow le trace **en rouge** :
 - **sans sélection**, c'est le chemin de **marge minimale** de l'ensemble du projet ;
 - **quand vous sélectionnez une tâche**, PertFlow trace le chemin **contraignant** qui aboutit
   à cette tâche (pratique pour comprendre « qu'est-ce qui pilote cette date ? »).
+
+![Le chemin critique tracé en rouge à travers le planning](images/manuel/ch4-chemin-critique.png)
 
 La barre de statut indique le **nombre de tâches** du chemin critique et son **coût**.
 

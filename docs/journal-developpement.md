@@ -908,6 +908,21 @@ conservées), le menu « Aligner », et un **avant/après** d'alignement + répa
   **HTML autonome** (images intégrées, consultable hors ligne d'un double-clic) et **PDF** imprimable.
   Seul le manuel a été régénéré, pour ne pas modifier inutilement les autres documents.
 
+**Enrichissement pédagogique (même journée, docs seules)** — sur retour utilisateur, deux chapitres
+clés ont été rendus **beaucoup plus visuels** :
+
+- **Chapitre 1 « Prise en main rapide » : une capture par action.** Le mode d'emploi de démarrage
+  montre désormais, étape par étape (du réglage des paramètres jusqu'à la sauvegarde), une capture du
+  **même petit projet construit progressivement** — huit captures qui déroulent la création d'un PERT
+  complet. *Détail technique amusant : la liste numérotée se « recassait » à chaque image insérée ; on
+  est passé à des paragraphes « Étape N » titrés en gras, plus robustes et tout aussi lisibles.*
+- **Chapitre 4 « Le moteur de calcul PERT » : des synoptiques.** Le cœur du logiciel (dates au plus
+  tôt / au plus tard et marge) est expliqué par **deux schémas dessinés** — l'un montre l'**anatomie
+  des dates** d'une tâche (barre « au plus tôt », barre « au plus tard », et la marge entre les deux) ;
+  l'autre montre **comment les dates se propagent** (le début d'une tâche = la plus tardive des fins de
+  ses prédécesseurs) — complétés par un gros plan du panneau des valeurs calculées et une vue du chemin
+  critique en rouge. C'est la raison d'être de l'outil : autant l'expliquer avec des images.
+
 ---
 
 ## Backlog réorienté (à partir du 22/06/2026)
