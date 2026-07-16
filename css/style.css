@@ -167,6 +167,26 @@ body {
   cursor: pointer;
 }
 
+/* Case a cocher du panneau (ex. « Texte en gras » du Label) : case EN LIGNE avec son
+   libelle, et non empilee (le panneau met les <label> en flex-column par defaut). */
+#properties-content label.panel-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #dde3ec;
+  cursor: pointer;
+}
+
+#properties-content label.panel-check input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
 #properties-content input:focus,
 #properties-content textarea:focus {
   outline: none;

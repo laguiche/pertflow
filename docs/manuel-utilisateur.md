@@ -87,7 +87,7 @@ L'écran se compose de quatre zones :
 | **▭ Activité** | Ajoute une tâche (voir §3). |
 | **◈ Jalon** | Ajoute un jalon (échéance / point de contrôle). |
 | **❏ Label** | Ajoute une zone de texte libre (documentation). |
-| **⤓ Réorganiser** | Range automatiquement les nœuds par ordre chronologique, sans superposition. |
+| **⤓ Réorganiser ▾** | Range automatiquement les nœuds. Ouvre un menu à **deux modes** : *chronologique complète* ou *axe du temps seul* (voir §6). |
 | **➖ / ➕** | Dézoome / zoome (utile sans molette de souris). |
 | **🔍 Tout afficher** | Ajuste le zoom pour voir tout le planning. |
 | **▦ Grille** | Active/désactive la grille aimantée (alignement des nœuds au déplacement). |
@@ -106,8 +106,10 @@ L'écran se compose de quatre zones :
 - **Zoomer** : molette de la souris (ou boutons ➖/➕).
 - **Déplacer un nœud** : cliquez-glissez sur le nœud.
 - **Sélection multiple** : cliquez-glissez sur le fond pour tracer un rectangle de sélection,
-  ou `Ctrl+A` pour tout sélectionner.
-- **Clic droit** : menu contextuel (ajouter un nœud sous le curseur, réorganiser, etc.).
+  ou `Ctrl+A` pour tout sélectionner. Pour **déplacer tout un groupe** sélectionné, cliquez-glissez
+  simplement l'un de ses éléments (les autres suivent).
+- **Clic droit** : menu contextuel (ajouter un nœud sous le curseur, réorganiser, **aligner une
+  sélection**… voir §6).
 
 ---
 
@@ -151,6 +153,22 @@ Le coin du jalon change de couleur selon la **tenue de la cible** :
 Un **Label** est une simple **zone de texte** (rectangle en pointillés) pour documenter le
 planning (titre de phase, hypothèse, légende…). Il n'a **pas de lien** et **n'entre pas** dans
 le calcul PERT.
+
+![Trois Labels avec des mises en forme différentes](images/manuel/label-mise-en-forme.png)
+
+Un Label se **met en forme** librement (les réglages sont dans le panneau Propriétés, voir §5) —
+c'est une aide **visuelle**, sans aucun effet sur le calcul :
+
+- **Taille du texte** — boutons **− / +**.
+- **Alignement du texte** — **gauche**, **centré** ou **droite**.
+- **Texte en gras** — case à cocher, applique le gras à tout le texte.
+- **Couleur du texte** et **couleur du fond** de l'encadré, indépendamment l'une de l'autre.
+
+> À la différence de la couleur d'une **tâche** (qui sert à regrouper et à filtrer, voir §7), la
+> couleur d'un Label est **purement décorative** : elle n'entre dans **aucun filtre**.
+
+Vous pouvez aussi **redimensionner** un Label à la main (poignée en bas à droite) : sa taille est
+alors **figée** et n'est plus recalculée automatiquement quand vous éditez le texte.
 
 ---
 
@@ -250,21 +268,72 @@ Le panneau (à droite) affiche les champs du nœud sélectionné. Pour une **Act
   **coût estimé** (lecture seule).
 - **Supprimer** — supprime le nœud.
 
-Pour un **Jalon**, le panneau propose le libellé, la **date-cible**, et le **type de jalon**
-(tag). Pour un **Label**, il propose la zone de **texte**.
+Pour un **Jalon**, le panneau propose le libellé, la **date-cible**, le **type de jalon**
+(tag) et une zone de **Notes** libres (panneau uniquement).
 
-> Chaque modification recalcule immédiatement le planning.
+Pour un **Label**, le panneau réunit la zone de **texte** et tous ses réglages de mise en forme :
+
+![Le panneau d'un Label : texte, taille, alignement, gras, couleurs](images/manuel/panneau-label.png)
+
+- **Texte** — le contenu (multi-lignes).
+- **Taille du texte** — boutons **− / +**.
+- **Alignement du texte** — gauche / centré / droite.
+- **Texte en gras** — case à cocher.
+- **Couleur du texte** / **Couleur du fond** — deux sélecteurs de couleur.
+
+> Chaque modification recalcule immédiatement le planning (les réglages purement visuels d'un
+> Label, eux, n'ont aucun effet sur le calcul).
 
 ---
 
 ## 6. Organisation et lisibilité du planning
 
-### Réorganiser
+### Réorganiser (deux modes)
 
-**⤓ Réorganiser** range les nœuds **chronologiquement** (abscisse ∝ date au plus tôt), sans
-superposition, façon diagramme de Gantt. Les tâches d'un même groupe sont regroupées sur des
-couloirs voisins. Le déclenchement est **manuel** : votre placement à la main n'est jamais
-bousculé tant que vous ne cliquez pas sur ce bouton.
+Le bouton **⤓ Réorganiser** ouvre un **menu à deux modes**. Le déclenchement est toujours
+**manuel** : votre placement à la main n'est jamais bousculé tant que vous ne choisissez pas
+un mode.
+
+![Le menu des deux modes de réorganisation](images/manuel/menu-reorganiser.png)
+
+- **Chronologique (complète)** — range les nœuds **horizontalement** par ordre chronologique
+  (abscisse ∝ date au plus tôt) **et** les répartit **verticalement** pour éviter toute
+  superposition, façon diagramme de Gantt. Les enchaînements de tâches reliées restent groupés.
+- **Axe du temps seul (ordonnées conservées)** — ne recale que l'**abscisse** (le temps) et
+  **conserve la hauteur** (l'ordonnée) que vous avez donnée à chaque nœud, quitte à laisser des
+  chevauchements. Idéal quand vous avez soigné un placement vertical (une ligne par équipe, par
+  zone…) et voulez seulement « recaler les dates » sans casser votre disposition.
+
+L'exemple ci-dessous illustre le mode **axe du temps seul** : à gauche, deux rangées disposées
+à la main mais dont les abscisses ne correspondent pas aux dates ; à droite, après réorganisation,
+les abscisses sont recalées sur le temps **tandis que les deux rangées sont conservées** (la tâche
+« Documentation » reste sur sa ligne du bas).
+
+| Avant | Après (axe du temps seul) |
+|---|---|
+| ![Avant : abscisses désordonnées](images/manuel/reorg-temps-avant.png) | ![Après : abscisses recalées, rangées conservées](images/manuel/reorg-temps-apres.png) |
+
+### Aligner et répartir une sélection
+
+Pour soigner la présentation, sélectionnez **plusieurs nœuds** (rectangle de sélection ou `Ctrl`+clic),
+puis **clic droit → ⊞ Aligner**. Un menu propose les opérations classiques d'un outil de dessin :
+
+![Le menu Aligner sur une sélection de plusieurs blocs](images/manuel/menu-aligner.png)
+
+- **Aligner à gauche / à droite / en haut / en bas** — cale les nœuds sur un même bord.
+- **Centrer (colonne)** — aligne les centres sur une même verticale.
+- **Centrer (ligne)** — aligne les centres sur une même horizontale.
+- **Répartir horizontalement / verticalement** — égalise l'espacement entre les nœuds
+  (à partir de **trois** nœuds sélectionnés).
+
+Exemple : quatre blocs éparpillés, puis **alignés à gauche et répartis verticalement**.
+
+| Avant | Après (aligner à gauche + répartir verticalement) |
+|---|---|
+| ![Avant : blocs éparpillés](images/manuel/alignement-avant.png) | ![Après : blocs alignés et régulièrement espacés](images/manuel/alignement-apres.png) |
+
+> Ces opérations ne déplacent que la **présentation** : elles n'ont aucun effet sur le calcul PERT
+> (les dates et le chemin critique ne dépendent pas de la position des nœuds). Un **Ctrl+Z** annule.
 
 ### La grille aimantée
 

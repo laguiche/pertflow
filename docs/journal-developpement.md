@@ -891,6 +891,25 @@ arbitrages sur les surfaces d'interface).
 
 ---
 
+### Peaufinage — manuel utilisateur mis à jour + correctif d'une case du panneau (✅ 16/07/2026, tag v0.15.3 prévu)
+
+Après les trois évolutions ci-dessus, le **manuel utilisateur** a été enrichi pour les décrire, avec
+un parti pris **très visuel** (demande utilisateur) : **huit nouvelles captures d'écran** dédiées —
+les Labels mis en forme, le panneau de réglages du Label, le menu des deux réorganisations, un
+**avant/après** de la réorganisation « axe du temps seul » (les rangées choisies à la main sont
+conservées), le menu « Aligner », et un **avant/après** d'alignement + répartition de quatre blocs.
+
+- **Un bon réflexe qualité :** en fabriquant ces captures, un **petit défaut d'affichage** est
+  apparu — dans le panneau, la case à cocher « Texte en gras » d'un Label se retrouvait détachée de
+  son libellé (elle héritait de la mise en page « en colonne » du panneau). Corrigé d'une ligne de
+  style, pour que la case et son texte restent alignés. Illustration du principe « on soigne ce que
+  la documentation met en lumière ».
+- **Trois formats par document (règle du projet)** : le manuel est régénéré en **Markdown** (source),
+  **HTML autonome** (images intégrées, consultable hors ligne d'un double-clic) et **PDF** imprimable.
+  Seul le manuel a été régénéré, pour ne pas modifier inutilement les autres documents.
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)
