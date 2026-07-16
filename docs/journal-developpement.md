@@ -862,6 +862,35 @@ instructif.
 
 ---
 
+### Peaufinage — deux réorganisations, mise en forme des Labels, boîte d'alignement (✅ 16/07/2026, tag v0.15.2 prévu)
+
+Trois évolutions de confort demandées ensemble, toutes « cosmétiques » (mise en page et
+présentation) : aucune ne touche au moteur de calcul, aux dates ou au chemin critique — d'où un
+risque faible, cadré avec l'utilisateur **avant** de coder (évaluation de faisabilité puis
+arbitrages sur les surfaces d'interface).
+
+- **Deux façons de réorganiser.** La réorganisation historique replace les tâches à la fois dans le
+  temps (horizontalement) **et** les range sur des lignes pour éviter les chevauchements. Nouvelle
+  variante à la demande : **ne déplacer que sur l'axe du temps**, en **conservant la hauteur choisie
+  à la main** pour chaque tâche, quitte à ce que certaines se chevauchent. Utile quand on a soigné
+  un placement vertical (par équipe, par zone) et qu'on veut seulement « recaler les dates ». Le
+  bouton « Réorganiser » propose désormais les deux modes dans un petit menu.
+- **Mise en forme des Labels (les zones de commentaire libre).** On pouvait déjà régler la taille du
+  texte ; on peut maintenant **justifier** le texte (gauche / centré / droite), le mettre **en gras**,
+  et choisir **la couleur du texte comme celle du fond** de l'encadré. Volontairement **sans lien avec
+  le filtrage** (contrairement à la couleur des tâches, qui sert à regrouper) : ici la couleur est
+  purement décorative. Tout est sauvegardé avec le projet.
+- **Boîte à outils d'alignement.** Quand plusieurs éléments sont sélectionnés, un clic droit propose
+  « Aligner » : caler à gauche / droite / en haut / en bas, centrer en colonne ou en ligne, et
+  **répartir régulièrement** l'espacement (dès trois éléments). Un classique des outils de dessin,
+  qui manquait pour soigner la présentation d'un planning.
+- **Validation** : nouveau test dédié aux trois fonctions (recalage horizontal sans toucher aux
+  hauteurs ; mise en forme des Labels conservée après sauvegarde/rechargement ; alignements et
+  répartition) + vérification que les menus s'ouvrent réellement, le tout dans un vrai navigateur,
+  et non-régression de toute la batterie existante.
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)
