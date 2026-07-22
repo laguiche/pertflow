@@ -1168,6 +1168,46 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Fenêtre de synthèse globale + impression PDF ✅ TERMINÉ (23/07/2026, tag **v0.15.4**)
+Demande utilisateur : la seule synthèse accessible était la barre d'état (en petit, en bas).
+Ajout d'un bouton toolbar **`📊 Synthèse`** ouvrant une **fenêtre modale récapitulative**, avec
+un bouton **`🖨 Imprimer / PDF`**. Nouveau module `src/synthesis.js` (aucun impact moteur — tout
+est **dérivé** de l'existant : `pertActivityCost`, `ef/lf/slack`, `pertCriticalPathIds`).
+**Contenu de la fenêtre** :
+- **Vue d'ensemble** : projet, T0, unité, fin de projet (max EF), nb tâches, nb jalons, coût
+  total, chemin critique (nb tâches + coût — le **même** ensemble que le tracé rouge / la barre
+  d'état, via `window.pertCriticalPathIds`).
+- **Jalons tenus** / **Jalons non tenus** (classés par `target_missed`) : libellé, tag (pastille
+  couleur `PERT_MILESTONE_TAGS`), fin t.tôt, cible, **marge vis-à-vis de la cible** (`dueOff − ef`,
+  en unités, verte si ≥ 0, rouge si < 0 — `pertFormatSlack`, cohérent avec l'affichage sur les
+  nœuds). **Jalons sans cible** listés à part.
+- **Par groupe (WP/métier)** : nb tâches, coût agrégé, **« Fin au plus tard » = LF max** des
+  Activités du groupe. Pastille de couleur du groupe. Bucket « (sans groupe) » en dernier.
+
+**Décisions notables (23/07/2026)** :
+- **Impression = `window.print()` scopé par `@media print`** (KISS, 100 % `file://`) plutôt qu'une
+  génération jsPDF à la main de contenu tabulaire : une classe `body.synthesis-printing` posée par
+  `pertPrintSynthesis()` masque tout sauf `#synthesis-dialog` et repasse la synthèse en **noir sur
+  blanc** ; l'utilisateur choisit « Enregistrer au format PDF » dans l'aperçu du navigateur.
+- **⚠️ Pas de `setTimeout` de nettoyage de la classe** : sous Chrome `window.print()` ouvre un
+  aperçu **non bloquant** → un timer retirerait la classe pendant l'aperçu (l'app sombre
+  réapparaîtrait). Nettoyage **uniquement sur `afterprint`** (bien supporté sur les cibles).
+- **Modèle reconstruit à chaque ouverture** (`pertBuildSynthesisModel`) — pas d'état propre ;
+  `pertRecalc()` défensif à l'ouverture. Rendu DOM par `textContent` (pas d'injection depuis les
+  libellés utilisateur). Dialogue = même pattern `.dialog-overlay` que export/import (`.synthesis-dialog-box`).
+- **Fichiers** : `src/synthesis.js` (nouveau), `index.html` (bouton `#btn-synthesis`,
+  `#synthesis-dialog`, `<script>`), `src/ui.js` (câblage boutons), `css/style.css` (`.synth-*` +
+  bloc `@media print`). Le builder inline `src/synthesis.js` par regex (vérifié). **Corrigés au
+  passage** : 2 commentaires `cf. CLAUDE.md` désormais obsolètes (`export_csv.js` S9, `import.js`
+  « Refonte de l'import ») → pointent vers `docs/historique-sessions.md` (sections déplacées lors de
+  l'allègement du CLAUDE.md le 23/07).
+- **Validé** : `tools/smoke-synthesis.js` (modèle : nb tâches/jalons, coût total, classement
+  tenus/non tenus + signe de marge, sans-cible, groupes nb/coût/LF ; rendu DOM : sections,
+  compteurs, pastilles ; impression : classe posée/retirée à `afterprint` ; planning vide) +
+  non-régression (`smoke`, `smoke-s85`, `smoke-s5`, `smoke-s8`) + captures écran & aperçu
+  impression. **Validé par l'utilisateur**, mergé sur `main`, tagué **v0.15.4**, poussé (rituel :
+  bundle `--tag v0.15.4` régénéré + versionné).
+
 ### Manuel utilisateur — mise à jour v0.15.2 + correctif case panneau ✅ TERMINÉ (16/07/2026, tag **v0.15.3**)
 Mise à jour du **manuel utilisateur** pour couvrir les 3 évolutions v0.15.2, avec **8 captures
 dédiées** (mise en forme des Labels, panneau Label, menu Réorganiser 2 modes, réorg « axe temps »

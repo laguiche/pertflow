@@ -6,7 +6,7 @@
 // l'ordre d'affichage ne depend PAS de l'ordre de chargement des <script>.
 //
 // Ce module heberge aussi les DEUX regles transverses aux formats (decisions du
-// 08/07/2026, cf. CLAUDE.md « Refonte de l'import ») :
+// 08/07/2026, cf. docs/historique-sessions.md « Refonte de l'import ») :
 //
 //   1. T0 = min(T0 courant, T0 importe) + ANCRAGE. Le bloc dont le T0 d'origine est le
 //      plus tardif recoit un jalon entrant date a ce T0, branche sur ses racines. On

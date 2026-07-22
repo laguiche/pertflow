@@ -6,7 +6,7 @@
 // de colonnes est « ; »), dates au format FR. Un BOM UTF-8 est prepose pour qu'Excel
 // reconnaisse l'encodage et affiche correctement les accents.
 //
-// Colonnes (schema figé dans CLAUDE.md S9) :
+// Colonnes (schema figé — detail S9 dans docs/historique-sessions.md) :
 //   Type ; UID ; Libellé ; Groupe ; Responsable ; Durée ; Unité ; ETP ; Coût(k€) ;
 //   DébutTôt ; FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon
 //

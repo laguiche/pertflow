@@ -322,7 +322,7 @@ onDrawForeground(ctx) {
 
 ## ÉTAT D'AVANCEMENT
 
-> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.15.3** (16/07/2026).
+> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.15.4** (23/07/2026).
 > **Le récit détaillé de chaque session vit dans [`docs/historique-sessions.md`](docs/historique-sessions.md)** —
 > décisions d'implémentation, pièges rencontrés, validations. Ce tableau n'en est
 > que l'index. **À la clôture d'une session : détail dans l'archive, UNE ligne ici.**
@@ -356,6 +356,7 @@ onDrawForeground(ctx) {
 | Peaufinage notes Jalon & Label | v0.15.1 | Notes de Jalon, gel taille manuelle Label, police réglable |
 | Peaufinage réorg/Labels/alignement | v0.15.2 | Réorg « axe temps seul », mise en forme Labels, boîte d'alignement `src/align.js` |
 | Manuel v0.15.2 + case panneau | v0.15.3 | MàJ manuel (8 captures) + correctif case « gras » du panneau Label |
+| Fenêtre de synthèse + impression PDF | v0.15.4 | Bouton `📊 Synthèse` → modale (vue d'ensemble, jalons tenus/non tenus + marge, coût/LF par groupe), imprimable en PDF (`src/synthesis.js`) |
 
 **Long terme / écarté** (retour Mickael, non planifié) : #38 sous-PERT · #41 chemin
 critique « à la demande » (l'utilisateur ne veut PAS le retenir, comportement actuel

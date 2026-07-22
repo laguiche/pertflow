@@ -384,6 +384,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("export-cancel").addEventListener("click", pertCloseExportDialog);
 
+  // ── Synthèse globale (fenetre recapitulative + impression PDF) ───────────────
+  document.getElementById("btn-synthesis").addEventListener("click", () => {
+    guardUI("Ouverture de la synthèse impossible", () => pertOpenSynthesisDialog());
+  });
+  document.getElementById("synthesis-close").addEventListener("click", pertCloseSynthesisDialog);
+  document.getElementById("synthesis-print").addEventListener("click", () => {
+    guardUI("Impression impossible", () => pertPrintSynthesis());
+  });
+
   // ── Raccourcis clavier ──────────────────────────────────────────────────────
 
   document.addEventListener("keydown", (e) => {

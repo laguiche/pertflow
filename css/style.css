@@ -567,6 +567,79 @@ body {
 /* Avertissement de conflit de couleur de groupe (le projet courant gagne) */
 .dialog-warn { color: #e8b45a; }
 
+/* ─── Fenetre de synthese globale (imprimable en PDF) ─────────────────────────── */
+.synthesis-dialog-box { width: 680px; max-width: 92vw; }
+#synthesis-content {
+  max-height: 62vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  font-size: 13px;
+  color: #dde3ec;
+}
+.synth-section h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #7eb8f7;
+  border-bottom: 1px solid #2a3a6a;
+  padding-bottom: 4px;
+}
+.synth-overview { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 22px; }
+.synth-kv { display: flex; justify-content: space-between; gap: 12px; }
+.synth-kv .k { color: #9aa6bf; }
+.synth-kv .v { color: #eef2f8; font-weight: 600; text-align: right; }
+.synth-table { width: 100%; border-collapse: collapse; }
+.synth-table th, .synth-table td {
+  text-align: left; padding: 4px 8px; border-bottom: 1px solid #23305c;
+}
+.synth-table th { color: #9aa6bf; font-weight: 600; }
+.synth-table th.num, .synth-table td.num {
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.synth-neg { color: #ec8a8a; }
+.synth-pos { color: #86c98a; }
+.synth-empty { color: #77839e; font-style: italic; }
+.synth-chip {
+  display: inline-block; width: 11px; height: 11px; border-radius: 3px;
+  vertical-align: -1px; margin-right: 6px; border: 1px solid rgba(255,255,255,0.25);
+}
+.synth-tag {
+  display: inline-block; padding: 0 7px; border-radius: 8px;
+  font-size: 11px; color: #fff;
+}
+
+/* Impression : n'imprimer QUE la synthese, en noir sur blanc. La classe
+   body.synthesis-printing est posee par pertPrintSynthesis() avant window.print()
+   et retiree a l'evenement afterprint. */
+@media print {
+  @page { margin: 14mm; }
+  body.synthesis-printing > *:not(#synthesis-dialog) { display: none !important; }
+  body.synthesis-printing #synthesis-dialog {
+    display: block !important; position: static !important; inset: auto !important;
+    background: #fff !important;
+  }
+  body.synthesis-printing #synthesis-dialog .dialog {
+    position: static; box-shadow: none; border: none; width: auto;
+    background: #fff; color: #000; padding: 0; gap: 12px;
+  }
+  body.synthesis-printing #synthesis-dialog h3 { color: #000; }
+  body.synthesis-printing .dialog-buttons { display: none !important; }
+  body.synthesis-printing #synthesis-content {
+    max-height: none; overflow: visible; color: #000;
+  }
+  body.synthesis-printing .synth-section { break-inside: avoid; }
+  body.synthesis-printing .synth-section h4 { color: #000; border-color: #999; }
+  body.synthesis-printing .synth-kv .k,
+  body.synthesis-printing .synth-table th { color: #333; }
+  body.synthesis-printing .synth-kv .v { color: #000; }
+  body.synthesis-printing .synth-table th,
+  body.synthesis-printing .synth-table td { border-color: #bbb; }
+  body.synthesis-printing .synth-neg { color: #b00000; }
+  body.synthesis-printing .synth-pos { color: #1a7a1a; }
+  body.synthesis-printing .synth-empty { color: #555; }
+}
+
 /* ─── Contrôle de filtre custom (toolbar, S7 C) ──────────────────────────────── */
 /* Menu déroulant maison : les <option> natives n'affichent pas de couleur de fond
    sous Firefox → on dessine nos propres lignes avec pastilles de couleur. */

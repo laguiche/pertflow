@@ -33,9 +33,10 @@ et le chemin critique, puis vous permet d'exporter le résultat (image, PDF, Exc
 9. [Importer un planning Excel existant](#9-importer-un-planning-excel-existant)
 10. [Sauvegarde, ouverture et récupération](#10-sauvegarde-ouverture-et-récupération)
 11. [Exporter le planning](#11-exporter-le-planning)
-12. [Les paramètres du projet](#12-les-paramètres-du-projet)
-13. [Raccourcis clavier](#13-raccourcis-clavier)
-14. [Questions fréquentes](#14-questions-fréquentes)
+12. [La synthèse du planning](#12-la-synthèse-du-planning)
+13. [Les paramètres du projet](#13-les-paramètres-du-projet)
+14. [Raccourcis clavier](#14-raccourcis-clavier)
+15. [Questions fréquentes](#15-questions-fréquentes)
 
 ---
 
@@ -519,7 +520,37 @@ zoom courant à l'écran) :
 
 ---
 
-## 12. Les paramètres du projet
+## 12. La synthèse du planning
+
+Le bouton **📊 Synthèse** ouvre une fenêtre qui récapitule **tout le planning en une vue**, au-delà
+du résumé compact de la barre d'état en bas de l'écran.
+
+![La fenêtre de synthèse](images/manuel/synthese.png)
+
+Elle regroupe :
+
+- **Vue d'ensemble** — titre du projet, T0, unité, **fin de projet**, nombre de tâches et de jalons,
+  **coût total** et **chemin critique** (nombre de tâches + coût). Le chemin critique repris est le
+  même que le tracé rouge : sans sélection, c'est le chemin de marge minimale ; avec une tâche
+  sélectionnée avant d'ouvrir la fenêtre, c'est le chemin qui la contraint.
+- **Jalons tenus** — les jalons dont la date-cible est respectée, avec leur **marge** (en vert).
+- **Jalons non tenus** — ceux en retard sur leur cible, avec leur **marge négative** (en rouge).
+- **Jalons sans cible** — les jalons non contraints par une date, listés à part.
+- **Par groupe (WP / métier)** — pour chaque groupe : nombre de tâches, **coût agrégé** et
+  **fin au plus tard** (la date de fin la plus tardive parmi ses tâches).
+
+### Imprimer / enregistrer en PDF
+
+Le bouton **🖨 Imprimer / PDF** de la fenêtre lance l'impression de **la seule synthèse** (en noir
+sur blanc). Dans l'aperçu du navigateur, choisissez **« Enregistrer au format PDF »** comme
+imprimante pour obtenir un fichier PDF de la synthèse, prêt à diffuser.
+
+> La synthèse est **recalculée à chaque ouverture** : elle reflète toujours l'état courant du
+> planning (durées, ETP, dates-cibles, paramètres de coût).
+
+---
+
+## 13. Les paramètres du projet
 
 ![Le dialogue Paramètres](images/manuel/parametres.png)
 
@@ -535,7 +566,7 @@ Le bouton **⚙ Paramètres** regroupe les réglages, tous **enregistrés** dans
 
 ---
 
-## 13. Raccourcis clavier
+## 14. Raccourcis clavier
 
 | Raccourci | Action |
 |---|---|
@@ -548,7 +579,7 @@ Le bouton **⚙ Paramètres** regroupe les réglages, tous **enregistrés** dans
 
 ---
 
-## 14. Questions fréquentes
+## 15. Questions fréquentes
 
 **Puis-je utiliser PertFlow sans internet ?**
 Oui, c'est même le mode prévu : double-clic sur `pertflow.html`, tout fonctionne hors ligne.

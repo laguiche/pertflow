@@ -95,6 +95,7 @@
     <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
     <button id="btn-export" title="Exporter le planning (PNG, PDF, CSV, Excel, MS Project)">⬇ Exporter</button>
+    <button id="btn-synthesis" title="Synthèse globale du planning (jalons, groupes, coûts) — imprimable en PDF">📊 Synthèse</button>
     <div class="tb-sep"></div>
     <button id="btn-undo" title="Annuler (Ctrl+Z)" disabled>↶ Annuler</button>
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
@@ -141,6 +142,19 @@
       </p>
       <div class="dialog-buttons">
         <button id="export-cancel">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dialogue de synthèse globale (imprimable en PDF) ──────────────────── -->
+  <div id="synthesis-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog synthesis-dialog-box">
+      <h3>Synthèse du planning</h3>
+      <!-- Contenu construit dynamiquement (src/synthesis.js) -->
+      <div id="synthesis-content"></div>
+      <div class="dialog-buttons">
+        <button id="synthesis-close">Fermer</button>
+        <button id="synthesis-print" class="primary">🖨 Imprimer / PDF</button>
       </div>
     </div>
   </div>
@@ -215,6 +229,7 @@
   <script src="src/export_microjalons.js"></script>
   <script src="src/link_routing.js"></script>
   <script src="src/align.js"></script>
+  <script src="src/synthesis.js"></script>
   <script src="src/ui.js"></script>
 </body>
 </html>
