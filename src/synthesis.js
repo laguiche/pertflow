@@ -69,6 +69,9 @@ function pertBuildSynthesisModel() {
       efDate: (n.ef != null) ? pertOffsetToDate(n.ef) : null,
       dueDate: (n.properties && n.properties.due_date) || "",
       margin: null,
+      // Cle de tri chronologique : la date CIBLE si elle existe, sinon la fin au plus
+      // tot (meme regle que la reorganisation « axe temps seul », cf. pertTimeAxisOffset).
+      sortOff: (typeof pertTimeAxisOffset === "function") ? pertTimeAxisOffset(n) : n.ef,
     };
     if (row.dueDate) {
       const dueOff = pertDateToOffset(row.dueDate);
@@ -79,6 +82,18 @@ function pertBuildSynthesisModel() {
       model.milestonesSansCible.push(row);
     }
   });
+
+  // Classement chronologique croissant des trois listes de jalons (cle : date cible si
+  // presente, sinon fin au plus tot). Les jalons sans repere temporel finissent en queue,
+  // le libelle departageant les ex aequo pour un ordre stable d'une ouverture a l'autre.
+  const byChrono = (a, b) => {
+    const oa = (a.sortOff != null) ? a.sortOff : Infinity;
+    const ob = (b.sortOff != null) ? b.sortOff : Infinity;
+    return (oa - ob) || a.label.localeCompare(b.label, "fr");
+  };
+  model.milestonesTenus.sort(byChrono);
+  model.milestonesNonTenus.sort(byChrono);
+  model.milestonesSansCible.sort(byChrono);
 
   // Passe 3 : synthese par groupe. « Fin au plus tard du groupe » = LF max de ses
   // Activites (la derniere tache a devoir etre terminee). Les taches sans groupe sont

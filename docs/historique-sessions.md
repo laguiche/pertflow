@@ -1168,6 +1168,37 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Date-cible des jalons : réorg « axe temps » + tri de la synthèse ✅ TERMINÉ (24/07/2026, tag **v0.15.5**)
+Deux correctifs mineurs signalés par l'utilisateur, de même nature : **la date-cible d'un Jalon
+était ignorée** là où elle est pourtant l'information que l'utilisateur regarde (un jalon
+matérialise un **engagement**, pas seulement une date au plus tôt calculée).
+- **(1) Réorganisation « axe du temps seul »** (`pertAutoLayoutTimeOnly`) : un Jalon porteur d'une
+  `due_date` est désormais placé à l'abscisse de **sa cible**, plus à celle de son ES (qui peut être
+  bien antérieure — cas du jalon terminal atteint en avance). Les autres nœuds gardent l'ES.
+- **(2) Fenêtre de synthèse** : les trois listes de jalons (tenus / non tenus / sans cible) sont
+  **classées par ordre chronologique croissant**, cible d'abord si elle existe, sinon fin au plus tôt.
+  Avant, l'ordre était celui du parcours de `g._nodes` (ordre de création) — illisible dès 4-5 jalons.
+
+**Décisions notables (24/07/2026)** :
+- **Une seule règle partagée** : nouvelle fonction `pertTimeAxisOffset(node)` dans `pert_engine.js`
+  (cible d'un Jalon → sinon ES → sinon EF → `null` pour les Labels), utilisée **à la fois** par la
+  réorg et par le tri de la synthèse. Motif : placement sur le canvas et ordre du tableau ne peuvent
+  plus diverger, un seul endroit à faire évoluer.
+- **Cible antérieure à T0 planchée à 0** (`Math.max`) — cohérent avec le plancher T0 du jalon entrant
+  dans `pertRecalc`, et évite de projeter un nœud hors du canvas à gauche.
+- **Moteur PERT non touché** : `pertTimeAxisOffset` ne sert qu'à l'affichage/au classement ; es/ef/lf,
+  marges et chemin critique sont inchangés (la cible continue de ne borner que le LF). La réorg
+  « axe temps seul » ne modifie toujours QUE l'abscisse.
+- **Tri stable** : ex aequo départagés par libellé (`localeCompare` fr) ; les jalons sans repère
+  temporel finissent en queue de liste.
+- **Fichiers** : `src/pert_engine.js` (`pertTimeAxisOffset` + `pertAutoLayoutTimeOnly`),
+  `src/synthesis.js` (clé `sortOff` par ligne + tri des 3 listes).
+- **Validé** : `tools/smoke-jalon-chrono.js` (nouveau : jalon à cible tardive placé à x = cible,
+  jalon sans cible resté sur l'ES, ordonnées manuelles préservées ; listes de synthèse saisies dans
+  le désordre et ressorties triées) + non-régression (`smoke`, `smoke-synthesis`, `smoke-reorg`,
+  `smoke-evo-labels-align-reorg`), 0 erreur console. **Manuels volontairement non mis à jour**
+  (décision utilisateur : correction de comportement, aucun élément d'interface nouveau).
+
 ### Fenêtre de synthèse globale + impression PDF ✅ TERMINÉ (23/07/2026, tag **v0.15.4**)
 Demande utilisateur : la seule synthèse accessible était la barre d'état (en petit, en bas).
 Ajout d'un bouton toolbar **`📊 Synthèse`** ouvrant une **fenêtre modale récapitulative**, avec

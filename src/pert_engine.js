@@ -442,6 +442,24 @@ function pertAutoLayout() {
 // un X PUR ∝ ES (decision utilisateur) → deux taches de meme ES se retrouvent a la
 // meme abscisse, et les lignes horizontales voulues par l'utilisateur restent
 // lisibles. Aucun packing par couloir, aucune relocalisation de Label.
+// Abscisse temporelle d'un nœud, au sens « ou l'utilisateur attend ce nœud sur l'axe
+// du temps ». Pour un Jalon porteur d'une DATE CIBLE, c'est cette cible qui fait foi
+// (l'utilisateur raisonne sur l'engagement pris, pas sur la date au plus tot calculee,
+// qui peut etre bien anterieure) ; pour tout autre nœud, l'ES (a defaut l'EF).
+// Renvoie null si le nœud n'a aucune position temporelle (Label...).
+// Utilise par la reorganisation « axe temps seul » ET par le classement chronologique
+// des jalons dans la fenetre de synthese → une seule regle, deux usages coherents.
+function pertTimeAxisOffset(node) {
+  if (!node) return null;
+  if (node.type === "pert/milestone" && node.properties && node.properties.due_date) {
+    const off = pertDateToOffset(node.properties.due_date);
+    if (off !== null) return Math.max(0, off); // cible anterieure a T0 → plancher T0
+  }
+  if (node.es != null) return node.es;
+  if (node.ef != null) return node.ef;
+  return null;
+}
+
 function pertAutoLayoutTimeOnly() {
   const graph = window.pertGraph;
   if (!graph) return;
@@ -450,12 +468,13 @@ function pertAutoLayoutTimeOnly() {
   pertRecalc();
 
   const { nodes } = pertBuildAdjacency(graph);
-  const placeable = nodes.filter(n => n.es !== null);
+  const placeable = nodes.map(n => ({ node: n, off: pertTimeAxisOffset(n) }))
+                         .filter(e => e.off !== null);
   if (!placeable.length) return;
 
-  placeable.forEach(n => {
-    // X pur ∝ ES : pas de rang × gap (l'ordonnee manuelle porte la lisibilite)
-    n.pos[0] = PERT_LAYOUT_MARGIN_X + n.es * PERT_PX_PER_UNIT;
+  placeable.forEach(e => {
+    // X pur ∝ offset temps : pas de rang × gap (l'ordonnee manuelle porte la lisibilite)
+    e.node.pos[0] = PERT_LAYOUT_MARGIN_X + e.off * PERT_PX_PER_UNIT;
     // pos[1] volontairement inchange (on ne touche pas a l'axe des ordonnees)
   });
 
