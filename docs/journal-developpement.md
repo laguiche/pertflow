@@ -925,6 +925,95 @@ clés ont été rendus **beaucoup plus visuels** :
 
 ---
 
+### Fenêtre de synthèse globale, imprimable en PDF (✅ 23/07/2026, tag v0.15.4)
+
+Jusque-là, le récapitulatif du planning tenait dans la **barre d'état** en bas de l'écran — utile,
+mais étroit. L'utilisateur voulait une **vue d'ensemble présentable**. Nouveau bouton **📊 Synthèse**
+ouvrant une fenêtre qui rassemble en une page : les chiffres clés du projet, la liste des **jalons
+tenus / non tenus** avec leur marge, et une **synthèse par groupe** (nombre de tâches, coût, fin au
+plus tard). Un bouton **🖨 Imprimer / PDF** permet de la sortir telle quelle.
+
+- **Le choix « simple d'abord » a payé.** Plutôt que de fabriquer un PDF sur mesure (lourd, du code
+  à maintenir), on s'est appuyé sur l'**impression du navigateur** : une règle de style masque tout
+  sauf la fenêtre de synthèse, et l'utilisateur choisit « Enregistrer au format PDF ». Zéro
+  dépendance, et ça respecte la contrainte « tout doit marcher d'un simple double-clic ».
+- **Un piège d'ergonomie déjoué :** sous Chrome, l'aperçu d'impression ne bloque pas le programme —
+  il fallait donc **rétablir l'affichage seulement quand l'aperçu se referme**, sinon l'application
+  « repassait en sombre » derrière l'aperçu encore ouvert. Le genre de détail qu'on ne voit qu'en
+  essayant pour de vrai.
+
+### La date-cible des jalons enfin respectée partout (✅ 24/07/2026, tag v0.15.5)
+
+Deux petits défauts de **même origine**, signalés par l'utilisateur : la **date-cible** d'un jalon
+(l'engagement pris : « livré pour telle date ») était ignorée à deux endroits. Quand on
+réorganisait le planning « sur l'axe du temps », un jalon se plaçait à sa date **calculée** et non à
+sa **cible** ; et la fenêtre de synthèse listait les jalons dans leur ordre de création plutôt que
+**chronologiquement**.
+
+- **Une seule règle pour les deux corrections.** Plutôt que de rustiner chaque endroit séparément,
+  on a défini **une fonction unique** — « où ce nœud doit-il se situer sur l'axe du temps ? » (la
+  cible d'un jalon si elle existe, sinon sa date calculée) — utilisée à la fois par la
+  réorganisation et par le tri. Ainsi le placement à l'écran et l'ordre du tableau **ne peuvent plus
+  se contredire**. Un bon réflexe : corriger la cause commune, pas les symptômes.
+- **Documentation volontairement non régénérée** (décision utilisateur) : un simple ajustement de
+  comportement, sans nouveau bouton ni nouvel écran, ne justifiait pas de refaire le manuel.
+
+### Anticiper des travaux avant T0, et raisonner en « T0 + X » (✅ 24–25/07/2026, tag v0.16)
+
+**Le meilleur test, c'est l'usage réel.** Lors d'un **séminaire** où l'outil a été utilisé en direct
+avec plusieurs groupes de travail, deux **défauts de conception** sont apparus — invisibles jusque-là
+parce qu'ils ne se révèlent que dans une vraie démarche de pilotage. Tous deux tournent autour du
+même point : le **rôle de T0**, la date de départ du projet.
+
+**Défaut 1 — anticiper des travaux se retournait contre l'utilisateur.** Sur un grand projet, un
+levier classique pour tenir une échéance serrée consiste à **lancer certaines tâches avant le début
+officiel** (T0) — l'entreprise en assume le coût parce que le projet le vaut. Or, en posant une telle
+tâche en amont, l'outil la faisait démarrer *à* T0 et **repoussait tout le reste** : les jalons
+reculaient, les marges viraient au rouge. Le geste vertueux produisait l'effet inverse.
+
+- **Le diagnostic a été le cœur du travail.** En creusant, on a compris que T0 jouait **deux rôles
+  à la fois** : l'*origine* de l'axe du temps (la référence contractuelle, « livraison à T0 + 6
+  mois ») **et** une *barrière* interdisant de rien placer avant. Il fallait **dissocier les deux** :
+  T0 reste la référence commune, mais des travaux peuvent désormais se situer **avant** lui.
+- **L'utilisateur a orienté la solution.** À une première proposition (un champ « démarrage à T0 − N »
+  dans le panneau), il a répondu qu'un mécanisme existant — le **jalon d'entrée** (ex. « déblocage du
+  budget d'anticipation ») — faisait déjà le travail *et* rendait la décision **visible dans le
+  planning**, réutilisable par plusieurs tâches. On a donc écarté le champ au profit de ce jalon,
+  complété par une simple **case « Tâche anticipée »** : la tâche recule alors toute seule, juste ce
+  qu'il faut, **sans décaler l'aval d'un jour**. Bel exemple où la connaissance métier du
+  commanditaire simplifie la solution technique.
+- **Une décision de restitution importante.** Fallait-il « décomposer » la marge des jalons pour
+  montrer la part gagnée par anticipation ? L'utilisateur a tranché : **non**, on veut lire la marge
+  réelle et complète, un point c'est tout. Ce qu'on chiffre en revanche, c'est le **coût anticipé** —
+  la dépense engagée avant T0 — calculé **au prorata** de la part de chaque tâche située avant la
+  référence. Ce coût **ventile** le total sans jamais le gonfler ni le réduire, et il est affiché
+  **par métier** dans la synthèse (c'est en général là que se décide qui porte l'effort).
+- **Un repère visuel** matérialise tout cela : un **trait « T0 »** sur le canvas et une **bande
+  hachurée** pour la zone des travaux anticipés — parlant en présentation de séminaire. *Écueil
+  technique retenu :* ce repère refusait obstinément de s'afficher, jusqu'à comprendre qu'un autre
+  élément de dessin **l'écrasait silencieusement** ; un test qui vérifiait « la fonction est-elle
+  branchée ? » n'y voyait rien, il a fallu **vérifier les pixels réellement dessinés**.
+
+**Défaut 2 — on ne pouvait fixer une échéance qu'avec une date de calendrier.** En stratégie globale,
+on raisonne d'abord en **« T0 + 6 mois »** ; les dates précises ne viennent qu'ensuite. Un jalon peut
+désormais exprimer sa cible **au choix** : date calendaire **ou** « T0 + X » (X pouvant être négatif,
+pour l'anticipation). Les deux saisies **cohabitent** — on peut caler tout un planning en relatif,
+puis figer les dates une à une.
+
+- **Le vrai risque était la dispersion.** La date-cible était lue **directement à neuf endroits** du
+  code ; en oublier un aurait fait passer un jalon « T0 + X » pour un jalon *sans* cible, en silence.
+  On a donc concentré la logique dans **trois fonctions d'accès uniques** et fait passer *tous* les
+  consommateurs par elles — une discipline qui a évité une classe entière de bugs discrets.
+
+**Bilan méthode.** Cette évolution illustre bien l'apport de l'IA au pilotage : le commanditaire
+apporte le **besoin métier** né du terrain (le séminaire), l'échange **affine la solution** (le jalon
+d'entrée plutôt qu'un champ ad hoc, la marge non décomposée), et l'exécution — diagnostic de la cause
+racine, refonte prudente du moteur, tests automatisés, manuel illustré d'un **avant/après** — se fait
+en une passe cohérente. Le manuel a d'ailleurs été **enrichi** cette fois (deux vrais nouveaux
+éléments d'interface), avec cinq captures dont l'avant/après qui montre les marges revenir au vert.
+
+---
+
 ## Backlog réorienté (à partir du 22/06/2026)
 
 ### A. Demandes utilisateurs (lisibilité & ergonomie du PERT)
@@ -978,10 +1067,18 @@ clés ont été rendus **beaucoup plus visuels** :
 - **Calcul interne en unités, affichage en dates.** ES/EF/LS/LF/slack sont des
   décalages en unités depuis T0 ; la conversion en date calendaire est faite à
   l'affichage. Découple le calcul de la présentation.
-- **Conversion date à facteur fixe** (j=1, sem=7, mois=30 jours). Garantit que
-  `offset→date` et `date→offset` sont exactement inverses (indispensable pour
-  comparer une date-cible calendaire à une valeur calculée). Les mois sont donc
-  approximés à 30 jours — acceptable en prévisionnel, raffinable plus tard.
+- **Conversion date ⇆ unités, chaque unité dans son arithmétique naturelle** (évolué
+  depuis le facteur fixe initial). Le *jour* est un **jour ouvré** (week-ends sautés,
+  v0.14.2), la *semaine* vaut 7 jours calendaires exacts, le *mois* est un **mois
+  calendaire réel** (via `setMonth`, plus le facteur 30 qui dérivait de ~6 jours par
+  an — corrigé avant la S8). L'invariant clé est conservé : `offset→date` et
+  `date→offset` restent exactement inverses, indispensable pour comparer une
+  date-cible calendaire à une valeur calculée.
+- **T0 est une origine, pas une barrière** (v0.16). T0 fixe le zéro de l'axe du temps
+  (la référence contractuelle) ; il ne borne le démarrage que d'une tâche *sans aucun
+  prédécesseur*. Les décalages **négatifs sont admis** : ils modélisent les travaux
+  engagés **avant T0** (anticipation). Distinguer ces deux rôles a été le cœur du
+  correctif de fin juillet 2026.
 - **Fin de projet = nœud le plus éloigné de T0 (max EF)** : sert d'ancrage au
   backward pass et de cible par défaut du chemin critique (cohérent avec #7).
 - **Marge négative** = délai/cible infaisable en aval → affichée en rouge comme un
