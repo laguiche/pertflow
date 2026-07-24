@@ -29,6 +29,10 @@ function pertBuildSynthesisModel() {
     nbTasks: 0,
     nbMilestones: 0,
     totalCost: 0,
+    // Part du cout total ENGAGEE AVANT T0 (travaux anticipes), au prorata de la duree
+    // situee a gauche de T0. Sert de bascule d'affichage : les colonnes « anticipe /
+    // non anticipe » n'apparaissent que si le planning comporte de l'anticipation.
+    anticCost: 0,
     endDate: null,
     critTasks: 0,
     critCost: 0,
@@ -52,6 +56,7 @@ function pertBuildSynthesisModel() {
       activities.push(n);
       const c = pertActivityCost(n);
       model.totalCost += c;
+      model.anticCost += pertAnticipatedCost(n);
       if (critIds.has(n.id)) { model.critTasks++; model.critCost += c; }
     }
   });
@@ -67,14 +72,18 @@ function pertBuildSynthesisModel() {
       label: (n.properties && n.properties.label) || "(jalon)",
       tag: (n.properties && typeof pertMilestoneTag === "function") ? pertMilestoneTag(n.properties.tag) : null,
       efDate: (n.ef != null) ? pertOffsetToDate(n.ef) : null,
-      dueDate: (n.properties && n.properties.due_date) || "",
+      // Cible : on retient l'OFFSET resolu (calcul de marge) et le LIBELLE tel que
+      // saisi (date calendaire ou « T0+X ») — cf. pert_engine.js, deux modes de saisie.
+      hasDue: pertMilestoneHasDue(n),
+      dueOff: pertMilestoneDueOffset(n),
+      dueLabel: pertMilestoneDueLabel(n),
       margin: null,
       // Cle de tri chronologique : la date CIBLE si elle existe, sinon la fin au plus
       // tot (meme regle que la reorganisation « axe temps seul », cf. pertTimeAxisOffset).
       sortOff: (typeof pertTimeAxisOffset === "function") ? pertTimeAxisOffset(n) : n.ef,
     };
-    if (row.dueDate) {
-      const dueOff = pertDateToOffset(row.dueDate);
+    if (row.hasDue) {
+      const dueOff = row.dueOff;
       if (dueOff !== null && n.ef != null) row.margin = dueOff - n.ef;
       if (n.target_missed) model.milestonesNonTenus.push(row);
       else model.milestonesTenus.push(row);
@@ -110,9 +119,13 @@ function pertBuildSynthesisModel() {
     return a.localeCompare(b, "fr");
   }).forEach(name => {
     const nodes = byGroup[name];
-    let cost = 0, maxLf = null;
+    // Cout GLOBAL du groupe, puis sa decomposition anticipe (avant T0) / non anticipe
+    // (demande utilisateur du 24/07/2026) : c'est par groupe que se decide qui porte
+    // l'effort d'anticipation et le budget correspondant.
+    let cost = 0, anticCost = 0, maxLf = null;
     nodes.forEach(n => {
       cost += pertActivityCost(n);
+      anticCost += pertAnticipatedCost(n);
       if (n.lf != null && (maxLf === null || n.lf > maxLf)) maxLf = n.lf;
     });
     model.groups.push({
@@ -120,6 +133,8 @@ function pertBuildSynthesisModel() {
       color: name ? (groupColors[name] || (nodes[0].properties && nodes[0].properties.color) || null) : null,
       nbTasks: nodes.length,
       cost,
+      anticCost,
+      plainCost: cost - anticCost,
       lfDate: (maxLf != null) ? pertOffsetToDate(maxLf) : null,
     });
   });
@@ -213,6 +228,11 @@ function pertRenderSynthesis() {
   synthKV(ov, "Tâches", String(m.nbTasks));
   synthKV(ov, "Jalons", String(m.nbMilestones));
   synthKV(ov, "Coût total", pertFormatCost(m.totalCost));
+  // Depense engagee AVANT le lancement contractuel : ligne affichee seulement si le
+  // planning comporte effectivement des travaux anticipes.
+  if (m.anticCost > 0) {
+    synthKV(ov, "dont anticipé (avant T0)", pertFormatCost(m.anticCost));
+  }
   synthKV(ov, "Chemin critique", m.critTasks + " tâche(s) · " + pertFormatCost(m.critCost));
   synthSection(c, "Vue d'ensemble", ov);
 
@@ -225,7 +245,7 @@ function pertRenderSynthesis() {
     { text: r.label },
     { node: synthTagNode(r.tag), text: r.tag ? "" : "—" },
     { text: pertFormatDate(r.efDate) },
-    { text: r.dueDate ? pertFormatDate(pertOffsetToDate(pertDateToOffset(r.dueDate))) : "—" },
+    { text: r.dueLabel || "—" },
     synthMarginCell(r.margin, m.unitLabel),
   ];
   synthSection(c, "Jalons tenus (" + m.milestonesTenus.length + ")",
@@ -248,7 +268,11 @@ function pertRenderSynthesis() {
       synthTable([{ text: "Jalon" }, { text: "Type" }, { text: "Fin t.tôt" }], rows));
   }
 
-  // 5) Synthese par groupe.
+  // 5) Synthese par groupe : cout GLOBAL puis, si le planning comporte de
+  // l'anticipation, sa decomposition anticipe (avant T0) / non anticipe. Les deux
+  // colonnes supplementaires n'apparaissent pas sur un planning classique (aucun
+  // bruit), et leur somme redonne toujours le cout global du groupe.
+  const showAntic = m.anticCost > 0;
   const grpRows = m.groups.map(gr => {
     const nameCell = synthEl("span");
     if (gr.color) {
@@ -257,18 +281,28 @@ function pertRenderSynthesis() {
       nameCell.appendChild(chip);
     }
     nameCell.appendChild(document.createTextNode(gr.name));
-    return [
+    const cells = [
       { node: nameCell },
       { text: String(gr.nbTasks), cls: "num" },
       { text: pertFormatCost(gr.cost), cls: "num" },
-      { text: pertFormatDate(gr.lfDate), cls: "num" },
     ];
+    if (showAntic) {
+      cells.push({ text: pertFormatCost(gr.anticCost), cls: "num" });
+      cells.push({ text: pertFormatCost(gr.plainCost), cls: "num" });
+    }
+    cells.push({ text: pertFormatDate(gr.lfDate), cls: "num" });
+    return cells;
   });
+  const grpHeaders = [
+    { text: "Groupe" }, { text: "Tâches", cls: "num" }, { text: "Coût global", cls: "num" },
+  ];
+  if (showAntic) {
+    grpHeaders.push({ text: "dont anticipé", cls: "num" });
+    grpHeaders.push({ text: "dont non anticipé", cls: "num" });
+  }
+  grpHeaders.push({ text: "Fin au plus tard", cls: "num" });
   synthSection(c, "Par groupe (WP / métier)",
-    m.groups.length ? synthTable(
-      [{ text: "Groupe" }, { text: "Tâches", cls: "num" },
-       { text: "Coût", cls: "num" }, { text: "Fin au plus tard", cls: "num" }],
-      grpRows) : null,
+    m.groups.length ? synthTable(grpHeaders, grpRows) : null,
     "Aucune tâche.");
 }
 

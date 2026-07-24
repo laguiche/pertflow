@@ -1168,6 +1168,99 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Anticipation avant T0 + date-cible en « T0+X » ✅ TERMINÉ (24/07/2026, tag **v0.16**)
+Deux **défauts conceptuels** remontés par l'utilisateur après un séminaire où l'outil a été
+utilisé en direct avec plusieurs groupes. Tous deux touchent au rôle de T0 dans le modèle.
+
+**Défaut n°1 — l'anticipation était comptée comme un retard.** Le paradigme du séminaire : une
+seule définition contractuelle du T0 pour tout le monde (« livraison client à T0+X »). Or, pour
+gagner de la marge sur un chemin critique, un levier courant sur les grands projets est
+d'**anticiper des travaux avant T0** — l'entreprise assume le coût des tâches avancées parce que
+le projet le vaut. Le geste naturel (poser la tâche anticipée en amont de la chaîne) produisait
+l'effet inverse : n'ayant pas de prédécesseur, elle démarrait **à T0** et poussait tout l'aval de
+sa durée → les jalons reculaient d'autant et leurs marges viraient au négatif. Reculer T0 était
+la seule alternative, mais elle anticipe **tout le monde** et détruit la référence contractuelle.
+- **Cause** : T0 jouait deux rôles fusionnés — origine de l'axe des temps ET plancher de
+  démarrage. Trois planchers dans `pert_engine.js` : `let es = 0` du forward pass (qui ramenait à
+  T0 non seulement les racines mais **tout successeur** d'une chaîne anticipée), `Math.max(0,
+  dueOff)` du jalon entrant, et `Math.max(0, off)` de `pertTimeAxisOffset`.
+- **Correctif** : les **offsets négatifs deviennent légaux**. T0 n'est plus qu'une origine ; il ne
+  reste la date de démarrage par défaut que d'un nœud **sans aucun prédécesseur**. L'arithmétique
+  dates↔offsets gérait déjà le négatif (`Math.floor` dans `pertWorkdayIndex`, `setMonth` négatif) :
+  rien à changer de ce côté.
+- **Défaut latent corrigé au passage** : le backward pass bornait le LF de **tout** jalon porteur
+  d'une cible, jalon **entrant** compris. Or sa date est une **donnée d'entrée**, pas une échéance :
+  la compter deux fois lui donnait `EF == LF == cible`, donc **marge 0 systématique**, et lui
+  faisait **capturer le chemin critique** à lui seul dès que le reste du planning dégageait de la
+  marge — précisément ce que l'exercice cherche à produire. Exclusion via `pertIsEntryMilestone`.
+- **Deux façons d'exprimer l'anticipation**, complémentaires. (1) **Jalon entrant daté avant T0** —
+  l'utilisateur a fait remarquer que le mécanisme existait déjà et qu'il portait en plus une
+  **décision visible** (« déblocage d'un budget d'anticipation »), partageable par plusieurs tâches
+  aval ; seul le plancher restait à lever. Un champ « T0 − N » dans le panneau a donc été écarté.
+  (2) Propriété `anticipated` d'une Activité — planification **au plus tard** (juste-à-temps) :
+  `pertForwardPass` fait une passe ASAP en ignorant la contribution des tâches tirées, puis une
+  passe en ordre topo **inverse** qui cale leur fin sur le début du plus précoce de leurs
+  successeurs. Une anticipation **infaisable** (un prédécesseur non tiré la maintient trop tard)
+  est **rétrogradée** au plus tôt et le calcul rejoué — l'ensemble ne fait que rétrécir, donc
+  terminaison garantie ; la précédence n'est jamais violée.
+- **Propriété remarquable** (vérifiée et testée) : `EF = ES(succ)` et `LF = LS(succ)` ⇒
+  `slack = slack(successeur)`. Une tâche anticipée **hérite de la marge de son successeur** : elle
+  n'apparaît jamais en faux critique. La crainte initiale d'un « JIT toujours critique » était
+  infondée.
+- **Restitution** — arbitrage utilisateur important : **pas** de décomposition de la marge des
+  jalons (« marge nette », « anticipation amont »). L'utilisateur veut lire la marge PERT de
+  **l'enchaînement complet**, anticipation comprise, et rien d'autre. Ce qui a été retenu : coût
+  **anticipé au PRORATA** de la part de durée située avant T0 (`pertAnticipatedShare/Cost`) — le
+  prorata **ventile** le coût de part et d'autre de T0, il ne le réduit jamais (`anticipé + non
+  anticipé = coût global`, par construction). Affiché en barre d'état, dans le panneau (« Avant
+  T0 » + « Coût anticipé »), et **par groupe dans la synthèse** (colonnes *Coût global / dont
+  anticipé / dont non anticipé*, demande explicite).
+- **Repère visuel** (`src/t0_marker.js`, nouveau) : trait vertical de T0 + bande hachurée
+  « travaux anticipés ». Trois pièges rencontrés. (a) L'abscisse de T0 est **déduite** des nœuds
+  placés (`pertT0OriginX` = min de `pos[0] − offset × PX`) : rien à sérialiser, et le repère suit
+  une translation d'ensemble. (b) Le trait doit être en **avant-plan** (`onDrawForeground`) : en
+  fond il disparaissait derrière la première tâche chevauchant T0, c'est-à-dire le cas courant.
+  (c) ⚠️ **`pertInstallT0Marker` doit être appelé APRÈS le handler de grille de `ui.js`** : celui-ci
+  **affecte** `onDrawBackground` alors que l'installation le **chaîne** → installé avant, il était
+  purement écrasé et la bande ne se dessinait jamais. Un test de présence du handler n'y voyait
+  rien : le smoke test compare donc les **pixels** de part et d'autre de T0.
+  Le repère n'est affiché **qu'en présence d'anticipation** — sur un graphe placé à la main
+  l'abscisse n'a aucun sens temporel et un trait légendé « T0 » y serait trompeur.
+- **Layout** : `pertLayoutOriginX` décale la grille vers la droite de la plus grande anticipation
+  → les abscisses restent positives et T0 tombe à l'intérieur du graphe.
+- **Exports** : la grille du Gantt xlsx est indexée depuis `firstCol` (≤ 0) et non plus depuis 0,
+  sinon les tâches anticipées **disparaissaient** du classeur ; `<StartDate>` du MSPDI vaut
+  `min(0, firstCol)` (déclarer T0 avec des tâches antérieures produit un fichier incohérent).
+
+**Défaut n°2 — la date-cible d'un jalon ne pouvait être qu'une date calendaire.** En stratégie
+globale on raisonne d'abord en `T0+X` (et `T0−X` pour l'anticipation) ; les dates fines ne
+viennent que dans un second temps.
+- **Correctif** : un Jalon porte sa cible sous deux formes exclusives — `due_mode = "date"`
+  (`due_date`, mode historique et celui des imports) ou `"offset"` (`due_offset`, négatif admis).
+  Les **deux valeurs cohabitent** dans `properties` : basculer de mode ne détruit pas la saisie
+  précédente.
+- **Point d'architecture, principal risque du chantier** : `due_date` était relu **directement en
+  9 endroits** (moteur ×4, rendu du nœud ×3, panneau, synthèse, Gantt/MSPDI, CSV, ancrage
+  d'import). Un seul site oublié aurait traité un jalon en T0+X comme « sans cible », en silence.
+  Trois accesseurs uniques dans `pert_engine.js` — `pertMilestoneHasDue` / `pertMilestoneDueOffset`
+  / `pertMilestoneDueLabel` — et **tous** les consommateurs basculés dessus. Règle inscrite dans le
+  commentaire : plus aucun code hors de ce bloc ne lit `due_date`.
+- Le libellé suit le mode partout (nœud « Cible : T0+6 mois », synthèse, section calculs
+  « ✓ tenue (T0+6 mois) »). Le **CSV garde son schéma figé** : la cible y est toujours résolue en
+  date calendaire, quel que soit le mode de saisie.
+- Panneau : sélecteur de mode + champ adapté + rappel « Soit le \<date\> » rafraîchi à la frappe ;
+  le bloc se reconstruit seul au changement de mode sans reconstruire tout le panneau.
+
+**Fichiers** : `src/pert_engine.js` (accesseurs de cible, `pertForwardPass`, `pertIsEntryMilestone`,
+`pertIsAnticipated`, `pertLayoutOriginX`, `pertT0OriginX`, `pertAnticipatedShare/Cost`),
+`src/t0_marker.js` (nouveau), `src/nodes.js` (`anticipated`, `due_mode`/`due_offset`, rendu),
+`src/ui.js` (`buildCheckbox`, `buildMilestoneDueField`, panneau, barre d'état, ordre d'installation
+du repère), `src/synthesis.js`, `src/export_gantt.js`, `src/export_csv.js`, `src/import.js`,
+`index.html`. Tests : `tools/smoke-anticipation.js` (7 scénarios) et
+`tools/smoke-jalon-t0plusx.js` (4 blocs, dont l'**équivalence stricte** T0+X ⇄ date calendaire),
+nouveaux et gitignorés ; toute la batterie smoke sans régression (les échecs `smoke-s9`/`smoke-s10`
+préexistent : la fixture `test_cases/pert_a_exporter.pert` n'est pas versionnée).
+
 ### Date-cible des jalons : réorg « axe temps » + tri de la synthèse ✅ TERMINÉ (24/07/2026, tag **v0.15.5**)
 Deux correctifs mineurs signalés par l'utilisateur, de même nature : **la date-cible d'un Jalon
 était ignorée** là où elle est pourtant l'information que l'utilisateur regarde (un jalon

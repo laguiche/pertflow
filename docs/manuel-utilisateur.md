@@ -165,7 +165,8 @@ Un **Jalon** est un **point instantané** (durée nulle) : une échéance, une l
 Il se reconnaît à sa forme arrondie avec un **coin « drapeau »** et un losange ◆ devant son nom.
 Il peut porter :
 
-- une **date-cible** (« Cible ») à tenir ;
+- une **cible** à tenir, exprimée au choix par une **date calendaire** ou en **« T0 + X »**
+  (voir §4) — le nœud affiche l'une ou l'autre : `Cible : 01/10/26` ou `Cible : T0+6 mois` ;
 - un **tag** de type (aucun / **DOTD** / **COTD** / **Ingénierie**), affiché sous forme de
   **pastille colorée** — utile pour marquer les jalons contractuels majeurs.
 
@@ -207,7 +208,12 @@ est **recalculé en continu** à chaque modification.
 
 ### T0 et unités
 
-- **T0** est la **date de début du projet** (réglée dans Paramètres).
+- **T0** est la **date de référence du projet** (réglée dans Paramètres) : l'origine à partir
+  de laquelle tout se compte (« livraison à T0 + 6 mois »). C'est la **référence contractuelle**,
+  celle sur laquelle toute l'équipe s'accorde.
+- T0 est le point de départ **par défaut** des tâches qui n'ont aucun prédécesseur, mais ce
+  **n'est pas une barrière** : des travaux peuvent être **engagés avant T0** (voir
+  « Anticiper des travaux avant T0 » plus bas).
 - L'**unité** de durée est **jours**, **semaines** ou **mois** :
   - jours et semaines sont des durées exactes (1 semaine = 7 jours) ;
   - les **mois** sont des **mois calendaires réels** (les longueurs de mois et les années
@@ -275,17 +281,42 @@ importante :
 
 - **Jalon entrant** (aucun lien entrant, au moins un lien sortant, et une **date-cible**) :
   il modélise une **contrainte externe** qui **amorce** une chaîne — par exemple la livraison
-  d'un prototype, un feu vert de la direction, un jalon fournisseur. Sa date-cible **fixe le
+  d'un prototype, un feu vert de la direction, un jalon fournisseur. Sa cible **fixe le
   démarrage** des tâches en aval (elles ne partent pas à T0, mais à cette date). Dans l'exemple,
   « Cahier des charges » et « Feu vert direction » sont des jalons entrants.
+  Sa cible peut être **antérieure à T0** — c'est la façon la plus lisible de déclarer des
+  travaux anticipés (voir plus bas).
 - **Jalon de sortie / terminal** (avec des liens entrants) : il marque une **échéance** en bout
   de chaîne. Sa date-cible **borne la fin au plus tard** (LF) mais **ne force pas** son démarrage.
 - **Point de contrôle intermédiaire** (jalon au milieu d'une chaîne) : sa date-cible ne fait que
   **borner le LF** ; son début reste piloté par la fin de ses prédécesseurs.
 
-### La date-cible (« Cible ») et sa tenue
+### La cible d'un jalon : date calendaire **ou** « T0 + X »
 
-Quand un jalon porte une **date-cible**, PertFlow compare la date **calculée** à la **cible** :
+Un jalon peut exprimer sa cible de **deux façons**, au choix, dans le panneau Propriétés :
+
+| Mode | Quand l'utiliser | Ce que le nœud affiche |
+|---|---|---|
+| **Date calendaire** | l'échéance est arrêtée (contrat signé, date fournisseur connue) | `Cible : 01/10/26` |
+| **T0 + X** | **stratégie globale** : on raisonne en « à T0 + 6 mois » avant de figer les dates | `Cible : T0+6 mois` |
+
+![Une cible saisie en « T0 + X », avec le rappel de la date correspondante](images/manuel/jalon-cible-t0plusx.png)
+
+En mode « T0 + X », le panneau rappelle en dessous la **date à laquelle cela correspond**
+(« Soit le … »), recalculée dès que vous changez T0 dans Paramètres. **X peut être négatif**
+(`T0 − 3`) : c'est ainsi qu'on pose un jalon **avant** T0, par exemple un déblocage de budget
+d'anticipation.
+
+> **Les deux saisies cohabitent.** Passer en « T0 + X » ne détruit pas la date que vous aviez
+> saisie, et inversement : vous pouvez caler tout votre planning en T0+X, puis basculer les
+> jalons un à un en dates calendaires à mesure qu'elles se figent.
+
+Pour le **calcul**, les deux modes sont **strictement équivalents** : une cible à « T0 + 6 mois »
+et la date calendaire correspondante donnent exactement les mêmes résultats.
+
+### La tenue de la cible
+
+Quand un jalon porte une **cible**, PertFlow compare la date **calculée** à la **cible** :
 
 - si la cible est **tenue avec une marge confortable** → coin/pastille **vert** ;
 - si elle est **juste tenue** → **orange** ;
@@ -293,6 +324,51 @@ Quand un jalon porte une **date-cible**, PertFlow compare la date **calculée** 
 
 > ⚠️ Une **marge négative** signifie qu'une échéance imposée est **infaisable** en l'état :
 > elle s'affiche en rouge pour vous alerter.
+
+> Un **jalon entrant** fait exception : sa cible est une **donnée d'entrée** (« le budget est
+> débloqué le 12/01 »), pas un engagement à tenir. Il n'est donc jamais signalé comme « raté »
+> et ne consomme pas la marge du projet.
+
+### Anticiper des travaux avant T0
+
+Quand un jalon n'est pas tenu, le premier réflexe est de **travailler le chemin critique** pour
+regagner de la marge. Sur les projets d'envergure, un levier classique consiste à **anticiper**
+certains travaux : les engager **avant T0**, l'entreprise assumant leur coût parce que le projet
+le vaut. **T0 ne bouge pas** — il reste la référence contractuelle commune.
+
+Prenons ce planning : l'approvisionnement dure 3 mois, puis la conception 4 mois, puis
+l'intégration 2 mois. La livraison client est engagée à **T0 + 6 mois**… mais le calcul tombe à
+T0 + 9. **Tout est rouge, marge −3 mois** :
+
+![Avant : la cible est ratée de 3 mois](images/manuel/anticipation-avant.png)
+
+L'approvisionnement ne dépend de rien : il peut être lancé **avant** le début officiel du projet.
+Il suffit de cocher **« Tâche anticipée (avant T0) »** dans son panneau :
+
+![Après : la tâche est passée avant T0, la cible est tenue](images/manuel/anticipation-apres.png)
+
+La tâche a **reculé toute seule** à T0 − 3, la chaîne en aval a gagné 3 mois et **la cible est
+tenue**. Deux repères apparaissent sur le canvas :
+
+- le **trait vertical T0**, légendé avec sa date ;
+- la **bande hachurée** à sa gauche : la zone des **travaux anticipés**.
+
+**Comment PertFlow place une tâche anticipée.** Elle est planifiée **au plus tard** — « juste à
+temps » : elle se cale pour **finir exactement quand l'aval en a besoin**, sans décaler celui-ci
+d'un seul jour. Vous n'avez aucune date à calculer. Deux conséquences utiles :
+
+- si un **prédécesseur** l'empêche de reculer (par exemple un jalon d'entrée à T0), PertFlow
+  **renonce à l'anticiper** et la replace au plus tôt : l'enchaînement reste toujours cohérent ;
+- une tâche anticipée **hérite de la marge de son successeur** — elle n'apparaît donc jamais en
+  « faux » chemin critique.
+
+**L'autre façon d'anticiper : le jalon d'entrée.** Plutôt que de cocher des tâches une à une, vous
+pouvez poser un **jalon** daté **avant T0** (en date, ou en `T0 − X`) et y raccorder les tâches
+concernées. L'avantage : la **décision devient visible** dans le planning — « Déblocage du budget
+d'anticipation », « Commande longue matière passée » — et plusieurs tâches peuvent s'y rattacher.
+
+> **Et le coût ?** Anticiper n'est pas gratuit : PertFlow chiffre la part engagée avant T0
+> (voir §8).
 
 ### Les cycles
 
@@ -310,6 +386,8 @@ Le panneau (à droite) affiche les champs du nœud sélectionné. Pour une **Act
 
 - **Libellé** — le nom de la tâche.
 - **Durée** — dans l'unité du projet.
+- **Tâche anticipée (avant T0)** — case à cocher : la tâche est planifiée « juste à temps » et
+  peut passer **avant T0** (voir §4). Sans successeur, la case reste sans effet.
 - **ETP** (Équivalent Temps Plein) — l'effort estimé, utilisé pour le **coût** (voir §8).
 - **Responsable** — liste déroulante enrichissable (les noms déjà saisis sont reproposés).
 - **Couleur** — couleur de fond du nœud.
@@ -318,11 +396,15 @@ Le panneau (à droite) affiche les champs du nœud sélectionné. Pour une **Act
 - **Notes** — texte libre (hypothèses, contenu réel de la tâche). Les notes restent dans le
   panneau et ne sont **jamais** affichées sur le nœud.
 - **Section Chemin critique** — les repères calculés (ES / EF / LS / LF), la **marge** et le
-  **coût estimé** (lecture seule).
+  **coût estimé** (lecture seule). Si la tâche démarre avant T0, deux lignes s'ajoutent :
+  **« Avant T0 »** (la part de sa durée située avant la référence) et **« Coût anticipé »**.
 - **Supprimer** — supprime le nœud.
 
-Pour un **Jalon**, le panneau propose le libellé, la **date-cible**, le **type de jalon**
-(tag) et une zone de **Notes** libres (panneau uniquement).
+![Le panneau d'une tâche anticipée](images/manuel/panneau-tache-anticipee.png)
+
+Pour un **Jalon**, le panneau propose le libellé, la **cible** — avec son **mode de saisie**
+(date calendaire ou « T0 + X », voir §4) —, le **type de jalon** (tag) et une zone de **Notes**
+libres (panneau uniquement).
 
 Pour un **Label**, le panneau réunit la zone de **texte** et tous ses réglages de mise en forme :
 
@@ -454,6 +536,21 @@ chiffrage : les montants restent **dans le panneau et la barre de statut**, jama
 
 Les **Jalons** et **Labels** n'ont pas de coût.
 
+### Le coût anticipé (travaux engagés avant T0)
+
+Dès qu'une partie du planning se situe **avant T0** (voir §4), PertFlow chiffre ce que
+l'entreprise engage **avant le lancement contractuel** du projet : c'est le **coût anticipé**.
+
+- Une tâche **à cheval** sur T0 est comptée **au prorata** de sa durée : une tâche de 4 mois qui
+  démarre 2 mois avant T0 est anticipée pour **la moitié** de son coût.
+- Le prorata ne fait que **ventiler** le coût de part et d'autre de T0, il ne le réduit
+  **jamais** : **anticipé + non anticipé = coût global**, toujours.
+- Où le lire : dans le **panneau** de la tâche (« Avant T0 » et « Coût anticipé »), dans la
+  **barre de statut** (« dont anticipé : … ») et, **par groupe**, dans la **synthèse** (§12).
+
+> Ces indications n'apparaissent **que s'il y a effectivement de l'anticipation** : un planning
+> classique reste affiché exactement comme avant.
+
 ---
 
 ## 9. Importer un planning Excel existant
@@ -536,8 +633,17 @@ Elle regroupe :
 - **Jalons tenus** — les jalons dont la date-cible est respectée, avec leur **marge** (en vert).
 - **Jalons non tenus** — ceux en retard sur leur cible, avec leur **marge négative** (en rouge).
 - **Jalons sans cible** — les jalons non contraints par une date, listés à part.
-- **Par groupe (WP / métier)** — pour chaque groupe : nombre de tâches, **coût agrégé** et
+- **Par groupe (WP / métier)** — pour chaque groupe : nombre de tâches, **coût global** et
   **fin au plus tard** (la date de fin la plus tardive parmi ses tâches).
+
+Si le planning comporte des **travaux anticipés** (§4), la vue d'ensemble ajoute une ligne
+**« dont anticipé (avant T0) »**, et le tableau par groupe se dédouble en **coût global**,
+**dont anticipé** et **dont non anticipé** — c'est en général au niveau du groupe (WP, métier)
+que se décide qui porte l'effort d'anticipation, et sur quel budget :
+
+![La ventilation du coût par groupe dans la synthèse](images/manuel/synthese-cout-anticipe.png)
+
+> Les deux colonnes se somment toujours au coût global du groupe.
 
 ### Imprimer / enregistrer en PDF
 
@@ -602,6 +708,25 @@ il montre le chemin qui **contraint** cette tâche.
 
 **Comment récupérer un ancien planning Excel ?**
 Via **📥 Importer Excel** (voir §9).
+
+**J'ai ajouté une tâche en amont pour anticiper, et tous mes jalons ont reculé. Pourquoi ?**
+Parce que cette tâche n'est pas déclarée **anticipée** : sans prédécesseur, elle démarre à T0 et
+pousse toute la chaîne. Cochez **« Tâche anticipée (avant T0) »** dans son panneau — elle passera
+avant T0 sans décaler l'aval (voir §4).
+
+**Dois-je reculer T0 pour anticiper des travaux ?**
+Non, surtout pas : T0 est votre **référence contractuelle** et le reculer décalerait **tout** le
+projet. L'anticipation se déclare **tâche par tâche** (ou via un **jalon d'entrée** daté avant
+T0), et T0 ne bouge pas.
+
+**Une tâche anticipée coûte-t-elle moins cher au projet ?**
+Non. Son coût est compté **en entier** dans le coût total ; il est seulement **ventilé** entre
+part anticipée et part post-T0 (voir §8).
+
+**J'ai coché « Tâche anticipée » et rien n'a bougé.**
+Deux causes possibles : la tâche n'a **aucun successeur** (rien ne peut la tirer), ou l'un de ses
+**prédécesseurs** l'empêche de reculer — PertFlow la replace alors au plus tôt, la logique
+d'enchaînement primant toujours sur l'anticipation.
 
 ---
 

@@ -68,7 +68,10 @@ function pertCsvRowForNode(node) {
   const slack = pertCsvNum(node.slack);
   const critical = node.is_critical ? "oui" : "non";
   // DateCible = date-cible d'un Jalon (due_date) ; vide pour une Activite.
-  const dueDate = (!isAct && p.due_date) ? pertFormatDate(pertOffsetToDate(pertDateToOffset(p.due_date))) : "";
+  // Cible resolue en date calendaire, quel que soit son mode de saisie (date ou
+  // T0+X) : le schema de colonnes du CSV est fige, il reste une date.
+  const dueDate = (!isAct && pertMilestoneHasDue(node))
+    ? pertFormatDate(pertOffsetToDate(pertMilestoneDueOffset(node))) : "";
   // TagJalon = libelle du tag (DOTD / COTD / Ingenierie) ; vide sinon.
   let tag = "";
   if (!isAct && window.pertMilestoneTag) {

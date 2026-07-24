@@ -58,10 +58,9 @@ function pertScheduleModel() {
   // sur l'echeance), sinon son EF calcule. (Ex. un jalon de sortie avec due_date se
   // place a la cible, pas a l'EF de son predecesseur.)
   const msOffset = (m) => {
-    if (m.properties && m.properties.due_date) {
-      const o = pertDateToOffset(m.properties.due_date);
-      if (o != null) return o;
-    }
+    // Cible saisie en date OU en T0+X : dans les deux cas on ne manipule que l'offset.
+    const o = pertMilestoneDueOffset(m);
+    if (o != null) return o;
     return m.ef != null ? m.ef : 0;
   };
 
@@ -85,12 +84,24 @@ function pertScheduleModel() {
   entryMs.sort(byDate);
   exitMs.sort(byDate);
 
-  // Nombre de colonnes de periodes : couvre la derniere periode active des activites
-  // ET la colonne (date d'affichage) des jalons.
-  let maxCol = 0;
-  acts.forEach(a => { if (a.ef != null) maxCol = Math.max(maxCol, Math.ceil(a.ef) - 1); });
-  entryMs.concat(exitMs).forEach(m => { maxCol = Math.max(maxCol, Math.round(msOffset(m))); });
-  let numCols = Math.max(1, maxCol + 1);
+  // Bornes de la grille de periodes : elle couvre la derniere periode active des
+  // activites ET la colonne (date d'affichage) des jalons.
+  // firstCol = periode de la PREMIERE colonne. Elle vaut 0 (= T0) sur un planning
+  // classique, mais devient NEGATIVE des qu'il y a des travaux ANTICIPES : sans cela
+  // les taches situees avant T0 tombaient hors grille et disparaissaient purement et
+  // simplement du Gantt exporte.
+  let maxCol = 0, minCol = 0;
+  acts.forEach(a => {
+    if (a.ef != null) maxCol = Math.max(maxCol, Math.ceil(a.ef) - 1);
+    if (a.es != null) minCol = Math.min(minCol, Math.floor(a.es));
+  });
+  entryMs.concat(exitMs).forEach(m => {
+    const o = msOffset(m);
+    maxCol = Math.max(maxCol, Math.round(o));
+    minCol = Math.min(minCol, Math.floor(o));
+  });
+  const firstCol = minCol;
+  let numCols = Math.max(1, maxCol - firstCol + 1);
   let truncated = false;
   if (numCols > PERT_GANTT_MAX_COLS) { numCols = PERT_GANTT_MAX_COLS; truncated = true; }
 
@@ -106,11 +117,13 @@ function pertScheduleModel() {
   return {
     unit,
     dateFmt: unit === "mois" ? "date-mmm-yy" : "date-d-mmm-yy",
-    acts, entryMs, exitMs, numCols, truncated, links, msOffset,
-    // Une Activite occupe la periode i si elle chevauche [i, i+1).
+    acts, entryMs, exitMs, numCols, firstCol, truncated, links, msOffset,
+    // Une Activite occupe la PERIODE i (offset absolu depuis T0, negatif possible)
+    // si elle chevauche [i, i+1).
     activeAt: (a, i) => a.es != null && a.ef != null && a.es < i + 1 && a.ef > i,
-    // Colonne (0-based) d'un jalon = periode de sa date d'affichage.
-    msCol: (m) => Math.min(numCols - 1, Math.max(0, Math.round(msOffset(m)))),
+    // Colonne (0-based dans la grille) d'un jalon = periode de sa date d'affichage,
+    // ramenee a l'origine de la grille (firstCol).
+    msCol: (m) => Math.min(numCols - 1, Math.max(0, Math.round(msOffset(m)) - firstCol)),
   };
 }
 
@@ -120,9 +133,12 @@ function pertBuildGanttXlsx(model) {
   const HEAD = { bold: true };
   const HEAD_DATE = { bold: true, fmt: model.dateFmt };
 
+  // Origine de la grille : 0 (= T0) en l'absence d'anticipation, negative sinon.
+  const first = model.firstCol || 0;
+
   // En-tete : Tache / Groupe / Responsable + une date par periode.
   const header = [pertXlsxText("Tâche", HEAD), pertXlsxText("Groupe", HEAD), pertXlsxText("Responsable", HEAD)];
-  for (let i = 0; i < nCols; i++) header.push(pertXlsxDate(pertOffsetToDate(i), HEAD_DATE));
+  for (let i = 0; i < nCols; i++) header.push(pertXlsxDate(pertOffsetToDate(first + i), HEAD_DATE));
 
   const rows = [header];
   const sectionRow = (label) => { rows.push([pertXlsxText(label, HEAD)]); };
@@ -145,7 +161,7 @@ function pertBuildGanttXlsx(model) {
     const etp = pertGanttEtp(a);
     const fill = pertGanttColor(a);
     for (let i = 0; i < nCols; i++) {
-      if (model.activeAt(a, i)) row[3 + i] = pertXlsxNum(etp, { fmt: "num2", fill });
+      if (model.activeAt(a, first + i)) row[3 + i] = pertXlsxNum(etp, { fmt: "num2", fill });
     }
     rows.push(row);
   };
@@ -273,7 +289,10 @@ function pertBuildMSPDI(model) {
     + `<Name>` + pertMspXmlEsc(title) + `</Name>`
     + `<Title>` + pertMspXmlEsc(title) + `</Title>`
     + `<ScheduleFromStart>1</ScheduleFromStart>`
-    + `<StartDate>` + pertMspDate(0) + `</StartDate>`
+    // Debut de projet MS Project = T0, ou la premiere periode de la grille lorsque des
+    // travaux sont ANTICIPES : declarer T0 alors que des taches demarrent avant rendrait
+    // le fichier incoherent a l'import (taches anterieures au debut du projet).
+    + `<StartDate>` + pertMspDate(Math.min(0, model.firstCol || 0)) + `</StartDate>`
     + `<Tasks>` + tasksXml + `</Tasks>`
     + `</Project>`;
 }
