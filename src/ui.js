@@ -197,6 +197,12 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.restore();
   };
 
+  // Repère T0 (trait vertical) + bande « travaux anticipés » — cf. src/t0_marker.js.
+  // ⚠️ Installé APRÈS le handler de grille ci-dessus : pertInstallT0Marker CHAÎNE le
+  // onDrawBackground existant, alors que la grille l'AFFECTE. Installé avant, il était
+  // purement et simplement écrasé (la bande ne se dessinait jamais).
+  if (window.pertInstallT0Marker) pertInstallT0Marker(lgCanvas);
+
   // Resize dynamique
   function resizeCanvas() {
     const container = document.getElementById("canvas-container");
@@ -554,6 +560,19 @@ function showProperties(node) {
       pertRecalc();
       fillCalcSection(node);
     }, { min: 0, step: 0.5 });
+    // Anticipation (24/07/2026) : la tache est engagee AVANT T0 pour degager de la
+    // marge en aval. Cochee, elle est planifiee au plus tard (juste-a-temps) et recule
+    // d'elle-meme dans les offsets negatifs sans decaler son successeur d'un jour.
+    // pertRecalc obligatoire : le drapeau change l'ordonnancement de toute la chaine.
+    buildCheckbox(content, "Tâche anticipée (avant T0)", node.properties.anticipated,
+      v => {
+        node.properties.anticipated = v;
+        pertRecalc();
+        fillCalcSection(node);
+        node.setDirtyCanvas(true, true);
+      },
+      "Planifie la tâche au plus tard : elle finit pile quand l'aval en a besoin, "
+      + "quitte à démarrer avant T0. Sans successeur, la case reste sans effet.");
     // Estimation de cout (S8.5) : ETP modifiable. Le cout en decoule (affiche en lecture
     // seule dans la section calculs via fillCalcSection). Pas de pertRecalc : l'ETP
     // n'affecte pas l'ordonnancement, seulement le cout → on rafraichit juste le cout.
@@ -620,12 +639,7 @@ function showProperties(node) {
       node.updateSize();           // recalcul largeur + retour à la ligne (#4/#5)
       node.setDirtyCanvas(true, true);
     });
-    buildField(content, "Date-cible (à tenir)", "date", node.properties.due_date, v => {
-      node.properties.due_date = v;
-      node.setDirtyCanvas(true);
-      pertRecalc();
-      fillCalcSection(node);
-    });
+    buildMilestoneDueField(content, node);
     // #17 Type de jalon (importance contractuelle) : aucun / DOTD / COTD / Ingenierie.
     // Options derivees de PERT_MILESTONE_TAGS (nodes.js) → source unique. La pastille
     // peut changer la taille du nœud → updateSize.
@@ -1196,6 +1210,22 @@ function buildLabelBoldToggle(parent, node) {
   parent.appendChild(label);
 }
 
+// Case a cocher generique (meme mise en forme en ligne que buildLabelBoldToggle).
+// title = infobulle explicative, utile quand la case porte une regle de calcul.
+function buildCheckbox(parent, labelText, checked, onChange, title) {
+  const label = document.createElement("label");
+  label.className = "panel-check";
+  if (title) label.title = title;
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = !!checked;
+  cb.addEventListener("change", () => { onChange(cb.checked); pertHistoryMark(); });
+  label.appendChild(cb);
+  label.appendChild(document.createTextNode(" " + labelText));
+  parent.appendChild(label);
+  return cb;
+}
+
 function buildSelect(parent, labelText, value, options, onChange) {
   const label = document.createElement("label");
   label.textContent = labelText;
@@ -1211,6 +1241,79 @@ function buildSelect(parent, labelText, value, options, onChange) {
   label.appendChild(sel);
   parent.appendChild(label);
   return sel;
+}
+
+// Champ « Date-cible » d'un Jalon : sélecteur de MODE + saisie correspondante.
+// Deux modes (cf. le bloc « Date-cible » de pert_engine.js) : date calendaire, ou
+// T0 + X unités — X négatif accepté (cible antérieure à T0, cas de l'anticipation).
+// En stratégie globale on cale d'abord les jalons en T0+X, les dates calendaires
+// n'arrivent que dans un second temps : les deux saisies COHABITENT dans properties,
+// basculer de mode ne détruit pas l'autre valeur.
+// Le bloc se reconstruit lui-même au changement de mode (le champ change de nature),
+// sans reconstruire tout le panneau — la saisie en cours n'est pas interrompue.
+function buildMilestoneDueField(parent, node) {
+  const box = document.createElement("div");
+  parent.appendChild(box);
+
+  const render = () => {
+    box.innerHTML = "";
+    const mode = node.properties.due_mode === "offset" ? "offset" : "date";
+
+    // Répercussion d'une saisie : la ligne « Cible » du nœud change de texte (donc de
+    // largeur) et la cible participe au calcul (LF des jalons, ES d'un jalon entrant).
+    const applied = () => {
+      node.updateSize();
+      node.setDirtyCanvas(true, true);
+      pertRecalc();
+      fillCalcSection(node);
+    };
+
+    buildSelect(box, "Date-cible (à tenir)", mode, [
+      { value: "date", label: "Date calendaire" },
+      { value: "offset", label: "T0 + X (stratégie globale)" },
+    ], v => {
+      node.properties.due_mode = v;
+      render();     // le champ de saisie change de nature
+      applied();
+    });
+
+    if (mode === "offset") {
+      const unit = (window.pertMeta && window.pertMeta.unit) || "j";
+      const cur = node.properties.due_offset;
+      // Ligne de rappel : la date calendaire à laquelle l'offset saisi correspond avec
+      // le T0 courant. Mise à jour à la frappe, sans reconstruire le champ.
+      const row = document.createElement("div");
+      row.className = "readonly-row";
+      const kEl = document.createElement("span");
+      kEl.className = "ro-label";
+      kEl.textContent = "Soit le";
+      const vEl = document.createElement("span");
+      vEl.className = "ro-value";
+      const refreshResolved = () => {
+        const d = pertOffsetToDate(pertMilestoneDueOffset(node));
+        vEl.textContent = d ? pertFormatDate(d) : "— (T0 non défini)";
+      };
+
+      buildField(box, "Décalage T0 + X (" + unit + ", négatif = avant T0)", "number",
+        (cur === null || cur === undefined) ? "" : cur, v => {
+          const n = parseFloat(v);
+          node.properties.due_offset = (v === "" || isNaN(n)) ? null : n;
+          applied();
+          refreshResolved();
+        }, { step: 0.5 });
+
+      row.appendChild(kEl); row.appendChild(vEl);
+      box.appendChild(row);
+      refreshResolved();
+    } else {
+      buildField(box, "Date", "date", node.properties.due_date, v => {
+        node.properties.due_date = v;
+        applied();
+      });
+    }
+  };
+
+  render();
 }
 
 function buildReadonly(parent, labelText, value, cls) {
@@ -1257,6 +1360,18 @@ function fillCalcSection(node) {
       node.is_critical ? "ro-critical" : "");
     // Estimation de cout (S8.5) — non modifiable, derive de duree × ETP × taux.
     buildReadonly(sec, "Coût estimé", pertFormatCost(pertActivityCost(node)));
+    // Anticipation : part de la tache situee AVANT T0 (au prorata de sa duree) et
+    // cout correspondant — la depense que l'entreprise engage avant le lancement
+    // contractuel. Ligne affichee seulement quand il y a effectivement anticipation.
+    const share = pertAnticipatedShare(node);
+    if (share > 0) {
+      // Portion de duree a gauche de T0 : de l'ES (negatif) jusqu'a T0, bornee par la
+      // fin de la tache quand celle-ci s'acheve elle aussi avant T0.
+      const before = Math.round((Math.min(node.ef, 0) - node.es) * 100) / 100;
+      buildReadonly(sec, "Avant T0", before + " " + unit
+        + " (" + Math.round(share * 100) + " % de la tâche)");
+      buildReadonly(sec, "Coût anticipé", pertFormatCost(pertAnticipatedCost(node)));
+    }
 
   } else if (node.type === "pert/milestone") {
     if (node.ef === null) {
@@ -1273,8 +1388,9 @@ function fillCalcSection(node) {
       node.is_critical ? "ro-critical" : "");
     if (node.target_missed) {
       buildReadonly(sec, "Cible", "⛔ non tenue", "ro-critical");
-    } else if (node.properties.due_date) {
-      buildReadonly(sec, "Cible", "✓ tenue");
+    } else if (pertMilestoneHasDue(node)) {
+      // Le libelle rappelle la cible telle qu'elle a ete SAISIE (date ou T0+X).
+      buildReadonly(sec, "Cible", "✓ tenue (" + pertMilestoneDueLabel(node) + ")");
     }
   }
 }
@@ -1381,15 +1497,21 @@ function updateStatus() {
   const costEl = document.getElementById("status-cost");
   if (costEl) {
     const critIds = window.pertCriticalPathIds || new Set();
-    let total = 0, crit = 0, critTasks = 0;
+    let total = 0, crit = 0, critTasks = 0, antic = 0;
     if (g && g._nodes) g._nodes.forEach(n => {
       if (n.type !== "pert/activity") return;
       const c = pertActivityCost(n);
-      if (!window.pertFilter || !pertNodeDimmed(n)) total += c; // visible
+      if (!window.pertFilter || !pertNodeDimmed(n)) {
+        total += c;                            // visible
+        antic += pertAnticipatedCost(n);       // part engagée avant T0 (prorata)
+      }
       if (critIds.has(n.id)) { crit += c; critTasks++; }
     });
     const totalLabel = window.pertFilter ? "Coût visible" : "Coût total";
-    costEl.textContent = totalLabel + " : " + pertFormatCost(total)
+    // Le coût anticipé n'apparaît que s'il existe : aucun bruit sur un planning
+    // classique. C'est la dépense engagée AVANT le lancement contractuel du projet.
+    const anticTxt = antic > 0 ? " (dont anticipé : " + pertFormatCost(antic) + ")" : "";
+    costEl.textContent = totalLabel + " : " + pertFormatCost(total) + anticTxt
       + " · Chemin critique : " + critTasks + " tâche(s), " + pertFormatCost(crit);
   }
 }

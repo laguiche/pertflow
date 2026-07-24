@@ -147,6 +147,11 @@ function ActivityNode() {
     // panneau propriete uniquement, JAMAIS rendue sur le nœud (peut etre longue et ne
     // doit pas agrandir/encombrer la boite). Serialisee nativement via properties.
     notes: "",
+    // Tache ANTICIPEE (24/07/2026) : engagee AVANT T0 pour gagner de la marge en
+    // aval. Cochee, la tache est planifiee au plus tard (juste-a-temps) — elle recule
+    // dans les offsets negatifs jusqu'a finir pile quand son successeur en a besoin,
+    // sans decaler celui-ci. Cf. le bloc « Anticipation » de pert_engine.js.
+    anticipated: false,
     color: "#4A90D9"
   };
 
@@ -331,7 +336,15 @@ function MilestoneNode() {
 
   this.properties = {
     label: "Jalon",
+    // Date-cible « a tenir ». Deux modes de saisie exclusifs (evolution 24/07/2026) :
+    //   due_mode = "date"   → due_date  (date calendaire "YYYY-MM-DD", mode historique)
+    //   due_mode = "offset" → due_offset (nombre d'unites depuis T0, negatif admis)
+    // Les deux valeurs coexistent : basculer de mode ne detruit pas la saisie
+    // precedente. TOUJOURS passer par pertMilestoneHasDue / pertMilestoneDueOffset /
+    // pertMilestoneDueLabel (pert_engine.js), jamais relire due_date directement.
     due_date: "",
+    due_mode: "date",
+    due_offset: null,
     // #17 Type de jalon (importance contractuelle) : "" | "DOTD" | "COTD" | "ING".
     // Rendu en pastille coloree (cf. PERT_MILESTONE_TAGS) ; sans incidence sur le
     // calcul PERT ni sur la couleur de tenue de cible.
@@ -361,7 +374,9 @@ MilestoneNode.prototype.onPropertyChanged = function() {
 
 MilestoneNode.prototype.updateSize = function() {
   const efTxt  = this.ef !== null ? "Fin : 00/00/00" : "";
-  const dueTxt = this.properties.due_date ? "Cible : 00/00/00" : "";
+  // Largeur reservee a la ligne « Cible » : on mesure le VRAI libelle (un « T0−12 mois »
+  // est plus long qu'une date), sinon le texte deborderait en mode offset.
+  const dueTxt = pertMilestoneHasDue(this) ? "Cible : " + pertMilestoneDueLabel(this) : "";
   const labelW = measureText("◆ " + this.properties.label, "bold 12px sans-serif");
   // #17 La pastille de tag (texte 10px gras + padding interne) elargit le nœud si besoin.
   const tag = pertMilestoneTag(this.properties.tag);
@@ -372,7 +387,7 @@ MilestoneNode.prototype.updateSize = function() {
   const width = Math.max(160, Math.min(300, lineW + 44));
 
   this._labelLines = wrapText("◆ " + this.properties.label, "bold 12px sans-serif", width - 32);
-  const nbExtra = (this.ef !== null ? 1 : 0) + (this.properties.due_date ? 1 : 0);
+  const nbExtra = (this.ef !== null ? 1 : 0) + (pertMilestoneHasDue(this) ? 1 : 0);
   // #17 ligne de pastille reservee (hauteur ~20px) quand un tag est present
   const tagH = tag ? 20 : 0;
   const textH = 14 + this._labelLines.length * 16 + tagH + nbExtra * 15 + 10;
@@ -406,8 +421,8 @@ MilestoneNode.prototype.onConnectionsChange = function(type) {
 // sur sa cible apparait donc en vert, meme s'il est sur le chemin critique.
 MilestoneNode.prototype.targetState = function() {
   if (this.target_missed) return "alert";
-  if (this.properties.due_date && this.ef !== null) {
-    const dueOff = pertDateToOffset(this.properties.due_date);
+  if (pertMilestoneHasDue(this) && this.ef !== null) {
+    const dueOff = pertMilestoneDueOffset(this);
     if (dueOff !== null && (dueOff - this.ef) >= MILESTONE_GREEN_MARGIN) return "safe";
   }
   return "neutral";
@@ -506,11 +521,12 @@ MilestoneNode.prototype.onDrawBackground = function(ctx) {
   }
 
   // Date-cible « à tenir »
-  if (this.properties.due_date) {
-    const dueDate = pertOffsetToDate(pertDateToOffset(this.properties.due_date));
+  if (pertMilestoneHasDue(this)) {
+    // Le libelle suit le MODE de saisie : « T0+6 mois » en strategie globale, la date
+    // calendaire une fois celle-ci arretee (cf. pertMilestoneDueLabel).
     ctx.font = "10px sans-serif";
     ctx.fillStyle = this.target_missed ? "#cc0000" : "#666";
-    ctx.fillText("Cible : " + (dueDate ? pertFormatDate(dueDate) : this.properties.due_date), 12, y + 2);
+    ctx.fillText("Cible : " + pertMilestoneDueLabel(this), 12, y + 2);
   }
 };
 

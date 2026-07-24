@@ -206,8 +206,9 @@ function pertAnchorRoots(nodes, dateISO, label) {
   const graph = window.pertGraph;
   if (!graph || !nodes || !nodes.length || !dateISO) return null;
 
-  const roots = pertBlockRoots(nodes).filter(n =>
-    !(n.type === "pert/milestone" && n.properties && n.properties.due_date));
+  // pertMilestoneHasDue couvre les DEUX modes de saisie de cible (date calendaire ou
+  // T0+X) : un jalon entrant cale en T0+X est deja ancre, il ne faut pas le rebrancher.
+  const roots = pertBlockRoots(nodes).filter(n => !pertMilestoneHasDue(n));
   if (!roots.length) return null;   // bloc deja entierement ancre
 
   const anchor = LiteGraph.createNode("pert/milestone");

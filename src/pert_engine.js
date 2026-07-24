@@ -139,6 +139,57 @@ function pertDateToOffset(dateStr) {
   return (d.getTime() - t0.getTime()) / 86400000 / 7; // "sem"
 }
 
+// ─── Date-cible d'un Jalon : deux modes de saisie ───────────────────────────────
+//
+// En stratégie globale on raisonne en T0 + X (et T0 − X pour l'anticipation) : les
+// dates calendaires précises ne viennent que dans un second temps, une fois le
+// squelette du planning arrêté. Un Jalon porte donc sa cible sous DEUX formes
+// exclusives, choisies dans le panneau (évolution du 24/07/2026) :
+//   - "date"   : date calendaire "YYYY-MM-DD" — mode historique, celui des imports ;
+//   - "offset" : nombre d'unités depuis T0, NÉGATIF admis (cible avant T0).
+// Les deux valeurs sont conservées séparément dans `properties` : basculer d'un mode
+// à l'autre ne détruit pas la saisie précédente, on peut revenir en arrière.
+//
+// Le moteur, les exports et le rendu ne manipulent QUE l'offset résultant, via les
+// accesseurs ci-dessous. Règle : plus aucun code hors de ce bloc ne doit relire
+// `properties.due_date` directement — sinon un jalon saisi en T0+X passerait pour
+// « sans cible » à cet endroit précis.
+
+// Le Jalon porte-t-il une cible ? Question de DÉCLARATION, indépendante de la
+// résolvabilité : en mode date, l'offset n'est calculable que si T0 est défini, mais
+// la cible existe quand même (le nœud doit afficher sa ligne « Cible »).
+function pertMilestoneHasDue(node) {
+  if (!node || node.type !== "pert/milestone" || !node.properties) return false;
+  const p = node.properties;
+  if (p.due_mode === "offset") {
+    return p.due_offset !== null && p.due_offset !== ""
+        && !isNaN(parseFloat(p.due_offset));
+  }
+  return !!p.due_date;
+}
+
+// Offset (en unités depuis T0) de la cible, ou null si absente / non résolvable.
+function pertMilestoneDueOffset(node) {
+  if (!pertMilestoneHasDue(node)) return null;
+  const p = node.properties;
+  if (p.due_mode === "offset") return parseFloat(p.due_offset);
+  return pertDateToOffset(p.due_date);
+}
+
+// Libellé d'affichage de la cible : « T0+6 mois » en mode offset, la date formatée en
+// mode date. Renvoie "" si le jalon n'a pas de cible.
+function pertMilestoneDueLabel(node) {
+  if (!pertMilestoneHasDue(node)) return "";
+  const p = node.properties;
+  if (p.due_mode === "offset") {
+    const v = Math.round(parseFloat(p.due_offset) * 100) / 100;
+    const unit = (window.pertMeta && window.pertMeta.unit) || "j";
+    return "T0" + (v < 0 ? "−" : "+") + Math.abs(v) + " " + unit;
+  }
+  const d = pertOffsetToDate(pertDateToOffset(p.due_date));
+  return d ? pertFormatDate(d) : p.due_date;
+}
+
 // ─── Accès au modèle de graphe ──────────────────────────────────────────────────
 
 const PERT_TYPES = ["pert/activity", "pert/milestone"];
@@ -229,6 +280,126 @@ function pertResetNode(node) {
   if (node.type === "pert/milestone") node.target_missed = false;
 }
 
+// ─── Anticipation : travaux engagés AVANT T0 ────────────────────────────────────
+//
+// T0 est la référence CONTRACTUELLE du projet (« livraison à T0 + X »), et non la
+// borne inférieure du planning. Anticiper des travaux — les engager avant T0 pour
+// gagner de la marge en aval — est un levier de gestion courant sur les projets de
+// grande envergure : l'entreprise assume sciemment le coût des tâches avancées
+// parce que le projet le vaut. Le moteur autorise donc les offsets NEGATIFS.
+//
+// Jusqu'au 24/07/2026, T0 jouait deux rôles fusionnés : origine de l'axe des temps
+// ET plancher de démarrage imposé à tout nœud sans prédécesseur. Le geste métier
+// « j'anticipe » n'avait alors aucune traduction : poser la tâche anticipée en amont
+// de la chaîne la faisait démarrer à T0 et POUSSAIT tout l'aval de sa durée → les
+// jalons reculaient d'autant et leurs marges viraient au négatif, exactement
+// l'inverse de l'effet recherché (constaté en séminaire, 23/07/2026). Les deux rôles
+// sont désormais séparés : l'origine reste T0, le point de démarrage devient une
+// propriété du nœud.
+//
+// Deux expressions complémentaires de l'anticipation :
+//   1. JALON ENTRANT daté avant T0 — la décision devient un objet visible du graphe
+//      (« déblocage du budget d'anticipation »), partageable par plusieurs tâches
+//      aval. Rien à calculer : son ES vaut l'offset de sa date, négatif compris.
+//   2. Propriété `anticipated` d'une Activité — la tâche est planifiée AU PLUS TARD
+//      (juste-à-temps) : elle recule d'elle-même dans le négatif jusqu'à finir pile
+//      quand l'aval en a besoin, sans décaler celui-ci d'un jour.
+//
+// Propriété remarquable du juste-à-temps : EF = ES(successeur) et LF = LS(successeur)
+// → slack = LS(succ) − ES(succ) = slack(successeur). Une tâche anticipée hérite donc
+// exactement de la marge de son successeur : elle n'apparaît jamais en faux critique.
+//
+// La marge affichée reste la marge PERT de l'enchaînement COMPLET, anticipation
+// comprise — c'est le chiffre que le chef de projet veut lire (décision utilisateur
+// du 24/07/2026 : pas de décomposition marge « avant T0 » / « après T0 »).
+
+// Jalon ENTRANT : un jalon sans prédécesseur mais avec un successeur et une
+// date-cible représente une contrainte externe (livraison d'un prototype, jalon
+// client/fournisseur, déblocage de budget…) qui cale le démarrage de la chaîne en
+// aval — la tâche suivante ne part donc pas automatiquement à T0 mais à cette date,
+// qu'elle soit postérieure (contrainte retardatrice) ou antérieure (anticipation).
+// La topologie (aucun lien entrant + au moins un sortant) distingue ce cas du jalon
+// terminal (échéance à tenir) et du checkpoint intermédiaire (qui, eux, gardent
+// ES = max des prédécesseurs ; la date-cible n'y borne que le LF).
+function pertIsEntryMilestone(node, preds, succs) {
+  return node.type === "pert/milestone"
+      && pertMilestoneHasDue(node)     // cible en date OU en T0+X
+      && preds[node.id].length === 0
+      && succs[node.id].length > 0;
+}
+
+// Activité planifiée au plus tard (case « tâche anticipée » du panneau). Sans
+// successeur le drapeau est inerte : rien ne peut la tirer, elle reste au plus tôt.
+function pertIsAnticipated(node, succs) {
+  return node.type === "pert/activity"
+      && node.properties.anticipated === true
+      && succs[node.id].length > 0;
+}
+
+// Forward pass ES/EF, en deux temps pour intégrer les tâches tirées par l'aval.
+function pertForwardPass(order, byId, preds, succs) {
+  // Tâches effectivement tirées. Une anticipation peut se révéler INFAISABLE (un
+  // prédécesseur non tiré la maintient trop tard : elle pousserait quand même son
+  // successeur) → on la rétrograde en planning au plus tôt et on rejoue. L'ensemble
+  // ne fait que rétrécir : terminaison garantie en |pulled| tours au pire.
+  const pulled = new Set();
+  for (const id of order) if (pertIsAnticipated(byId[id], succs)) pulled.add(id);
+
+  for (;;) {
+    // — Passe 1 : au plus tôt classique, en IGNORANT la contribution des tâches
+    //   tirées (leur raison d'être est précisément de ne pas décaler l'aval).
+    for (const id of order) {
+      const node = byId[id];
+      // es reste null tant qu'aucune contrainte amont ne s'applique. T0 n'est PAS un
+      // plancher global : il n'est que la date de démarrage par défaut d'un nœud SANS
+      // prédécesseur. Un successeur de chaîne anticipée hérite donc bien d'un ES
+      // négatif (l'ancien `let es = 0` le ramenait sur T0 et annulait l'anticipation).
+      let es = null;
+      for (const p of preds[id]) {
+        if (pulled.has(p)) continue;   // une tâche tirée ne pousse pas son successeur
+        const efPred = byId[p].ef;
+        if (efPred !== null && (es === null || efPred > es)) es = efPred;
+      }
+      // Aucune contrainte amont : démarrage à T0, sauf si la tâche est elle-même
+      // tirée par l'aval (elle n'a alors aucun plancher et remontera en passe 2).
+      if (es === null) es = pulled.has(id) ? -Infinity : 0;
+      if (pertIsEntryMilestone(node, preds, succs)) {
+        const dueOff = pertMilestoneDueOffset(node);
+        if (dueOff !== null) es = dueOff; // négatif admis = travaux avant T0
+      }
+      node.es = es;
+      node.ef = (es === -Infinity) ? -Infinity : es + pertDuration(node);
+    }
+
+    // — Passe 2 : les tâches tirées calent leur FIN sur le début du plus précoce de
+    //   leurs successeurs. Ordre topo INVERSE : l'aval est déjà figé quand on traite
+    //   l'amont, donc une chaîne entièrement anticipée recule de proche en proche.
+    for (let i = order.length - 1; i >= 0; i--) {
+      const id = order[i];
+      if (!pulled.has(id)) continue;
+      const node = byId[id];
+      let target = Infinity;
+      for (const s of succs[id]) if (byId[s].es < target) target = byId[s].es;
+      const dur = pertDuration(node);
+      // Plancher éventuel des prédécesseurs NON tirés, calculé en passe 1.
+      node.es = Math.max(node.es, target - dur);
+      node.ef = node.es + dur;
+    }
+
+    // — Contrôle de faisabilité : une tâche tirée qui déborde sur son successeur n'a
+    //   pas pu être anticipée (amont trop contraint) → rétrogradation, nouveau tour.
+    let demoted = null;
+    for (const id of pulled) {
+      for (const s of succs[id]) {
+        if (byId[id].ef > byId[s].es + PERT_EPS) { demoted = id; break; }
+      }
+      if (demoted) break;
+    }
+    if (demoted === null) return;
+    pulled.delete(demoted);
+  }
+}
+
 // Recalcule tout le graphe et reporte les résultats sur les nœuds.
 // Retourne { ok, error, nbNodes, nbCritical, projectEnd }.
 function pertRecalc() {
@@ -260,33 +431,13 @@ function pertRecalc() {
   const byId = {};
   nodes.forEach(n => { byId[n.id] = n; });
 
-  // — Forward pass : ES / EF —
-  for (const id of order) {
-    const node = byId[id];
-    let es = 0; // sans prédécesseur → ES = T0
-    for (const p of preds[id]) {
-      const efPred = byId[p].ef;
-      if (efPred !== null && efPred > es) es = efPred;
-    }
-    // Jalon ENTRANT : un jalon sans prédécesseur mais avec un successeur et une
-    // date-cible représente une contrainte externe (livraison d'un prototype, jalon
-    // client/fournisseur…) qui retarde le démarrage de la chaîne en aval — la tâche
-    // suivante ne part donc pas automatiquement à T0 mais à cette date. La topologie
-    // (aucun lien entrant + un lien sortant) distingue ce cas du jalon terminal
-    // (échéance à tenir) et du checkpoint intermédiaire (qui, eux, gardent ES = max
-    // des prédécesseurs ; la date-cible n'y borne que le LF, cf. backward pass).
-    // Plancher à T0 : une contrainte antérieure à T0 est déjà levée au démarrage.
-    if (node.type === "pert/milestone" && preds[id].length === 0
-        && succs[id].length > 0 && node.properties.due_date) {
-      const dueOff = pertDateToOffset(node.properties.due_date);
-      if (dueOff !== null) es = Math.max(0, dueOff);
-    }
-    node.es = es;
-    node.ef = es + pertDuration(node);
-  }
+  // — Forward pass : ES / EF (anticipation admise → offsets négatifs) —
+  pertForwardPass(order, byId, preds, succs);
 
   // — Fin de projet = nœud le plus éloigné de T0 (max EF) —
-  let projectEnd = 0;
+  // Initialisé sur le PREMIER EF et non sur 0 : un projet entièrement anticipé
+  // (tous les EF négatifs) doit finir à son vrai max, pas artificiellement à T0.
+  let projectEnd = nodes[0].ef;
   for (const n of nodes) if (n.ef > projectEnd) projectEnd = n.ef;
 
   // — Backward pass : LF / LS (ordre topo inverse) —
@@ -302,9 +453,17 @@ function pertRecalc() {
         if (lsSucc !== null && lsSucc < lf) lf = lsSucc;
       }
     }
-    // Jalon avec date-cible : LF bornée par la cible si elle est plus contraignante
-    if (node.type === "pert/milestone" && node.properties.due_date) {
-      const dueOffset = pertDateToOffset(node.properties.due_date);
+    // Jalon avec date-cible : LF bornée par la cible si elle est plus contraignante.
+    // EXCEPTION : le jalon ENTRANT (cf. forward pass). Sa date est une DONNEE
+    // D'ENTREE (« le budget est débloqué le 12/01 ») qui a déjà servi à caler son ES,
+    // pas une échéance à tenir. La borner ici la compterait deux fois : le jalon
+    // aurait EF == LF == cible, donc marge 0 SYSTEMATIQUE, et tirerait a lui seul la
+    // marge minimale du projet — donc le chemin critique — des que le reste du
+    // planning dispose de marge. Un jalon d'entrée ne peut pas non plus « rater » sa
+    // propre date : target_missed reste faux.
+    const isEntry = pertIsEntryMilestone(node, preds, succs);
+    if (pertMilestoneHasDue(node) && !isEntry) {
+      const dueOffset = pertMilestoneDueOffset(node);
       if (dueOffset !== null && dueOffset < lf) lf = dueOffset;
       // Cible non tenue : on ne peut pas finir avant la date-cible
       node.target_missed = (dueOffset !== null && node.ef > dueOffset + PERT_EPS);
@@ -372,6 +531,39 @@ function pertLayoutGap() {
   return isNaN(n) ? PERT_LAYOUT_HGAP_DEFAULT : Math.max(0, n);
 }
 
+// Abscisse de l'origine T0 pour une reorganisation. Les travaux ANTICIPES portent un
+// offset NEGATIF : places tels quels, ils partiraient dans les abscisses negatives,
+// hors du champ de vision initial du canvas. On decale donc toute la grille vers la
+// droite de la plus grande anticipation, de sorte que le nœud le plus precoce garde
+// la marge gauche habituelle et que T0 tombe A L'INTERIEUR du graphe (c'est la que
+// se dessine le repere T0, cf. pertT0OriginX). Sans anticipation (minOff >= 0), la
+// valeur retombe sur PERT_LAYOUT_MARGIN_X : placement historique inchange.
+function pertLayoutOriginX(minOff) {
+  const shift = (minOff === Infinity || minOff >= 0) ? 0 : -minOff;
+  return PERT_LAYOUT_MARGIN_X + shift * PERT_PX_PER_UNIT;
+}
+
+// Abscisse courante de T0 dans le graphe, DEDUITE des nœuds places (aucune donnee
+// supplementaire a serialiser). Les deux reorganisations posent
+// pos[0] = origine + offset × PX (+ rang × gap >= 0 pour la reorg complete) : le
+// MINIMUM de (pos[0] − offset × PX) redonne donc exactement l'origine, et suit une
+// translation d'ensemble du graphe. Repere visuel : apres deplacement manuel d'un
+// nœud isole vers la gauche, il peut s'ecarter du placement theorique — meme reserve
+// que la lecture chronologique des abscisses en general.
+// Renvoie null si aucun nœud n'a d'offset temporel (graphe vide, cycle…).
+function pertT0OriginX(graph) {
+  if (!graph) return null;
+  let origin = null;
+  for (const n of graph._nodes) {
+    if (!pertIsComputed(n)) continue;
+    const off = pertTimeAxisOffset(n);
+    if (off === null) continue;
+    const o = n.pos[0] - off * PERT_PX_PER_UNIT;
+    if (origin === null || o < origin) origin = o;
+  }
+  return origin;
+}
+
 function pertAutoLayout() {
   const graph = window.pertGraph;
   if (!graph) return;
@@ -398,8 +590,11 @@ function pertAutoLayout() {
 
   const gap = pertLayoutGap();
   const xOf = {};
+  let minEs = Infinity;
+  placeable.forEach(n => { if (n.es < minEs) minEs = n.es; });
+  const originX = pertLayoutOriginX(minEs);
   placeable.forEach(n => {
-    xOf[n.id] = PERT_LAYOUT_MARGIN_X + n.es * PERT_PX_PER_UNIT + rank[n.id] * gap;
+    xOf[n.id] = originX + n.es * PERT_PX_PER_UNIT + rank[n.id] * gap;
   });
 
   // Hauteur de couloir = plus grande tache + marge
@@ -451,9 +646,13 @@ function pertAutoLayout() {
 // des jalons dans la fenetre de synthese → une seule regle, deux usages coherents.
 function pertTimeAxisOffset(node) {
   if (!node) return null;
-  if (node.type === "pert/milestone" && node.properties && node.properties.due_date) {
-    const off = pertDateToOffset(node.properties.due_date);
-    if (off !== null) return Math.max(0, off); // cible anterieure a T0 → plancher T0
+  if (pertMilestoneHasDue(node)) {
+    const off = pertMilestoneDueOffset(node);
+    // Offset negatif conserve : un jalon date AVANT T0 (deblocage d'un budget
+    // d'anticipation, commande longue matiere deja passee…) doit se placer a gauche
+    // de T0, la ou il se produit reellement. L'ancien plancher a 0 le ramenait sur
+    // T0 et ecrasait toute la lecture de l'anticipation.
+    if (off !== null) return off;
   }
   if (node.es != null) return node.es;
   if (node.ef != null) return node.ef;
@@ -472,9 +671,13 @@ function pertAutoLayoutTimeOnly() {
                          .filter(e => e.off !== null);
   if (!placeable.length) return;
 
+  let minOff = Infinity;
+  placeable.forEach(e => { if (e.off < minOff) minOff = e.off; });
+  const originX = pertLayoutOriginX(minOff);
+
   placeable.forEach(e => {
     // X pur ∝ offset temps : pas de rang × gap (l'ordonnee manuelle porte la lisibilite)
-    e.node.pos[0] = PERT_LAYOUT_MARGIN_X + e.off * PERT_PX_PER_UNIT;
+    e.node.pos[0] = originX + e.off * PERT_PX_PER_UNIT;
     // pos[1] volontairement inchange (on ne touche pas a l'axe des ordonnees)
   });
 
@@ -859,6 +1062,24 @@ function pertActivityCost(node) {
   return hours * etp * rate;
 }
 
+// Part ANTICIPEE d'une Activite : fraction de sa duree situee avant T0 (0 → 1).
+// Calcul au PRORATA (decision utilisateur du 24/07/2026) : une tache a cheval sur T0
+// n'est comptee que pour sa portion anterieure, et non en totalite. C'est la depense
+// que l'entreprise engage AVANT le lancement contractuel du projet.
+// Renvoie 0 si le nœud n'est pas une Activite, n'est pas calcule, ou demarre apres T0.
+function pertAnticipatedShare(node) {
+  if (!node || node.type !== "pert/activity") return 0;
+  if (node.es === null || node.es === undefined || node.es >= 0) return 0;
+  const dur = pertDuration(node);
+  if (dur <= 0) return 1;                  // duree nulle entierement avant T0
+  return Math.min(dur, -node.es) / dur;    // portion situee a gauche de T0
+}
+
+// Cout anticipe d'une Activite en euros (part de son cout situee avant T0).
+function pertAnticipatedCost(node) {
+  return pertActivityCost(node) * pertAnticipatedShare(node);
+}
+
 // Formatage d'un montant (euros) en k€, notation FR (1 decimale max). Ex. "137,7 k€".
 function pertFormatCost(euros) {
   const k = (euros || 0) / 1000;
@@ -873,3 +1094,9 @@ window.pertOffsetToDate = pertOffsetToDate;
 window.pertDateToOffset = pertDateToOffset;
 window.pertAutoLayout = pertAutoLayout;
 window.pertHighlightCriticalPath = pertHighlightCriticalPath;
+window.pertAnticipatedShare = pertAnticipatedShare;
+window.pertAnticipatedCost = pertAnticipatedCost;
+window.pertT0OriginX = pertT0OriginX;
+window.pertMilestoneHasDue = pertMilestoneHasDue;
+window.pertMilestoneDueOffset = pertMilestoneDueOffset;
+window.pertMilestoneDueLabel = pertMilestoneDueLabel;
