@@ -11,6 +11,57 @@ technique, est dans `CLAUDE.md` et `docs/journal-developpement.md`).
 
 ---
 
+## v0.18.1 — 28/07/2026 · Lisibilité de la trame
+- Le **libellé d'année** de la trame temporelle est **nettement plus grand** : il se lit
+  désormais comme un filigrane, d'un coup d'œil et sur un planning dézoomé.
+- La fenêtre **À propos** n'affiche plus l'heure de génération du bundle, seulement la date.
+
+## v0.18 — 27/07/2026 · Réglage de la trame & Paramètres en onglets
+- **Curseur « Intensité de la trame »** (20 % → 400 %) : le bon contraste dépend de l'écran
+  et du goût, il se règle donc à la main. Une **vignette d'aperçu** montre l'effet dans le
+  dialogue ; le rendu définitif se juge sur votre planning.
+- La fenêtre **Paramètres** est répartie en **trois onglets** — *Projet*, *Affichage*,
+  *Coûts*. Un seul **Valider** enregistre l'ensemble, et le dernier onglet consulté est
+  rouvert la fois suivante.
+
+## v0.17 — 27/07/2026 · Jalons entrants/sortants, trame, aimantation
+- La **synthèse** classe les jalons en **entrants** (ce qui alimente le planning) et
+  **sortants** (ce qu'il produit) au lieu de « tenus / non tenus ». Un jalon intermédiaire
+  figure dans les deux listes ; chaque liste reste chronologique.
+- La **tenue de la cible** passe à la **couleur de la ligne**, avec le **même code que les
+  jalons du plan de travail** : rouge si la cible n'est pas tenue, orange si elle l'est tout
+  juste, vert sinon.
+- **Trame temporelle** optionnelle en fond de plan (Paramètres) : bandes discrètes
+  délimitant les années, les mois ou les semaines selon l'unité du projet.
+- Les **Labels s'aimantent** aux bords des nœuds voisins quand on les relâche.
+
+## v0.16 — 25/07/2026 · Anticipation avant T0
+- Des travaux peuvent être **engagés avant T0** pour gagner de la marge : nouvelle case
+  **« tâche anticipée »** (planifiée au plus tard), et les dates antérieures à T0 sont
+  désormais légales. T0 redevient l'**origine contractuelle**, il n'est plus un plancher.
+- La **date-cible d'un jalon** se saisit en **date** ou en **« T0 + X »**.
+- Un **repère T0** et une **bande hachurée** signalent la zone anticipée ; le **coût
+  anticipé** est ventilé au prorata (barre d'état, panneau et synthèse par groupe).
+
+## v0.15.5 — 24/07/2026 · Jalons sur leur date-cible
+- La réorganisation « axe temps seul » place un jalon **sur sa date-cible** quand il en a une.
+- Les listes de jalons de la synthèse sont triées **chronologiquement**.
+
+## v0.15.4 — 23/07/2026 · Fenêtre de synthèse
+- Nouveau bouton **📊 Synthèse** : tout le planning en une vue — vue d'ensemble, jalons et
+  leur marge, coût et fin au plus tard **par groupe**.
+- **Imprimable en PDF** (bouton *Imprimer / PDF*, puis « Enregistrer au format PDF »).
+
+## v0.15.3 — 16/07/2026 · Manuel utilisateur
+- Manuel mis à jour (évolutions v0.15.2, 8 captures) et correctif de la case « gras » du
+  panneau Label.
+
+## v0.15.2 — 16/07/2026 · Réorganisation, Labels, alignement
+- Deuxième mode de réorganisation, **« axe temps seul »** : les tâches se replacent sur
+  l'axe du temps **sans changer de ligne**.
+- **Mise en forme des Labels** : justification, gras, couleurs de texte et de fond.
+- **Boîte d'alignement** dans le menu contextuel : aligner et répartir une sélection.
+
 ## v0.15.1 — 08/07/2026 · Peaufinage Jalon & Label
 - **Notes libres sur les Jalons** (comme sur les tâches) — dans le panneau, jamais sur le nœud.
 - **Nœud Label** : la taille définie **manuellement est désormais conservée** à l'édition du
