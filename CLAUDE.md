@@ -304,8 +304,9 @@ Bouton **Supprimer** en bas du panneau (rouge).
   (transformation zoom/pan déjà appliquée) → mêmes coordonnées que `node.pos`.
 - **PIÈGE** : `ui.js` **affecte** `onDrawBackground` (grille aimantée). Tout module qui veut
   s'y greffer doit **chaîner** le handler existant ET être installé **APRÈS** lui, sinon il est
-  purement écrasé — sans la moindre erreur. Cf. `pertInstallT0Marker`, installé juste après le
-  handler de grille. Un test de *présence* du handler ne détecte pas ce cas : tester les **pixels**.
+  purement écrasé — sans la moindre erreur. Un test de *présence* du handler ne détecte pas ce
+  cas : tester les **pixels**. Ordre d'installation en vigueur (`ui.js`, à respecter en ajoutant
+  un module) : grille (affecte) → `pertInstallT0Marker` (chaîne) → `pertInstallTimeGrid` (chaîne).
 - Ce qui doit passer **par-dessus les nœuds** (repère T0…) va en `onDrawForeground` : en fond, il
   disparaît derrière le premier nœud qui le chevauche.
 
@@ -386,6 +387,7 @@ onDrawForeground(ctx) {
 | Fenêtre de synthèse + impression PDF | v0.15.4 | Bouton `📊 Synthèse` → modale (vue d'ensemble, jalons tenus/non tenus + marge, coût/LF par groupe), imprimable en PDF (`src/synthesis.js`) |
 | Anticipation avant T0 + cible en « T0+X » | v0.16 | Offsets négatifs légaux (T0 = origine, plus un plancher) ; case « tâche anticipée » ; cible de jalon en date **ou** T0±X ; repère T0 + coût anticipé au prorata |
 | Date-cible des jalons prise en compte | v0.15.5 | `pertTimeAxisOffset` (cible → sinon ES) : réorg « axe temps seul » place le jalon sur sa cible ; listes de jalons de la synthèse triées chronologiquement |
+| Synthèse entrants/sortants, aimantation Labels, trame temporelle | v0.17 | Jalons classés par topologie (intermédiaire = dans les 2 listes), tenue de cible passée en couleur de ligne (règle des nœuds réutilisée) ; Labels aimantés aux bords voisins au lâcher ; trame calendaire de fond optionnelle (`src/time_grid.js`) |
 
 **Long terme / écarté** (retour Mickael, non planifié) : #38 sous-PERT · #41 chemin
 critique « à la demande » (l'utilisateur ne veut PAS le retenir, comportement actuel
