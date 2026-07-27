@@ -198,6 +198,17 @@ c'est une aide **visuelle**, sans aucun effet sur le calcul :
 Vous pouvez aussi **redimensionner** un Label à la main (poignée en bas à droite) : sa taille est
 alors **figée** et n'est plus recalculée automatiquement quand vous éditez le texte.
 
+### L'aimantation des bords
+
+Quand vous **relâchez** un Label à quelques pixels du bord d'une tâche, d'un jalon ou d'un autre
+Label, il **s'y aligne exactement**. Bords gauche, droit, haut, bas et centres sont pris en compte,
+et les deux axes fonctionnent indépendamment : un Label peut se caler horizontalement sur une tâche
+et verticalement sur une autre. Éloignez-le de plus d'une dizaine de pixels et il reste où vous
+l'avez posé.
+
+> L'aimantation ne concerne **que les Labels**. C'est délibéré : sur une tâche ou un jalon, la
+> position horizontale **porte le temps** — les aimanter les déplacerait dans le calendrier.
+
 ---
 
 ## 4. Le moteur de calcul PERT
@@ -630,11 +641,29 @@ Elle regroupe :
   **coût total** et **chemin critique** (nombre de tâches + coût). Le chemin critique repris est le
   même que le tracé rouge : sans sélection, c'est le chemin de marge minimale ; avec une tâche
   sélectionnée avant d'ouvrir la fenêtre, c'est le chemin qui la contraint.
-- **Jalons tenus** — les jalons dont la date-cible est respectée, avec leur **marge** (en vert).
-- **Jalons non tenus** — ceux en retard sur leur cible, avec leur **marge négative** (en rouge).
-- **Jalons sans cible** — les jalons non contraints par une date, listés à part.
+- **Jalons entrants** — ceux qui **alimentent** le planning, c'est-à-dire qui ont au moins un lien
+  **sortant** : contraintes externes, livraisons attendues d'un tiers, déblocages de budget.
+- **Jalons sortants** — ceux que le planning **produit**, c'est-à-dire qui ont au moins un lien
+  **entrant** : livrables, revues, échéances contractuelles.
 - **Par groupe (WP / métier)** — pour chaque groupe : nombre de tâches, **coût global** et
   **fin au plus tard** (la date de fin la plus tardive parmi ses tâches).
+
+Un **jalon intermédiaire**, qui a à la fois un lien entrant et un lien sortant, **figure dans les
+deux listes** : c'est un livrable pour ce qui le précède, et une donnée d'entrée pour ce qui le
+suit. Chaque liste est classée par **ordre chronologique**.
+
+**Le code couleur est le même que sur les jalons du plan de travail** — vous n'avez qu'une règle à
+retenir :
+
+| Couleur | Signification |
+|---|---|
+| **Rouge gras** | Date-cible **non tenue**. Ne concerne que les jalons **sortants** : un jalon qui n'a pas d'antécédent ne peut pas être « en retard ». |
+| **Orange** | Cible tenue **tout juste** — il reste moins d'une unité de marge. |
+| **Vert** | Cible tenue avec de la marge. |
+| Blanc (normal) | **Aucun verdict** : soit le jalon n'a pas de cible, soit c'est un jalon purement entrant, dont la date est une **donnée d'entrée** et non un engagement du projet. |
+
+> Une dernière liste, **Jalons isolés**, n'apparaît que si un jalon n'a **aucun lien**. Elle n'est
+> pas décorative : c'est presque toujours le signe d'une connexion oubliée.
 
 Si le planning comporte des **travaux anticipés** (§4), la vue d'ensemble ajoute une ligne
 **« dont anticipé (avant T0) »**, et le tableau par groupe se dédouble en **coût global**,
@@ -668,7 +697,28 @@ Le bouton **⚙ Paramètres** regroupe les réglages, tous **enregistrés** dans
 - **Style des liens** (courbe / droit / coudé — voir §6).
 - **Largeur des tâches proportionnelle à la durée** (case à cocher).
 - **Sauvegarde automatique** (case à cocher).
+- **Trame temporelle en fond** (case à cocher — voir ci-dessous).
 - **Estimation des coûts** : heures par mois, heures par jour, taux horaire moyen.
+
+### La trame temporelle
+
+Cochez **Trame temporelle en fond** pour faire apparaître, derrière le planning, des **bandes
+discrètes** qui situent les tâches dans le calendrier sans avoir à lire leurs dates une par une.
+Le découpage s'adapte à l'unité du projet :
+
+| Unité du planning | Bandes | Subdivisions |
+|---|---|---|
+| **Mois** | Années | Trimestres |
+| **Semaines** | Mois | Semaines |
+| **Jours** | Semaines | Jours |
+
+La trame est **désactivée par défaut** et **volontairement très pâle** : elle reste en arrière-plan,
+derrière les tâches et les liens, et ne gêne ni la lecture du planning ni le voile du **filtre**
+(§9). Chaque niveau **s'efface de lui-même** quand vous dézoomez assez pour qu'il devienne illisible
+— les subdivisions disparaissent avant que la trame ne vire au gris uni.
+
+> Les repères sont des **dates calendaires réelles** (1ᵉʳ janvier, 1ᵉʳ du mois, lundi), y compris en
+> unité « jours » où l'axe compte les **jours ouvrés** : une semaine y occupe 5 graduations, pas 7.
 
 ---
 

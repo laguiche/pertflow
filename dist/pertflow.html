@@ -1292,6 +1292,20 @@ body {
 .synth-neg { color: #ec8a8a; }
 .synth-pos { color: #86c98a; }
 .synth-empty { color: #77839e; font-style: italic; }
+
+/* Code couleur de tenue de cible des jalons, dans les listes entrants / sortants.
+   MEMES etats que les nœuds Jalon de la zone de travail (MilestoneNode.targetState,
+   nodes.js #20) : rouge = cible non tenue, orange = tenue tout juste, vert = tenue
+   avec marge. Teintes eclaircies par rapport au nœud (fond sombre du tableau) mais
+   meme semantique. « none » (aucune cible, ou jalon purement entrant) garde la police
+   normale : aucun verdict a rendre, donc aucune couleur.
+   La couleur porte sur toute la LIGNE plutot que sur une cellule : c'est le jalon qui
+   est tenu ou non, pas l'une de ses proprietes. Le `td` doit reprendre la couleur,
+   sinon la regle plus specifique de .synth-neg/.synth-pos (colonne Marge) primerait
+   sur celle du `tr` et la ligne paraitrait bicolore. */
+.synth-table tr.synth-mile-alert td { color: #f08d8d; font-weight: 700; }
+.synth-table tr.synth-mile-neutral td { color: #e8b45f; }
+.synth-table tr.synth-mile-safe td { color: #86c98a; }
 .synth-chip {
   display: inline-block; width: 11px; height: 11px; border-radius: 3px;
   vertical-align: -1px; margin-right: 6px; border: 1px solid rgba(255,255,255,0.25);
@@ -1330,6 +1344,11 @@ body {
   body.synthesis-printing .synth-neg { color: #b00000; }
   body.synthesis-printing .synth-pos { color: #1a7a1a; }
   body.synthesis-printing .synth-empty { color: #555; }
+  /* Tenue de cible a l'impression : teintes assombries pour rester lisibles sur blanc
+     (l'orange clair de l'ecran passe mal au papier), semantique inchangee. */
+  body.synthesis-printing .synth-table tr.synth-mile-alert td { color: #b00000; font-weight: 700; }
+  body.synthesis-printing .synth-table tr.synth-mile-neutral td { color: #8a5b00; }
+  body.synthesis-printing .synth-table tr.synth-mile-safe td { color: #1a7a1a; }
 }
 
 /* ─── Contrôle de filtre custom (toolbar, S7 C) ──────────────────────────────── */
@@ -1525,7 +1544,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"24/07/2026 16:40","tag":"v0.16"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"27/07/2026 14:06","tag":"v0.17"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -1562,6 +1581,13 @@ body {
         <input type="checkbox" id="settings-autosave">
         Sauvegarde automatique (récupération après plantage)
       </label>
+      <label class="settings-check">
+        <input type="checkbox" id="settings-timegrid">
+        Trame temporelle en fond (repères de périodes)
+      </label>
+      <p class="settings-hint">Bandes discrètes délimitant les années (planning en mois),
+        les mois (en semaines) ou les semaines (en jours), avec la subdivision
+        correspondante. Purement visuel : n'affecte ni le calcul ni le filtre.</p>
       <p class="settings-hint">La sauvegarde automatique conserve une copie de récupération
         dans le navigateur (proposée au redémarrage après un plantage). Elle ne remplace pas
         la sauvegarde du fichier .pert.</p>
@@ -39546,6 +39572,8 @@ window.applyPertImport = applyPertImport;
         global.pertMeta.link_mode = data.meta.link_mode || "courbe";
         // #18 largeur ∝ duree (defaut true si snapshot anterieur sans la cle)
         global.pertMeta.prop_width = data.meta.prop_width !== false;
+        // Trame temporelle (defaut false si snapshot anterieur sans la cle)
+        global.pertMeta.time_grid = !!data.meta.time_grid;
         // S8.5 parametres d'estimation de cout (defauts si snapshot anterieur)
         global.pertMeta.hours_per_month = data.meta.hours_per_month != null ? data.meta.hours_per_month : 135;
         global.pertMeta.hours_per_day = data.meta.hours_per_day != null ? data.meta.hours_per_day : 8;
@@ -39811,6 +39839,8 @@ function pertSerializeProject() {
       link_mode: meta.link_mode || "courbe",
       // #18 largeur des taches ∝ duree (defaut true si absent : anciens .pert)
       prop_width: meta.prop_width !== false,
+      // Trame temporelle de fond (defaut false si absent : anciens .pert inchanges)
+      time_grid: !!meta.time_grid,
       // S8.5 parametres d'estimation de cout (defauts si absents : anciens .pert)
       hours_per_month: meta.hours_per_month != null ? meta.hours_per_month : 135,
       hours_per_day: meta.hours_per_day != null ? meta.hours_per_day : 8,
@@ -39890,6 +39920,8 @@ function pertApplyProject(data) {
   window.pertMeta.link_mode = meta.link_mode || "courbe";
   // #18 largeur ∝ duree (defaut true pour les fichiers anterieurs sans la cle)
   window.pertMeta.prop_width = meta.prop_width !== false;
+  // Trame temporelle (defaut false pour les fichiers anterieurs sans la cle)
+  window.pertMeta.time_grid = !!meta.time_grid;
   // S8.5 parametres d'estimation de cout (defauts pour les fichiers anterieurs)
   window.pertMeta.hours_per_month = meta.hours_per_month != null ? meta.hours_per_month : 135;
   window.pertMeta.hours_per_day = meta.hours_per_day != null ? meta.hours_per_day : 8;
@@ -41395,6 +41427,273 @@ window.pertHasAnticipation = pertHasAnticipation;
 
 </script>
   <script>
+/* src/time_grid.js */
+// ─── Trame temporelle de fond (repères de périodes calendaires) ─────────────────
+//
+// Sur un planning réorganisé, l'abscisse porte le temps — mais rien ne permettait de
+// situer une tâche dans le calendrier sans lire ses dates une par une. La trame donne
+// ce repère : des bandes alternées très discrètes délimitant la période « large », et
+// de fins traits pour la subdivision, selon l'unité du projet :
+//
+//   unité « mois »    → bandes = ANNÉES,   subdivisions = TRIMESTRES
+//   unité « sem »     → bandes = MOIS,     subdivisions = SEMAINES
+//   unité « j »       → bandes = SEMAINES, subdivisions = JOURS
+//
+// Optionnelle (case « Trame temporelle » des Paramètres, `meta.time_grid`, défaut
+// désactivée) : aucun changement visuel pour qui n'en veut pas.
+//
+// DISCRÉTION — contrainte de conception. La trame ne doit jamais concurrencer la
+// lecture du graphe ni le voile sombre du filtre. D'où trois précautions :
+//   - elle est dessinée en COUCHE DE FOND (derrière nœuds et liens), comme la bande
+//     d'anticipation, donc toujours dominée par ce qui compte ;
+//   - ses alphas sont volontairement très bas (bandes 0.030, traits 0.055) — assez
+//     pour délimiter, trop peu pour attirer l'œil ;
+//   - chaque niveau s'efface de lui-même quand sa largeur PROJETÉE À L'ÉCRAN devient
+//     trop faible (même principe que la grille aimantée de ui.js) : en zoom arrière
+//     sur un planning long, les subdivisions disparaissent avant de virer au gris uni.
+//
+// GÉOMÉTRIE — l'abscisse d'une date se déduit exactement comme le repère T0 :
+// x = pertT0OriginX(graph) + offset × PERT_PX_PER_UNIT. Les bornes de période sont
+// calculées en CALENDRIER (1er janvier, 1er du mois, lundi…) puis converties en offset
+// par pertDateToOffset — jamais par un pas fixe en pixels. C'est ce qui rend la trame
+// juste dans les trois unités, y compris en « j » où l'axe compte les jours OUVRÉS
+// (une semaine calendaire y occupe 5 unités, pas 7) et en « mois » où les mois
+// calendaires réels n'ont pas tous la même longueur.
+
+const PERT_TG_BAND_ALPHA = 0.030;   // remplissage d'une bande sur deux
+const PERT_TG_LINE_ALPHA = 0.055;   // fins traits de subdivision
+const PERT_TG_TEXT_ALPHA = 0.34;    // libellé de période (année, mois, semaine)
+const PERT_TG_MIN_PX_BAND = 26;     // largeur écran minimale d'une bande pour la dessiner
+const PERT_TG_MIN_PX_SUB = 14;      // idem pour une subdivision
+const PERT_TG_PAD_Y = 60;           // débord vertical au-dessus/dessous du graphe
+
+const PERT_TG_MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
+                        "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+// La trame est-elle demandée ? (case des Paramètres, sérialisée dans meta)
+function pertTimeGridEnabled() {
+  return !!(window.pertMeta && window.pertMeta.time_grid);
+}
+
+// Découpage applicable à l'unité courante : quelles périodes pour les bandes, et
+// lesquelles pour les subdivisions. `next` avance d'une période, `label` nomme la
+// bande. Tout est calculé en dates calendaires : aucune hypothèse de longueur fixe.
+function pertTimeGridScheme(unit) {
+  if (unit === "mois") {
+    return {
+      band: {
+        start: (d) => new Date(d.getFullYear(), 0, 1),
+        next: (d) => new Date(d.getFullYear() + 1, 0, 1),
+        label: (d) => String(d.getFullYear()),
+      },
+      sub: {
+        start: (d) => new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1),
+        next: (d) => new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3 + 3, 1),
+      },
+    };
+  }
+  if (unit === "sem") {
+    return {
+      band: {
+        start: (d) => new Date(d.getFullYear(), d.getMonth(), 1),
+        next: (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1),
+        label: (d) => PERT_TG_MONTHS[d.getMonth()] + " " + d.getFullYear(),
+      },
+      sub: {
+        // Lundi de la semaine courante (getDay : 0 = dimanche).
+        start: (d) => pertTgMonday(d),
+        next: (d) => pertTgAddDays(pertTgMonday(d), 7),
+      },
+    };
+  }
+  // unité « j » : bandes = semaines, subdivisions = jours.
+  return {
+    band: {
+      start: (d) => pertTgMonday(d),
+      next: (d) => pertTgAddDays(pertTgMonday(d), 7),
+      label: (d) => "sem. " + pertTgWeekNumber(pertTgMonday(d)),
+    },
+    sub: {
+      start: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+      next: (d) => pertTgAddDays(d, 1),
+    },
+  };
+}
+
+function pertTgAddDays(d, n) {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function pertTgMonday(d) {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = (r.getDay() + 6) % 7;   // 0 = lundi … 6 = dimanche
+  r.setDate(r.getDate() - dow);
+  return r;
+}
+
+// Numéro de semaine ISO 8601 (jeudi de la semaine → son année).
+function pertTgWeekNumber(monday) {
+  const thursday = pertTgAddDays(monday, 3);
+  const jan1 = new Date(thursday.getFullYear(), 0, 1);
+  return Math.floor((thursday - jan1) / 86400000 / 7) + 1;
+}
+
+// Date → "YYYY-MM-DD" en heure LOCALE. Indispensable : pertDateToOffset attend une
+// chaîne, et toISOString() convertirait en UTC — soit un jour d'écart pour tout
+// fuseau à l'est de Greenwich, donc une trame décalée d'une case en heure d'été.
+function pertTgIso(d) {
+  const p = (n) => (n < 10 ? "0" + n : String(n));
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+
+// Abscisse (repère graphe) d'une date calendaire, via l'offset temporel du projet.
+// Renvoie null si la conversion est impossible (T0 non défini, date hors plage).
+function pertTgDateToX(date, originX) {
+  if (typeof pertDateToOffset !== "function") return null;
+  const off = pertDateToOffset(pertTgIso(date));
+  if (off === null || off === undefined || isNaN(off)) return null;
+  return originX + off * PERT_PX_PER_UNIT;
+}
+
+// Emprise du graphe à couvrir + abscisse de T0, ou null s'il n'y a rien à dessiner.
+// On réutilise l'emprise verticale du repère T0 (mêmes nœuds, mêmes exclusions :
+// les Labels, librement positionnés, n'étirent pas la zone).
+function pertTimeGridGeometry(graph) {
+  if (!graph || !graph._nodes || !graph._nodes.length) return null;
+  if (typeof pertGraphExtent !== "function" || typeof pertT0OriginX !== "function") return null;
+  const originX = pertT0OriginX(graph);
+  if (originX === null) return null;
+  const ext = pertGraphExtent(graph);
+  if (!ext) return null;
+  // Bord droit : le nœud le plus à droite (l'emprise du repère T0 ne le fournit pas).
+  let right = -Infinity;
+  for (const n of graph._nodes) {
+    if (n.type !== "pert/activity" && n.type !== "pert/milestone") continue;
+    right = Math.max(right, n.pos[0] + n.size[0]);
+  }
+  if (right === -Infinity) return null;
+  return { originX, ext, right };
+}
+
+// COUCHE DE FOND : bandes alternées + subdivisions + libellés de période.
+function pertDrawTimeGrid(ctx, graph) {
+  if (!pertTimeGridEnabled()) return;
+  const geo = pertTimeGridGeometry(graph);
+  if (!geo) return;
+  const { originX, ext, right } = geo;
+
+  const unit = (window.pertMeta && window.pertMeta.unit) || "mois";
+  const scheme = pertTimeGridScheme(unit);
+
+  // Plage temporelle à couvrir, déduite des abscisses extrêmes du graphe (marge d'une
+  // période de part et d'autre pour que la bande de bord soit complète).
+  const xLeft = ext.left - PERT_PX_PER_UNIT;
+  const xRight = right + PERT_PX_PER_UNIT;
+  const offLeft = (xLeft - originX) / PERT_PX_PER_UNIT;
+  const offRight = (xRight - originX) / PERT_PX_PER_UNIT;
+  if (typeof pertOffsetToDate !== "function") return;
+  const dLeft = pertOffsetToDate(Math.floor(offLeft));
+  const dRight = pertOffsetToDate(Math.ceil(offRight));
+  if (!dLeft || !dRight) return;
+
+  const yTop = ext.top - PERT_TG_PAD_Y;
+  const yBottom = ext.bottom + PERT_TG_PAD_Y;
+  const h = yBottom - yTop;
+  if (h <= 0) return;
+
+  // Échelle écran : sert uniquement aux seuils de discrétion (on ne dessine pas un
+  // niveau devenu illisible). `ds.scale` est le zoom courant du canvas LiteGraph.
+  const scale = (window.pertCanvas && window.pertCanvas.ds && window.pertCanvas.ds.scale) || 1;
+
+  ctx.save();
+
+  // ── Bandes alternées (niveau large) ───────────────────────────────────────────
+  // L'alternance est indexée sur le RANG ABSOLU de la période (année, mois, semaine)
+  // et non sur un compteur local : le motif ne saute pas quand on déplace la vue.
+  let cur = scheme.band.start(dLeft);
+  let guard = 0;
+  const bands = [];
+  while (cur <= dRight && guard++ < 4000) {
+    const nxt = scheme.band.next(cur);
+    const x0 = pertTgDateToX(cur, originX);
+    const x1 = pertTgDateToX(nxt, originX);
+    if (x0 !== null && x1 !== null && x1 > x0) bands.push({ x0, x1, date: cur });
+    cur = nxt;
+  }
+  const bandWidthPx = bands.length ? (bands[0].x1 - bands[0].x0) * scale : 0;
+  if (bands.length && bandWidthPx >= PERT_TG_MIN_PX_BAND) {
+    ctx.fillStyle = "rgba(126, 184, 247, " + PERT_TG_BAND_ALPHA + ")";
+    bands.forEach((b) => {
+      if (pertTgBandParity(b.date, unit) === 0) return;   // une bande sur deux
+      ctx.fillRect(b.x0, yTop, b.x1 - b.x0, h);
+    });
+
+    // Libellé de période, posé dans la marge haute — assez pâle pour ne pas
+    // concurrencer les nœuds, assez lisible pour se repérer d'un coup d'œil.
+    ctx.font = "11px Arial";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "rgba(170, 210, 250, " + PERT_TG_TEXT_ALPHA + ")";
+    bands.forEach((b) => {
+      const label = scheme.band.label(b.date);
+      if (ctx.measureText(label).width + 8 > (b.x1 - b.x0)) return;  // n'entre pas : on saute
+      ctx.fillText(label, b.x0 + 5, yTop + 4);
+    });
+  }
+
+  // ── Subdivisions (fins traits verticaux) ──────────────────────────────────────
+  let sub = scheme.sub.start(dLeft);
+  guard = 0;
+  const subXs = [];
+  while (sub <= dRight && guard++ < 20000) {
+    const x = pertTgDateToX(sub, originX);
+    if (x !== null) subXs.push(x);
+    sub = scheme.sub.next(sub);
+  }
+  let subStepPx = 0;
+  if (subXs.length >= 2) subStepPx = (subXs[1] - subXs[0]) * scale;
+  if (subXs.length >= 2 && subStepPx >= PERT_TG_MIN_PX_SUB) {
+    ctx.strokeStyle = "rgba(126, 184, 247, " + PERT_TG_LINE_ALPHA + ")";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    subXs.forEach((x) => { ctx.moveTo(x, yTop); ctx.lineTo(x, yBottom); });
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// Parité de la bande, calculée sur un rang ABSOLU (et non sur l'ordre d'affichage) :
+// année, mois depuis l'an 0, ou semaine depuis une origine fixe. Garantit que la même
+// période garde la même teinte quel que soit le défilement ou le zoom.
+function pertTgBandParity(date, unit) {
+  if (unit === "mois") return date.getFullYear() % 2;
+  if (unit === "sem") return (date.getFullYear() * 12 + date.getMonth()) % 2;
+  return Math.floor(pertTgMonday(date).getTime() / 604800000) % 2;
+}
+
+// Installe la trame sur une instance de LGraphCanvas.
+// ⚠️ CHAÎNE le handler existant (grille aimantée de ui.js, puis bande d'anticipation
+// du repère T0) : un module qui AFFECTE onDrawBackground écrase silencieusement tous
+// ceux installés avant lui — piège déjà rencontré avec pertInstallT0Marker.
+function pertInstallTimeGrid(lgCanvas) {
+  const prevBg = lgCanvas.onDrawBackground;
+  lgCanvas.onDrawBackground = function (ctx, area) {
+    if (prevBg) prevBg.call(this, ctx, area);
+    try { pertDrawTimeGrid(ctx, this.graph); }
+    catch (e) { /* une trame décorative ne doit jamais casser le rendu du graphe */ }
+  };
+}
+
+window.pertInstallTimeGrid = pertInstallTimeGrid;
+window.pertDrawTimeGrid = pertDrawTimeGrid;
+window.pertTimeGridEnabled = pertTimeGridEnabled;
+window.pertTimeGridScheme = pertTimeGridScheme;
+
+</script>
+  <script>
 /* src/align.js */
 // ─── Alignement / repartition d'une selection multiple ──────────────────────────
 //
@@ -41488,6 +41787,65 @@ function pertAlignSelection(mode) {
   pertFinishAlign();
 }
 
+// ─── Aimantation des Labels sur les bords voisins ───────────────────────────────
+//
+// Un Label est une annotation librement positionnee : il est exclu de la reorganisation
+// automatique et n'a aucune signification temporelle. L'aligner a la main sur le bloc
+// qu'il commente etait fastidieux au pixel pres — d'ou cette aimantation.
+//
+// RESERVE AUX LABELS, deliberement. Sur une Activite ou un Jalon, l'abscisse PORTE LE
+// TEMPS (x = originX + offset × PERT_PX_PER_UNIT) : aimanter horizontalement un tel
+// nœud sur son voisin le deplacerait dans le calendrier et fausserait la lecture
+// chronologique. Les Labels, eux, ne portent rien — les aimanter est sans consequence.
+//
+// Se declenche AU LACHER (via onNodeMoved), comme le snap-to-grid natif de LiteGraph,
+// qui aligne lui aussi a la fin du deplacement (litegraph.js : alignToGrid() puis
+// onNodeMoved()). Notre ajustement passe donc APRES la grille et prime sur elle.
+
+const PERT_LABEL_SNAP_PX = 9;   // distance d'accrochage, en pixels du repere GRAPHE
+
+// Candidats d'alignement d'un axe : bord bas/gauche, bord haut/droit, centre.
+function pertSnapCandidates(n, axis) {
+  const p = n.pos[axis], s = n.size[axis];
+  return [p, p + s, p + s / 2];
+}
+
+// Aimante un Label sur les bords (et centres) des nœuds voisins, axe par axe.
+// Les deux axes sont traites INDEPENDAMMENT : un Label peut s'aligner horizontalement
+// sur une tache et verticalement sur une autre, ce qui est le comportement attendu
+// d'un outil de dessin. Renvoie true si une position a ete ajustee.
+function pertSnapLabelToNeighbors(node) {
+  if (!node || node.type !== "pert/label") return false;
+  const graph = window.pertGraph;
+  if (!graph || !graph._nodes) return false;
+
+  let moved = false;
+  for (let axis = 0; axis < 2; axis++) {
+    const mine = pertSnapCandidates(node, axis);
+    let best = null;   // { delta, dist }
+    for (const other of graph._nodes) {
+      if (other === node) continue;
+      // Un nœud replie/masque n'offre pas de bord pertinent ; les autres comptent tous
+      // (taches, jalons ET labels : on aligne aussi les cartouches entre eux).
+      if (other.flags && other.flags.collapsed) continue;
+      for (const target of pertSnapCandidates(other, axis)) {
+        for (const m of mine) {
+          const d = target - m;
+          const dist = Math.abs(d);
+          if (dist <= PERT_LABEL_SNAP_PX && (best === null || dist < best.dist)) {
+            best = { delta: d, dist };
+          }
+        }
+      }
+    }
+    if (best && best.delta !== 0) {
+      node.pos[axis] = Math.round(node.pos[axis] + best.delta);
+      moved = true;
+    }
+  }
+  return moved;
+}
+
 // Options du sous-menu « Aligner ▸ » (partagees si besoin). Chaque entree appelle
 // pertAlignSelection. Les entrees de repartition sont proposees des >=2 mais ne font
 // rien sous 3 nœuds (garde dans pertAlignSelection) — on ne les affiche qu'a >=3.
@@ -41528,6 +41886,27 @@ function pertAlignMenuOptions(selCount) {
 // MEME que le trace rouge / la barre d'etat (window.pertCriticalPathIds : suit la
 // selection, ou marge minimale sans selection).
 
+// Etat visuel d'un jalon dans les listes de synthese. On REUTILISE la regle de la zone
+// de travail (MilestoneNode.targetState, nodes.js #20) pour qu'un jalon ait la meme
+// couleur a l'ecran et dans la synthese — une seule regle a retenir, une seule a
+// maintenir. Deux ecarts assumes, tous deux vers la neutralite :
+//   - « aucune cible » → etat "none" (police normale) et non orange : sans echeance,
+//     il n'y a aucun verdict a rendre ; l'orange serait une alerte sans objet ;
+//   - jalon PUREMENT ENTRANT (aucun lien entrant) → "none" egalement : sa cible est une
+//     DONNEE D'ENTREE, pas un engagement du projet. Le moteur applique deja cette regle
+//     (ES = EF = offset(cible), target_missed force a faux, cf. pert_engine.js) ; sans
+//     cet ecart, sa marge structurellement nulle le peindrait en orange a chaque fois.
+function pertSynthMilestoneState(node, row, hasIn) {
+  if (!row.hasDue) return "none";
+  if (!hasIn) return "none";
+  if (typeof node.targetState === "function") return node.targetState();
+  // Repli si la methode du nœud n'est pas disponible (nœud deserialise a plat) :
+  // meme seuil que nodes.js, MILESTONE_GREEN_MARGIN unites de temps.
+  if (node.target_missed) return "alert";
+  const seuil = (typeof MILESTONE_GREEN_MARGIN === "number") ? MILESTONE_GREEN_MARGIN : 1;
+  return (row.margin !== null && row.margin >= seuil) ? "safe" : "neutral";
+}
+
 // Construit le modele de synthese depuis le graphe + les metadonnees courants.
 function pertBuildSynthesisModel() {
   const g = window.pertGraph;
@@ -41548,9 +41927,14 @@ function pertBuildSynthesisModel() {
     endDate: null,
     critTasks: 0,
     critCost: 0,
-    milestonesTenus: [],
-    milestonesNonTenus: [],
-    milestonesSansCible: [],
+    // Jalons classes par TOPOLOGIE et non plus par tenue de cible : un jalon ENTRANT
+    // (au moins un lien sortant) alimente la suite du planning, un jalon SORTANT (au
+    // moins un lien entrant) est produit par lui. Un checkpoint intermediaire a les
+    // deux → il figure DANS LES DEUX LISTES, ce qui est voulu : il est a la fois un
+    // livrable pour l'amont et une donnee d'entree pour l'aval.
+    milestonesEntrants: [],
+    milestonesSortants: [],
+    milestonesIsoles: [],
     groups: [],
   };
   if (!g || !g._nodes) return model;
@@ -41574,12 +41958,20 @@ function pertBuildSynthesisModel() {
   });
   model.endDate = (maxEf != null) ? pertOffsetToDate(maxEf) : null;
 
-  // Passe 2 : jalons (tenus / non tenus / sans cible), avec marge vis-a-vis de la cible.
+  // Passe 2 : jalons ENTRANTS / SORTANTS, avec marge vis-a-vis de la cible.
   // La marge est en UNITES du projet : cible (offset) - EF (offset). Positive = tenu
   // avec avance, negative = rate. target_missed est calcule par pertRecalc (EF > cible).
+  //
+  // Le code couleur reprend TEL QUEL celui des Jalons dans la zone de travail
+  // (MilestoneNode.targetState, cf. nodes.js #20) — une seule regle a comprendre pour
+  // l'utilisateur, et une seule a maintenir : rouge = cible non tenue, vert = tenue
+  // avec au moins MILESTONE_GREEN_MARGIN unites d'avance, orange = tenue tout juste.
+  const adj = (typeof pertBuildAdjacency === "function") ? pertBuildAdjacency(g) : null;
   g._nodes.forEach(n => {
     if (n.type !== "pert/milestone") return;
     model.nbMilestones++;
+    const hasIn = !!(adj && adj.preds[n.id] && adj.preds[n.id].length > 0);
+    const hasOut = !!(adj && adj.succs[n.id] && adj.succs[n.id].length > 0);
     const row = {
       label: (n.properties && n.properties.label) || "(jalon)",
       tag: (n.properties && typeof pertMilestoneTag === "function") ? pertMilestoneTag(n.properties.tag) : null,
@@ -41594,14 +41986,11 @@ function pertBuildSynthesisModel() {
       // tot (meme regle que la reorganisation « axe temps seul », cf. pertTimeAxisOffset).
       sortOff: (typeof pertTimeAxisOffset === "function") ? pertTimeAxisOffset(n) : n.ef,
     };
-    if (row.hasDue) {
-      const dueOff = row.dueOff;
-      if (dueOff !== null && n.ef != null) row.margin = dueOff - n.ef;
-      if (n.target_missed) model.milestonesNonTenus.push(row);
-      else model.milestonesTenus.push(row);
-    } else {
-      model.milestonesSansCible.push(row);
-    }
+    if (row.hasDue && row.dueOff !== null && n.ef != null) row.margin = row.dueOff - n.ef;
+    row.state = pertSynthMilestoneState(n, row, hasIn);
+    if (hasOut) model.milestonesEntrants.push(row);
+    if (hasIn) model.milestonesSortants.push(row);
+    if (!hasIn && !hasOut) model.milestonesIsoles.push(row);
   });
 
   // Classement chronologique croissant des trois listes de jalons (cle : date cible si
@@ -41612,9 +42001,9 @@ function pertBuildSynthesisModel() {
     const ob = (b.sortOff != null) ? b.sortOff : Infinity;
     return (oa - ob) || a.label.localeCompare(b.label, "fr");
   };
-  model.milestonesTenus.sort(byChrono);
-  model.milestonesNonTenus.sort(byChrono);
-  model.milestonesSansCible.sort(byChrono);
+  model.milestonesEntrants.sort(byChrono);
+  model.milestonesSortants.sort(byChrono);
+  model.milestonesIsoles.sort(byChrono);
 
   // Passe 3 : synthese par groupe. « Fin au plus tard du groupe » = LF max de ses
   // Activites (la derniere tache a devoir etre terminee). Les taches sans groupe sont
@@ -41686,8 +42075,11 @@ function synthTable(headers, rows) {
   thead.appendChild(htr);
   table.appendChild(thead);
   const tbody = synthEl("tbody");
-  rows.forEach(cells => {
-    const tr = synthEl("tr");
+  rows.forEach(row => {
+    // Une ligne est soit un simple tableau de cellules, soit { cls, cells } quand elle
+    // porte une mise en forme d'ensemble (code couleur de tenue de cible des jalons).
+    const cells = Array.isArray(row) ? row : (row.cells || []);
+    const tr = synthEl("tr", Array.isArray(row) ? null : (row.cls || null));
     cells.forEach(c => {
       const td = synthEl("td", c.cls || null);
       if (c.node) td.appendChild(c.node);
@@ -41748,36 +42140,39 @@ function pertRenderSynthesis() {
   synthKV(ov, "Chemin critique", m.critTasks + " tâche(s) · " + pertFormatCost(m.critCost));
   synthSection(c, "Vue d'ensemble", ov);
 
-  // 2) Jalons tenus.
+  // 2) et 3) Jalons ENTRANTS puis SORTANTS, dans l'ordre chronologique. Un checkpoint
+  // intermediaire (lien entrant ET sortant) figure dans les deux listes : il est un
+  // livrable pour l'amont et une donnee d'entree pour l'aval. Le code couleur de tenue
+  // de cible est celui de la zone de travail (cf. pertSynthMilestoneState).
   const mileHeaders = [
     { text: "Jalon" }, { text: "Type" }, { text: "Fin t.tôt" },
     { text: "Cible" }, { text: "Marge", cls: "num" },
   ];
-  const mileRow = (r) => [
-    { text: r.label },
-    { node: synthTagNode(r.tag), text: r.tag ? "" : "—" },
-    { text: pertFormatDate(r.efDate) },
-    { text: r.dueLabel || "—" },
-    synthMarginCell(r.margin, m.unitLabel),
-  ];
-  synthSection(c, "Jalons tenus (" + m.milestonesTenus.length + ")",
-    m.milestonesTenus.length ? synthTable(mileHeaders, m.milestonesTenus.map(mileRow)) : null,
-    "Aucun jalon avec cible tenue.");
-
-  // 3) Jalons non tenus.
-  synthSection(c, "Jalons non tenus (" + m.milestonesNonTenus.length + ")",
-    m.milestonesNonTenus.length ? synthTable(mileHeaders, m.milestonesNonTenus.map(mileRow)) : null,
-    "Aucun jalon en retard sur sa cible.");
-
-  // 4) Jalons sans cible (facultatif — repere les jalons non contraints par une date).
-  if (m.milestonesSansCible.length) {
-    const rows = m.milestonesSansCible.map(r => [
+  const mileRow = (r) => ({
+    cls: "synth-mile-" + (r.state || "none"),
+    cells: [
       { text: r.label },
       { node: synthTagNode(r.tag), text: r.tag ? "" : "—" },
       { text: pertFormatDate(r.efDate) },
-    ]);
-    synthSection(c, "Jalons sans cible (" + m.milestonesSansCible.length + ")",
-      synthTable([{ text: "Jalon" }, { text: "Type" }, { text: "Fin t.tôt" }], rows));
+      { text: r.dueLabel || "—" },
+      synthMarginCell(r.margin, m.unitLabel),
+    ],
+  });
+
+  synthSection(c, "Jalons entrants (" + m.milestonesEntrants.length + ")",
+    m.milestonesEntrants.length ? synthTable(mileHeaders, m.milestonesEntrants.map(mileRow)) : null,
+    "Aucun jalon n'alimente le planning.");
+
+  synthSection(c, "Jalons sortants (" + m.milestonesSortants.length + ")",
+    m.milestonesSortants.length ? synthTable(mileHeaders, m.milestonesSortants.map(mileRow)) : null,
+    "Aucun jalon produit par le planning.");
+
+  // 4) Jalons isoles (ni entrant ni sortant) : signales seulement s'il y en a. Ils
+  // n'appartiennent a aucune des deux listes ci-dessus et passeraient sinon a la
+  // trappe — or un jalon sans aucun lien est le plus souvent un oubli de connexion.
+  if (m.milestonesIsoles.length) {
+    synthSection(c, "Jalons isolés (" + m.milestonesIsoles.length + ")",
+      synthTable(mileHeaders, m.milestonesIsoles.map(mileRow)));
   }
 
   // 5) Synthese par groupe : cout GLOBAL puis, si le planning comporte de
@@ -41865,7 +42260,10 @@ window.pertPrintSynthesis = pertPrintSynthesis;
 window.pertMeta = {
   title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true,
   hours_per_month: 135, hours_per_day: 8, hourly_rate: 136,
-  groups: {}, autosave: true
+  groups: {}, autosave: true,
+  // Trame temporelle de fond : desactivee par defaut (aucun changement visuel pour
+  // les plannings existants ; c'est une aide de lecture qu'on demande, cf. time_grid.js).
+  time_grid: false
 };
 window.pertGraph = null;
 window.pertCanvas = null;
@@ -42059,6 +42457,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // purement et simplement écrasé (la bande ne se dessinait jamais).
   if (window.pertInstallT0Marker) pertInstallT0Marker(lgCanvas);
 
+  // Trame temporelle de fond (case « Trame temporelle » des Paramètres) — cf.
+  // src/time_grid.js. ⚠️ Même précaution que ci-dessus, et installée EN DERNIER :
+  // elle chaîne le handler déjà en place (grille + bande d'anticipation). Inversion
+  // de l'ordre = module précédent purement écrasé, sans la moindre erreur.
+  if (window.pertInstallTimeGrid) pertInstallTimeGrid(lgCanvas);
+
   // Resize dynamique
   function resizeCanvas() {
     const container = document.getElementById("canvas-container");
@@ -42121,8 +42525,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (sel.length === 1) showProperties(sel[0]);
   };
 
-  // Deplacement de noeud(s) termine (drag relache) → cran d'historique.
-  lgCanvas.onNodeMoved = function() { pertHistoryMark(); };
+  // Deplacement de noeud(s) termine (drag relache) → aimantation des Labels puis
+  // cran d'historique. L'aimantation intervient ICI et non pendant le glisser : c'est
+  // le meme moment que le snap-to-grid natif de LiteGraph (alignToGrid() est appele
+  // juste avant onNodeMoved), donc notre ajustement prime sur la grille au lieu de
+  // lutter contre elle. Reserve aux Labels — cf. pertSnapLabelToNeighbors.
+  lgCanvas.onNodeMoved = function(node) {
+    if (node && typeof pertSnapLabelToNeighbors === "function") {
+      if (pertSnapLabelToNeighbors(node)) lgCanvas.setDirty(true, true);
+    }
+    pertHistoryMark();
+  };
 
   // Premier calcul (graphe éventuellement déjà peuplé)
   pertRecalc();
@@ -43284,6 +43697,8 @@ function openSettings() {
   // Sauvegarde automatique (activee par defaut : cochee sauf desactivation explicite)
   document.getElementById("settings-autosave").checked =
     window.pertMeta.autosave !== false;
+  // Trame temporelle : decochee par defaut (aide de lecture optionnelle)
+  document.getElementById("settings-timegrid").checked = !!window.pertMeta.time_grid;
   // S8.5 parametres d'estimation de cout
   document.getElementById("settings-hpm").value =
     window.pertMeta.hours_per_month != null ? window.pertMeta.hours_per_month : 135;
@@ -43308,6 +43723,9 @@ function saveSettings() {
   // Sauvegarde automatique : bascule prise en compte immediatement par le module
   window.pertMeta.autosave = document.getElementById("settings-autosave").checked;
   if (window.pertAutosaveOnToggle) window.pertAutosaveOnToggle();
+  // Trame temporelle : simple bascule d'affichage, prise en compte au prochain redessin
+  // (declenche plus bas a la validation des parametres, comme les autres options).
+  window.pertMeta.time_grid = document.getElementById("settings-timegrid").checked;
   // S8.5 parametres de cout (planches a 0 ; defaut si champ vide/invalide)
   const hpm = parseFloat(document.getElementById("settings-hpm").value);
   const hpd = parseFloat(document.getElementById("settings-hpd").value);

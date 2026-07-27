@@ -600,6 +600,20 @@ body {
 .synth-neg { color: #ec8a8a; }
 .synth-pos { color: #86c98a; }
 .synth-empty { color: #77839e; font-style: italic; }
+
+/* Code couleur de tenue de cible des jalons, dans les listes entrants / sortants.
+   MEMES etats que les nœuds Jalon de la zone de travail (MilestoneNode.targetState,
+   nodes.js #20) : rouge = cible non tenue, orange = tenue tout juste, vert = tenue
+   avec marge. Teintes eclaircies par rapport au nœud (fond sombre du tableau) mais
+   meme semantique. « none » (aucune cible, ou jalon purement entrant) garde la police
+   normale : aucun verdict a rendre, donc aucune couleur.
+   La couleur porte sur toute la LIGNE plutot que sur une cellule : c'est le jalon qui
+   est tenu ou non, pas l'une de ses proprietes. Le `td` doit reprendre la couleur,
+   sinon la regle plus specifique de .synth-neg/.synth-pos (colonne Marge) primerait
+   sur celle du `tr` et la ligne paraitrait bicolore. */
+.synth-table tr.synth-mile-alert td { color: #f08d8d; font-weight: 700; }
+.synth-table tr.synth-mile-neutral td { color: #e8b45f; }
+.synth-table tr.synth-mile-safe td { color: #86c98a; }
 .synth-chip {
   display: inline-block; width: 11px; height: 11px; border-radius: 3px;
   vertical-align: -1px; margin-right: 6px; border: 1px solid rgba(255,255,255,0.25);
@@ -638,6 +652,11 @@ body {
   body.synthesis-printing .synth-neg { color: #b00000; }
   body.synthesis-printing .synth-pos { color: #1a7a1a; }
   body.synthesis-printing .synth-empty { color: #555; }
+  /* Tenue de cible a l'impression : teintes assombries pour rester lisibles sur blanc
+     (l'orange clair de l'ecran passe mal au papier), semantique inchangee. */
+  body.synthesis-printing .synth-table tr.synth-mile-alert td { color: #b00000; font-weight: 700; }
+  body.synthesis-printing .synth-table tr.synth-mile-neutral td { color: #8a5b00; }
+  body.synthesis-printing .synth-table tr.synth-mile-safe td { color: #1a7a1a; }
 }
 
 /* ─── Contrôle de filtre custom (toolbar, S7 C) ──────────────────────────────── */

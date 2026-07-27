@@ -1168,6 +1168,83 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Jalons entrants/sortants, aimantation des Labels, trame temporelle ✅ TERMINÉ (27/07/2026, tag **v0.17**)
+Trois demandes d'ergonomie indépendantes, regroupées sur une même branche parce qu'elles ne se
+recouvrent pas : lecture de la synthèse, placement des Labels, repérage dans le calendrier.
+
+**1 — La synthèse classe les jalons par TOPOLOGIE, plus par tenue de cible.** Le découpage
+« tenus / non tenus / sans cible » répondait à « qui est en retard ? » mais pas à « qu'est-ce qui
+alimente mon planning, et qu'est-ce qu'il produit ? ». Deux listes désormais : **entrants** (au
+moins un lien sortant) et **sortants** (au moins un lien entrant), chacune en ordre chronologique.
+Un checkpoint intermédiaire a les deux et **figure dans les deux listes** — c'est voulu : il est un
+livrable pour l'amont et une donnée d'entrée pour l'aval.
+
+La tenue de cible n'est pas perdue, elle **change de support** : du classement vers la **couleur de
+la ligne**, en reprenant **telle quelle** la règle des nœuds Jalon du plan de travail
+(`MilestoneNode.targetState`, #20) — rouge gras si la cible n'est pas tenue, orange si elle l'est
+tout juste (marge < `MILESTONE_GREEN_MARGIN`), vert au-delà. **Décision utilisateur** : une seule
+règle à comprendre, une seule à maintenir.
+
+Deux écarts assumés, tous deux vers la neutralité (police normale, aucun verdict) : un jalon **sans
+cible**, et un jalon **purement entrant**. Pour ce dernier, le moteur traite déjà sa cible comme une
+donnée d'entrée et non comme une échéance (`ES = EF = offset(cible)`, `target_missed` forcé à faux,
+cf. v0.16) : sa marge est **structurellement nulle**, et le code couleur l'aurait donc peint en
+orange à chaque ouverture — une alerte sans objet. Ajout d'une liste **« Jalons isolés »**, affichée
+seulement si elle n'est pas vide : sans elle, un jalon sans aucun lien n'appartiendrait à aucune des
+deux listes et disparaîtrait de la synthèse, alors qu'il signale le plus souvent un oubli de
+connexion.
+
+**2 — Aimantation des Labels sur les bords voisins.** Un Label est une annotation libre, exclue de
+la réorganisation automatique : l'aligner à la main sur le bloc qu'il commente se faisait au pixel
+près. Il s'aimante désormais sur les **bords et centres** des nœuds voisins, les deux axes traités
+indépendamment (`pertSnapLabelToNeighbors`, `src/align.js`).
+
+**Réservé aux Labels, délibérément** : sur une Activité ou un Jalon, l'abscisse **porte le temps**
+(`x = originX + offset × PERT_PX_PER_UNIT`) — les aimanter horizontalement les déplacerait dans le
+calendrier. Le test le vérifie explicitement. **Déclenchement au LÂCHER** (`onNodeMoved`) et non
+pendant le glisser : c'est le moment où LiteGraph applique son propre snap-to-grid
+(`litegraph.js` : `alignToGrid()` puis `onNodeMoved()`), donc notre ajustement passe **après** la
+grille au lieu de lutter contre elle.
+
+**3 — Trame temporelle de fond** (`src/time_grid.js`, case « Trame temporelle » des Paramètres,
+`meta.time_grid`, désactivée par défaut, sérialisée). Bandes alternées pour la période large, fins
+traits pour la subdivision, selon l'unité : mois → **années/trimestres**, sem → **mois/semaines**,
+j → **semaines/jours**.
+
+Les bornes sont calculées **en calendrier** (1ᵉʳ janvier, 1ᵉʳ du mois, lundi) puis converties en
+offsets par `pertDateToOffset` — **jamais par un pas fixe en pixels**. C'est ce qui rend la trame
+juste sur les mois de longueurs inégales et en unité « jour », où l'axe compte les **jours ouvrés**
+(une semaine y occupe 5 unités, pas 7). Discrétion obtenue par trois moyens : **couche de fond**
+(derrière nœuds et liens, donc jamais en concurrence avec le voile du filtre), **alphas très bas**
+(bandes 0,030 / traits 0,055), et **effacement automatique** d'un niveau dès que sa largeur projetée
+à l'écran passe sous le seuil — en zoom arrière les subdivisions disparaissent avant que la trame ne
+vire au gris uni.
+
+**Pièges rencontrés et levés :**
+- **`pertDateToOffset` attend une chaîne `"YYYY-MM-DD"`, pas un `Date`.** Le formatage doit être
+  fait en **heure locale** : `toISOString()` convertit en UTC et recule d'un jour toute date à
+  minuit local pour un fuseau à l'est de Greenwich — soit une trame décalée d'une case. D'où
+  `pertTgIso()`. Le premier jet du test de validation, lui, utilisait `toISOString()` et a échoué :
+  le code source était juste, c'est le test qui était faux.
+- **Chaînage obligatoire de `onDrawBackground`** : la trame est installée **en dernier**, après la
+  grille (`ui.js`, qui l'**affecte**) et après le repère T0. Un module installé avant un autre qui
+  affecte ce handler est **purement écrasé, sans la moindre erreur** — piège déjà documenté pour
+  `pertInstallT0Marker`. D'où un test **au pixel** (fond comparé trame active/inactive) et non un
+  simple test de présence du handler, qui ne détecte pas l'écrasement.
+- **`LabelNode.updateSize()` recalcule la taille** d'après le texte sauf si `manual_size` : le test
+  d'aimantation du bord droit se faisait redimensionner sous les pieds et échouait sur une largeur
+  qui n'était plus la bonne.
+
+**Validation** : suite smoke complète — **21 tests OK**, dont le nouveau `smoke-evo-trame-labels.js`.
+`smoke-synthesis.js` enrichi des cas entrant pur / intermédiaire / isolé ; `smoke-jalon-chrono.js` et
+`smoke-jalon-t0plusx.js` adaptés au nouveau modèle. Les 2 échecs restants (`smoke-s9`, `smoke-s10`)
+sont **antérieurs et sans rapport** : fixture `test_cases/pert_a_exporter.pert` absente de la
+machine, lue ligne 21 avant tout lancement du navigateur (`test_cases/` est gitignoré). Bundle
+`v0.17` régénéré **et validé en `file://` dans Chromium** — vérifier le bundle lui-même et pas
+seulement les sources est nécessaire : un module oublié à l'inline ne se verrait pas sur
+`index.html`. Manuel utilisateur mis à jour (§3 aimantation, §12 synthèse, §13 trame) + HTML/PDF
+régénérés.
+
 ### Anticipation avant T0 + date-cible en « T0+X » ✅ TERMINÉ (24/07/2026, tag **v0.16**)
 Deux **défauts conceptuels** remontés par l'utilisateur après un séminaire où l'outil a été
 utilisé en direct avec plusieurs groupes. Tous deux touchent au rôle de T0 dans le modèle.

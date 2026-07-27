@@ -90,6 +90,65 @@ function pertAlignSelection(mode) {
   pertFinishAlign();
 }
 
+// ─── Aimantation des Labels sur les bords voisins ───────────────────────────────
+//
+// Un Label est une annotation librement positionnee : il est exclu de la reorganisation
+// automatique et n'a aucune signification temporelle. L'aligner a la main sur le bloc
+// qu'il commente etait fastidieux au pixel pres — d'ou cette aimantation.
+//
+// RESERVE AUX LABELS, deliberement. Sur une Activite ou un Jalon, l'abscisse PORTE LE
+// TEMPS (x = originX + offset × PERT_PX_PER_UNIT) : aimanter horizontalement un tel
+// nœud sur son voisin le deplacerait dans le calendrier et fausserait la lecture
+// chronologique. Les Labels, eux, ne portent rien — les aimanter est sans consequence.
+//
+// Se declenche AU LACHER (via onNodeMoved), comme le snap-to-grid natif de LiteGraph,
+// qui aligne lui aussi a la fin du deplacement (litegraph.js : alignToGrid() puis
+// onNodeMoved()). Notre ajustement passe donc APRES la grille et prime sur elle.
+
+const PERT_LABEL_SNAP_PX = 9;   // distance d'accrochage, en pixels du repere GRAPHE
+
+// Candidats d'alignement d'un axe : bord bas/gauche, bord haut/droit, centre.
+function pertSnapCandidates(n, axis) {
+  const p = n.pos[axis], s = n.size[axis];
+  return [p, p + s, p + s / 2];
+}
+
+// Aimante un Label sur les bords (et centres) des nœuds voisins, axe par axe.
+// Les deux axes sont traites INDEPENDAMMENT : un Label peut s'aligner horizontalement
+// sur une tache et verticalement sur une autre, ce qui est le comportement attendu
+// d'un outil de dessin. Renvoie true si une position a ete ajustee.
+function pertSnapLabelToNeighbors(node) {
+  if (!node || node.type !== "pert/label") return false;
+  const graph = window.pertGraph;
+  if (!graph || !graph._nodes) return false;
+
+  let moved = false;
+  for (let axis = 0; axis < 2; axis++) {
+    const mine = pertSnapCandidates(node, axis);
+    let best = null;   // { delta, dist }
+    for (const other of graph._nodes) {
+      if (other === node) continue;
+      // Un nœud replie/masque n'offre pas de bord pertinent ; les autres comptent tous
+      // (taches, jalons ET labels : on aligne aussi les cartouches entre eux).
+      if (other.flags && other.flags.collapsed) continue;
+      for (const target of pertSnapCandidates(other, axis)) {
+        for (const m of mine) {
+          const d = target - m;
+          const dist = Math.abs(d);
+          if (dist <= PERT_LABEL_SNAP_PX && (best === null || dist < best.dist)) {
+            best = { delta: d, dist };
+          }
+        }
+      }
+    }
+    if (best && best.delta !== 0) {
+      node.pos[axis] = Math.round(node.pos[axis] + best.delta);
+      moved = true;
+    }
+  }
+  return moved;
+}
+
 // Options du sous-menu « Aligner ▸ » (partagees si besoin). Chaque entree appelle
 // pertAlignSelection. Les entrees de repartition sont proposees des >=2 mais ne font
 // rien sous 3 nœuds (garde dans pertAlignSelection) — on ne les affiche qu'a >=3.

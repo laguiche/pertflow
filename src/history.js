@@ -99,6 +99,8 @@
         global.pertMeta.link_mode = data.meta.link_mode || "courbe";
         // #18 largeur ∝ duree (defaut true si snapshot anterieur sans la cle)
         global.pertMeta.prop_width = data.meta.prop_width !== false;
+        // Trame temporelle (defaut false si snapshot anterieur sans la cle)
+        global.pertMeta.time_grid = !!data.meta.time_grid;
         // S8.5 parametres d'estimation de cout (defauts si snapshot anterieur)
         global.pertMeta.hours_per_month = data.meta.hours_per_month != null ? data.meta.hours_per_month : 135;
         global.pertMeta.hours_per_day = data.meta.hours_per_day != null ? data.meta.hours_per_day : 8;
