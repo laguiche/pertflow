@@ -1597,7 +1597,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"27/07/2026 17:59","tag":"v0.18"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"28/07/2026","tag":"v0.18.1"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -41558,6 +41558,10 @@ const PERT_TG_TEXT_ALPHA = 0.34;    // libellé de période (année, mois, semai
 const PERT_TG_MIN_PX_BAND = 26;     // largeur écran minimale d'une bande pour la dessiner
 const PERT_TG_MIN_PX_SUB = 14;      // idem pour une subdivision
 const PERT_TG_PAD_Y = 60;           // débord vertical au-dessus/dessous du graphe
+// Taille du libellé de période (année, mois, semaine). Dessiné en coordonnées GRAPHE :
+// il suit donc le zoom, comme le texte des nœuds. Volontairement grand — c'est un
+// filigrane de repérage, pas une légende à lire de près.
+const PERT_TG_LABEL_PX = 34;
 
 const PERT_TG_MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
                         "juil.", "août", "sept.", "oct.", "nov.", "déc."];
@@ -41740,16 +41744,22 @@ function pertDrawTimeGrid(ctx, graph) {
       ctx.fillRect(b.x0, yTop, b.x1 - b.x0, h);
     });
 
-    // Libellé de période, posé dans la marge haute — assez pâle pour ne pas
-    // concurrencer les nœuds, assez lisible pour se repérer d'un coup d'œil.
-    ctx.font = "11px Arial";
+    // Libellé de période, posé dans la marge haute. Il joue le rôle d'un FILIGRANE :
+    // grand, pour se lire d'un coup d'œil et de loin sur un planning dézoomé, mais pâle,
+    // pour ne pas concurrencer les nœuds (v0.18.1 — la taille précédente, 11 px, se
+    // perdait complètement sur la largeur d'une bande d'un an).
+    ctx.font = "bold " + PERT_TG_LABEL_PX + "px Arial";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.fillStyle = "rgba(170, 210, 250, " + pertTgAlpha(PERT_TG_TEXT_ALPHA, 0.95) + ")";
     bands.forEach((b) => {
       const label = scheme.band.label(b.date);
-      if (ctx.measureText(label).width + 8 > (b.x1 - b.x0)) return;  // n'entre pas : on saute
-      ctx.fillText(label, b.x0 + 5, yTop + 4);
+      // N'entre pas dans la bande → on saute plutôt que de déborder sur la suivante.
+      // Avec un libellé de cette taille, le cas devient courant sur les bandes étroites
+      // (mois en unité « sem », semaines en unité « j ») : c'est voulu, mieux vaut pas
+      // de repère qu'un repère illisible ou chevauchant.
+      if (ctx.measureText(label).width + 12 > (b.x1 - b.x0)) return;
+      ctx.fillText(label, b.x0 + 8, yTop + 2);
     });
   }
 
@@ -43806,7 +43816,10 @@ function openAbout() {
   buildReadonly(c, "Auteur", "© Stéphane Guichard");
   buildReadonly(c, "Licence", "MIT");
   buildReadonly(c, "Version (tag main)", b.tag || "développement (non bundlée)");
-  buildReadonly(c, "Bundle généré le", b.date || "—");
+  // Date seule : les bundles generes avant la v0.18.1 portent « JJ/MM/AAAA HH:MM », on
+  // coupe donc l'heure a l'affichage plutot que de laisser deux formats coexister selon
+  // l'anciennete du bundle qu'on a sous la main.
+  buildReadonly(c, "Bundle généré le", b.date ? String(b.date).split(" ")[0] : "—");
   document.getElementById("about-dialog").style.display = "flex";
 }
 

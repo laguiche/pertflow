@@ -1168,6 +1168,36 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Lisibilité de la trame + date « À propos » ✅ TERMINÉ (28/07/2026, tag **v0.18.1**)
+Deux retouches demandées après usage de la v0.18, l'intensité de la trame étant jugée bonne.
+
+**Libellé d'année en filigrane** — 11 px se perdaient sur la largeur d'une bande d'un an.
+Nouvelle constante `PERT_TG_LABEL_PX = 34`, en gras. Le libellé est dessiné en coordonnées
+**graphe** : il suit donc le zoom, comme le texte des nœuds. Conséquence assumée : à cette taille,
+un libellé n'entre plus dans les bandes étroites (mois en unité « sem », semaines en unité « j »)
+et est alors **omis** — mieux vaut pas de repère qu'un repère chevauchant. Le test verrouille
+`PERT_TG_LABEL_PX >= 24` : la valeur encode une décision utilisateur, pas un détail de rendu.
+
+**Date de génération sans heure** dans « À propos ». Corrigé **des deux côtés** :
+`scripts/build-bundle.js` n'émet plus que `JJ/MM/AAAA`, et `openAbout()` coupe une heure
+résiduelle — sans quoi un bundle antérieur, encore porteur de `JJ/MM/AAAA HH:MM`, aurait continué
+de l'afficher, deux formats coexistant selon l'ancienneté du fichier ouvert.
+
+**La fixture `test_cases/pert_a_exporter.pert` a été restaurée par l'utilisateur.** Conséquences :
+- `doc-shots.js` retrouve la main → **10 captures du manuel régénérées** et
+  `tools/doc-shots-parametres.js`, contournement écrit à la session précédente, **supprimé** comme
+  prévu ;
+- **la suite smoke passe intégralement pour la première fois : 23 tests, 0 échec** ;
+- **`smoke-s9` a d'abord échoué** (« 8 tâches, vu 9 ») : la fixture restaurée compte un nœud de
+  plus que celle contre laquelle le test avait été écrit. Les attendus MSPDI sont désormais
+  **déduits de la fixture** (une tâche par Activité et par Jalon, un lien par connexion) au lieu
+  d'être codés en dur. `test_cases/` étant gitignoré, la fixture est un artefact local recomposable :
+  un nombre en dur transformait un simple écart de jeu d'essai en échec de test, sans rien dire de
+  la qualité de l'export.
+
+`docs/release-notes.md` complété des **huit versions manquantes** (v0.15.2 → v0.18.1) : il s'était
+arrêté au 08/07. Dates reprises des tags git, pas reconstituées de mémoire.
+
 ### Intensité réglable de la trame + Paramètres en onglets ✅ TERMINÉ (27/07/2026, tag **v0.18**)
 **Retour d'usage sur v0.17 : « la trame n'est pas assez visible »** — et, en creusant, l'utilisateur
 constate que c'est une **question de goût** qu'il aura du mal à spécifier. Plutôt que de deviner une

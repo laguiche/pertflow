@@ -1443,7 +1443,10 @@ function openAbout() {
   buildReadonly(c, "Auteur", "© Stéphane Guichard");
   buildReadonly(c, "Licence", "MIT");
   buildReadonly(c, "Version (tag main)", b.tag || "développement (non bundlée)");
-  buildReadonly(c, "Bundle généré le", b.date || "—");
+  // Date seule : les bundles generes avant la v0.18.1 portent « JJ/MM/AAAA HH:MM », on
+  // coupe donc l'heure a l'affichage plutot que de laisser deux formats coexister selon
+  // l'anciennete du bundle qu'on a sous la main.
+  buildReadonly(c, "Bundle généré le", b.date ? String(b.date).split(" ")[0] : "—");
   document.getElementById("about-dialog").style.display = "flex";
 }
 
