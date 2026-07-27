@@ -39,12 +39,14 @@ function resolveTag() {
   }
 }
 
-// Horodatage de génération "JJ/MM/AAAA HH:MM" (format manuel, indépendant de la locale).
+// Date de génération "JJ/MM/AAAA" (format manuel, indépendant de la locale).
+// SANS heure (v0.18.1, demande utilisateur) : ce qui compte pour situer un bundle est le
+// jour, l'heure n'apporte rien à qui lit « À propos » et alourdit la ligne. Les bundles
+// antérieurs portent encore « JJ/MM/AAAA HH:MM » — openAbout sait la retirer à l'affichage.
 function buildStamp() {
   const d = new Date();
   const p = n => String(n).padStart(2, "0");
-  return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear()
-    + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear();
 }
 
 // Lit un fichier référencé relativement à la racine du projet.
