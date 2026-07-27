@@ -689,22 +689,24 @@ imprimante pour obtenir un fichier PDF de la synthèse, prêt à diffuser.
 
 ![Le dialogue Paramètres](images/manuel/parametres.png)
 
-Le bouton **⚙ Paramètres** regroupe les réglages, tous **enregistrés** dans le `.pert` :
+Le bouton **⚙ Paramètres** regroupe les réglages, tous **enregistrés** dans le `.pert`. Ils sont
+répartis en **trois onglets** :
 
-- **Titre du projet**.
-- **Date de début (T0)** et **unité de durée** (jours / semaines / mois).
-- **Espacement horizontal entre tâches** (utilisé par « Réorganiser »).
-- **Style des liens** (courbe / droit / coudé — voir §6).
-- **Largeur des tâches proportionnelle à la durée** (case à cocher).
-- **Sauvegarde automatique** (case à cocher).
-- **Trame temporelle en fond** (case à cocher — voir ci-dessous).
-- **Estimation des coûts** : heures par mois, heures par jour, taux horaire moyen.
+| Onglet | Ce qu'on y règle |
+|---|---|
+| **Projet** | Titre, **date de début (T0)**, **unité de durée** (jours / semaines / mois), sauvegarde automatique. |
+| **Affichage** | Espacement horizontal entre tâches (utilisé par « Réorganiser »), style des liens (§6), largeur des tâches proportionnelle à la durée, **trame temporelle** et son intensité. |
+| **Coûts** | Heures par mois, heures par jour, taux horaire moyen (§10). |
+
+> Changer d'onglet **ne perd rien** : vous pouvez modifier un réglage dans « Affichage » et un autre
+> dans « Coûts », un seul **Valider** enregistre l'ensemble. PertFlow rouvre le dialogue sur le
+> dernier onglet consulté, ce qui est commode pour régler la trame par essais successifs.
 
 ### La trame temporelle
 
-Cochez **Trame temporelle en fond** pour faire apparaître, derrière le planning, des **bandes
-discrètes** qui situent les tâches dans le calendrier sans avoir à lire leurs dates une par une.
-Le découpage s'adapte à l'unité du projet :
+Cochez **Trame temporelle en fond** (onglet **Affichage**) pour faire apparaître, derrière le
+planning, des **bandes discrètes** qui situent les tâches dans le calendrier sans avoir à lire leurs
+dates une par une. Le découpage s'adapte à l'unité du projet :
 
 | Unité du planning | Bandes | Subdivisions |
 |---|---|---|
@@ -712,10 +714,18 @@ Le découpage s'adapte à l'unité du projet :
 | **Semaines** | Mois | Semaines |
 | **Jours** | Semaines | Jours |
 
-La trame est **désactivée par défaut** et **volontairement très pâle** : elle reste en arrière-plan,
-derrière les tâches et les liens, et ne gêne ni la lecture du planning ni le voile du **filtre**
-(§9). Chaque niveau **s'efface de lui-même** quand vous dézoomez assez pour qu'il devienne illisible
-— les subdivisions disparaissent avant que la trame ne vire au gris uni.
+![L'onglet Affichage : la trame et son curseur d'intensité](images/manuel/parametres-affichage.png)
+
+**Le curseur « Intensité de la trame »** règle son contraste, de 20 % à 400 %. Il n'y a pas de bonne
+valeur universelle : cela dépend de votre écran, de la luminosité de la pièce et de votre goût.
+La **vignette** sous le curseur montre l'effet immédiatement — elle utilise le même fond et les mêmes
+teintes que le planning. Le rendu définitif, lui, se juge sur votre planning : réglez, **Validez**,
+regardez, recommencez si besoin.
+
+La trame est **désactivée par défaut**. Même poussée au maximum, elle reste en arrière-plan, derrière
+les tâches et les liens, et ne gêne ni la lecture du planning ni le voile du **filtre** (§9). Chaque
+niveau **s'efface de lui-même** quand vous dézoomez assez pour qu'il devienne illisible — les
+subdivisions disparaissent avant que la trame ne vire au gris uni.
 
 > Les repères sont des **dates calendaires réelles** (1ᵉʳ janvier, 1ᵉʳ du mois, lundi), y compris en
 > unité « jours » où l'axe compte les **jours ouvrés** : une semaine y occupe 5 graduations, pas 7.

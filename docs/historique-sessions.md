@@ -1168,6 +1168,43 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Intensité réglable de la trame + Paramètres en onglets ✅ TERMINÉ (27/07/2026, tag **v0.18**)
+**Retour d'usage sur v0.17 : « la trame n'est pas assez visible »** — et, en creusant, l'utilisateur
+constate que c'est une **question de goût** qu'il aura du mal à spécifier. Plutôt que de deviner une
+valeur qui déplaira à d'autres, le réglage passe à l'utilisateur : curseur **« Intensité de la
+trame »** (20 % → 400 %, `meta.time_grid_intensity`, défaut 1, sérialisé). Il module les trois alphas
+de `src/time_grid.js` via `pertTgAlpha(base, plafond)`. Les **plafonds** garantissent qu'à fond la
+trame reste un fond (bandes ≤ 0,20, traits ≤ 0,35, texte ≤ 0,95) et le facteur est **borné à
+[0,2 ; 4]** — une valeur aberrante venue d'un `.pert` édité à la main ne peut ni opacifier le fond ni
+faire croire à une trame cassée.
+
+**Vignette d'aperçu plutôt qu'aperçu en direct** — décision non évidente. Le dialogue Paramètres
+couvre le canvas d'un **voile noir à 65 %** : une trame vue au travers paraît bien plus sombre
+qu'elle ne l'est, et l'utilisateur réglerait systématiquement trop fort. La vignette
+(`pertRefreshTimeGridPreview`) dessine donc deux bandes et leurs subdivisions sur le **même fond que
+le canvas** (`#1e1e3a`) avec les **mêmes constantes d'alpha**. Elle force `meta.time_grid_intensity`
+le temps du dessin et **restaure la valeur dans un `finally`** : la valeur réelle ne doit changer
+qu'au « Valider ». Case décochée → la vignette affiche « trame désactivée » plutôt qu'un aperçu
+qui ne sera pas dessiné.
+
+**Paramètres en trois onglets** (Projet / Affichage / Coûts), le dialogue devenant chargé. Les
+panneaux inactifs sont **masqués, jamais retirés du DOM** : `saveSettings()` lit tous les champs par
+leur id, y compris ceux d'un onglet jamais ouvert — c'est le piège de ce genre de découpage, et le
+test le vérifie explicitement (aller-retour ne touchant qu'à « Affichage », puis contrôle que titre,
+taux horaire et espacement sont intacts). L'onglet actif est **mémorisé d'une ouverture à l'autre** :
+régler une intensité se fait par essais successifs (ouvrir → régler → valider → regarder), et
+repartir de « Projet » à chaque fois serait pénible.
+
+**Captures du manuel** : `doc-shots.js` ne peut pas tourner sur ce poste (il charge
+`test_cases/pert_a_exporter.pert`, fixture locale absente et non reconstituable — `smoke-s9` en
+attend un contenu précis, `Activité 3;sys;toto`). Les deux captures du dialogue seraient donc restées
+celles d'AVANT les onglets, en contradiction avec le manuel. D'où `tools/doc-shots-parametres.js`,
+qui rebâtit un petit planning de démonstration équivalent pour ces deux images seules — **à supprimer
+si la fixture revient**, `doc-shots.js` reprenant alors la main.
+
+**Validation** : suite smoke complète — 21 OK, les 2 échecs restants toujours dus à la fixture
+absente. Bundle **v0.18** régénéré et validé en `file://`.
+
 ### Jalons entrants/sortants, aimantation des Labels, trame temporelle ✅ TERMINÉ (27/07/2026, tag **v0.17**)
 Trois demandes d'ergonomie indépendantes, regroupées sur une même branche parce qu'elles ne se
 recouvrent pas : lecture de la synthèse, placement des Labels, repérage dans le calendrier.
