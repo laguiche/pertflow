@@ -1076,6 +1076,59 @@ body {
   cursor: pointer;
 }
 
+/* ─── Onglets du dialogue Paramètres ─────────────────────────────────────────── */
+/* Le dialogue accumulait une douzaine de réglages de natures différentes en une
+   seule colonne. Trois onglets les regroupent — Projet / Affichage / Coûts — sans
+   rien retirer du DOM : les panneaux inactifs sont seulement masqués, de sorte que
+   openSettings() et saveSettings() continuent de lire tous les champs par leur id. */
+#settings-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid #2a3a6a;
+  margin-bottom: 4px;
+}
+
+#settings-box .settings-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #8899bb;
+  font-size: 12px;
+  padding: 7px 4px;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+}
+
+#settings-box .settings-tab:hover { background: #1a2240; color: #b9c6de; }
+
+#settings-box .settings-tab.active {
+  color: #7eb8f7;
+  border-bottom-color: #5a8fd8;
+  background: #1a2240;
+}
+
+#settings-box .settings-panel { display: none; flex-direction: column; gap: 12px; }
+#settings-box .settings-panel.active { display: flex; }
+
+/* Curseur d'intensité de la trame : le libellé et sa valeur sur une ligne, le
+   curseur dessous (la valeur suit le déplacement, cf. ui.js). */
+#settings-box label.settings-range { gap: 6px; }
+#settings-box .range-head { display: flex; justify-content: space-between; align-items: baseline; }
+#settings-box .range-head output { color: #7eb8f7; font-size: 12px; font-variant-numeric: tabular-nums; }
+#settings-box input[type="range"] { width: 100%; padding: 0; accent-color: #5a8fd8; cursor: pointer; }
+
+/* Vignette d'aperçu de la trame : même fond que le canvas (#1e1e3a) pour que la
+   teinte perçue soit celle du planning, et non celle du dialogue. */
+#settings-timegrid-preview {
+  width: 100%;
+  height: 44px;
+  display: block;
+  background: #1e1e3a;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+}
+
 /* Note explicative sous une case a cocher (ex. sauvegarde auto) */
 #settings-box p.settings-hint {
   margin: -4px 0 2px;
@@ -1544,55 +1597,84 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"27/07/2026 14:06","tag":"v0.17"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"27/07/2026 17:59","tag":"v0.18"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
     <div id="settings-box">
       <h2>Paramètres du projet</h2>
-      <label>Titre du projet
-        <input type="text" id="settings-title" placeholder="Mon projet PERT">
-      </label>
-      <label>Date de début (T0)
-        <input type="date" id="settings-t0">
-      </label>
-      <label>Unité de durée
-        <select id="settings-unit">
-          <option value="j">Jours</option>
-          <option value="sem">Semaines</option>
-          <option value="mois" selected>Mois</option>
-        </select>
-      </label>
-      <label>Espacement horizontal entre tâches (px)
-        <input type="number" id="settings-hgap" min="0" step="5">
-      </label>
-      <label>Style des liens
-        <select id="settings-linkmode">
-          <option value="courbe">Courbe</option>
-          <option value="droit">Droit</option>
-          <option value="coude">Coudé (contourne les tâches)</option>
-        </select>
-      </label>
-      <label class="settings-check">
-        <input type="checkbox" id="settings-propwidth">
-        Largeur des tâches proportionnelle à la durée
-      </label>
-      <label class="settings-check">
-        <input type="checkbox" id="settings-autosave">
-        Sauvegarde automatique (récupération après plantage)
-      </label>
-      <label class="settings-check">
-        <input type="checkbox" id="settings-timegrid">
-        Trame temporelle en fond (repères de périodes)
-      </label>
-      <p class="settings-hint">Bandes discrètes délimitant les années (planning en mois),
-        les mois (en semaines) ou les semaines (en jours), avec la subdivision
-        correspondante. Purement visuel : n'affecte ni le calcul ni le filtre.</p>
-      <p class="settings-hint">La sauvegarde automatique conserve une copie de récupération
-        dans le navigateur (proposée au redémarrage après un plantage). Elle ne remplace pas
-        la sauvegarde du fichier .pert.</p>
-      <fieldset class="settings-group">
-        <legend>Estimation des coûts</legend>
+
+      <!-- Onglets : les champs restent TOUS dans le DOM (seule leur visibilite change),
+           pour que openSettings()/saveSettings() continuent de les lire par leur id. -->
+      <div id="settings-tabs" role="tablist">
+        <button type="button" class="settings-tab active" data-tab="projet"
+                role="tab" aria-selected="true">Projet</button>
+        <button type="button" class="settings-tab" data-tab="affichage"
+                role="tab" aria-selected="false">Affichage</button>
+        <button type="button" class="settings-tab" data-tab="couts"
+                role="tab" aria-selected="false">Coûts</button>
+      </div>
+
+      <div class="settings-panel active" data-panel="projet" role="tabpanel">
+        <label>Titre du projet
+          <input type="text" id="settings-title" placeholder="Mon projet PERT">
+        </label>
+        <label>Date de début (T0)
+          <input type="date" id="settings-t0">
+        </label>
+        <label>Unité de durée
+          <select id="settings-unit">
+            <option value="j">Jours</option>
+            <option value="sem">Semaines</option>
+            <option value="mois" selected>Mois</option>
+          </select>
+        </label>
+        <label class="settings-check">
+          <input type="checkbox" id="settings-autosave">
+          Sauvegarde automatique (récupération après plantage)
+        </label>
+        <p class="settings-hint">La sauvegarde automatique conserve une copie de récupération
+          dans le navigateur (proposée au redémarrage après un plantage). Elle ne remplace pas
+          la sauvegarde du fichier .pert.</p>
+      </div>
+
+      <div class="settings-panel" data-panel="affichage" role="tabpanel">
+        <label>Espacement horizontal entre tâches (px)
+          <input type="number" id="settings-hgap" min="0" step="5">
+        </label>
+        <label>Style des liens
+          <select id="settings-linkmode">
+            <option value="courbe">Courbe</option>
+            <option value="droit">Droit</option>
+            <option value="coude">Coudé (contourne les tâches)</option>
+          </select>
+        </label>
+        <label class="settings-check">
+          <input type="checkbox" id="settings-propwidth">
+          Largeur des tâches proportionnelle à la durée
+        </label>
+        <label class="settings-check">
+          <input type="checkbox" id="settings-timegrid">
+          Trame temporelle en fond (repères de périodes)
+        </label>
+        <label class="settings-range">
+          <span class="range-head">Intensité de la trame
+            <output id="settings-timegrid-val">100 %</output></span>
+          <input type="range" id="settings-timegrid-intensity"
+                 min="20" max="400" step="10" value="100">
+        </label>
+        <!-- Apercu : le dialogue couvre le canvas d'un voile sombre, un apercu « en direct »
+             sur le planning serait donc trompeur. Cette vignette dessine la trame avec les
+             MEMES constantes et sur le meme fond que le canvas. -->
+        <canvas id="settings-timegrid-preview" width="292" height="44"></canvas>
+        <p class="settings-hint">Bandes discrètes délimitant les années (planning en mois),
+          les mois (en semaines) ou les semaines (en jours), avec la subdivision
+          correspondante. Purement visuel : n'affecte ni le calcul ni le filtre.
+          L'intensité dépend du goût et de l'écran — la vignette donne le ton, le rendu
+          définitif se juge sur votre planning.</p>
+      </div>
+
+      <div class="settings-panel" data-panel="couts" role="tabpanel">
         <label>Heures par mois
           <input type="number" id="settings-hpm" min="0" step="1">
         </label>
@@ -1602,7 +1684,10 @@ body {
         <label>Taux horaire moyen (€/h)
           <input type="number" id="settings-rate" min="0" step="1">
         </label>
-      </fieldset>
+        <p class="settings-hint">Servent au coût estimé des tâches (durée convertie en heures
+          × ETP × taux). Les jalons et les labels n'ont pas de coût.</p>
+      </div>
+
       <div class="dialog-buttons">
         <button id="settings-cancel">Annuler</button>
         <button id="settings-ok" class="primary">Valider</button>
@@ -39574,6 +39659,7 @@ window.applyPertImport = applyPertImport;
         global.pertMeta.prop_width = data.meta.prop_width !== false;
         // Trame temporelle (defaut false si snapshot anterieur sans la cle)
         global.pertMeta.time_grid = !!data.meta.time_grid;
+        global.pertMeta.time_grid_intensity = data.meta.time_grid_intensity != null ? data.meta.time_grid_intensity : 1;
         // S8.5 parametres d'estimation de cout (defauts si snapshot anterieur)
         global.pertMeta.hours_per_month = data.meta.hours_per_month != null ? data.meta.hours_per_month : 135;
         global.pertMeta.hours_per_day = data.meta.hours_per_day != null ? data.meta.hours_per_day : 8;
@@ -39841,6 +39927,7 @@ function pertSerializeProject() {
       prop_width: meta.prop_width !== false,
       // Trame temporelle de fond (defaut false si absent : anciens .pert inchanges)
       time_grid: !!meta.time_grid,
+      time_grid_intensity: meta.time_grid_intensity != null ? meta.time_grid_intensity : 1,
       // S8.5 parametres d'estimation de cout (defauts si absents : anciens .pert)
       hours_per_month: meta.hours_per_month != null ? meta.hours_per_month : 135,
       hours_per_day: meta.hours_per_day != null ? meta.hours_per_day : 8,
@@ -39922,6 +40009,7 @@ function pertApplyProject(data) {
   window.pertMeta.prop_width = meta.prop_width !== false;
   // Trame temporelle (defaut false pour les fichiers anterieurs sans la cle)
   window.pertMeta.time_grid = !!meta.time_grid;
+  window.pertMeta.time_grid_intensity = meta.time_grid_intensity != null ? meta.time_grid_intensity : 1;
   // S8.5 parametres d'estimation de cout (defauts pour les fichiers anterieurs)
   window.pertMeta.hours_per_month = meta.hours_per_month != null ? meta.hours_per_month : 135;
   window.pertMeta.hours_per_day = meta.hours_per_day != null ? meta.hours_per_day : 8;
@@ -41446,8 +41534,12 @@ window.pertHasAnticipation = pertHasAnticipation;
 // lecture du graphe ni le voile sombre du filtre. D'où trois précautions :
 //   - elle est dessinée en COUCHE DE FOND (derrière nœuds et liens), comme la bande
 //     d'anticipation, donc toujours dominée par ce qui compte ;
-//   - ses alphas sont volontairement très bas (bandes 0.030, traits 0.055) — assez
-//     pour délimiter, trop peu pour attirer l'œil ;
+//   - ses alphas de base sont volontairement très bas (bandes 0.030, traits 0.055) —
+//     assez pour délimiter, trop peu pour attirer l'œil. Ils sont MODULÉS par le
+//     curseur « Intensité de la trame » des Paramètres (`meta.time_grid_intensity`,
+//     défaut 1) : le premier retour utilisateur a été « pas assez visible », et le bon
+//     réglage s'est révélé affaire de goût et d'écran plutôt que de valeur juste. Les
+//     plafonds passés à pertTgAlpha garantissent qu'à fond, la trame reste un fond ;
 //   - chaque niveau s'efface de lui-même quand sa largeur PROJETÉE À L'ÉCRAN devient
 //     trop faible (même principe que la grille aimantée de ui.js) : en zoom arrière
 //     sur un planning long, les subdivisions disparaissent avant de virer au gris uni.
@@ -41473,6 +41565,24 @@ const PERT_TG_MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
 // La trame est-elle demandée ? (case des Paramètres, sérialisée dans meta)
 function pertTimeGridEnabled() {
   return !!(window.pertMeta && window.pertMeta.time_grid);
+}
+
+// Facteur d'intensité (curseur des Paramètres, `meta.time_grid_intensity`, défaut 1).
+// La bonne valeur dépend de l'écran, de la luminosité de la pièce et du goût de chacun :
+// aucun réglage codé en dur ne pouvait convenir à tout le monde — d'où le curseur.
+// Borné à [0,2 ; 4] : la borne haute protège d'un .pert edité à la main qui rendrait le
+// fond opaque, la borne basse d'une trame invisible qu'on croirait cassée.
+function pertTimeGridIntensity() {
+  const v = window.pertMeta ? window.pertMeta.time_grid_intensity : 1;
+  const n = (typeof v === "number" && isFinite(v)) ? v : 1;
+  return Math.max(0.2, Math.min(4, n));
+}
+
+// Alpha d'un élément de la trame, module par l'intensite choisie. Le plafond garde la
+// trame en ARRIERE-plan quoi qu'il arrive : meme a fond, elle ne doit pas concurrencer
+// les nœuds ni le voile du filtre.
+function pertTgAlpha(base, plafond) {
+  return Math.min(plafond, base * pertTimeGridIntensity());
 }
 
 // Découpage applicable à l'unité courante : quelles périodes pour les bandes, et
@@ -41624,7 +41734,7 @@ function pertDrawTimeGrid(ctx, graph) {
   }
   const bandWidthPx = bands.length ? (bands[0].x1 - bands[0].x0) * scale : 0;
   if (bands.length && bandWidthPx >= PERT_TG_MIN_PX_BAND) {
-    ctx.fillStyle = "rgba(126, 184, 247, " + PERT_TG_BAND_ALPHA + ")";
+    ctx.fillStyle = "rgba(126, 184, 247, " + pertTgAlpha(PERT_TG_BAND_ALPHA, 0.20) + ")";
     bands.forEach((b) => {
       if (pertTgBandParity(b.date, unit) === 0) return;   // une bande sur deux
       ctx.fillRect(b.x0, yTop, b.x1 - b.x0, h);
@@ -41635,7 +41745,7 @@ function pertDrawTimeGrid(ctx, graph) {
     ctx.font = "11px Arial";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillStyle = "rgba(170, 210, 250, " + PERT_TG_TEXT_ALPHA + ")";
+    ctx.fillStyle = "rgba(170, 210, 250, " + pertTgAlpha(PERT_TG_TEXT_ALPHA, 0.95) + ")";
     bands.forEach((b) => {
       const label = scheme.band.label(b.date);
       if (ctx.measureText(label).width + 8 > (b.x1 - b.x0)) return;  // n'entre pas : on saute
@@ -41655,7 +41765,7 @@ function pertDrawTimeGrid(ctx, graph) {
   let subStepPx = 0;
   if (subXs.length >= 2) subStepPx = (subXs[1] - subXs[0]) * scale;
   if (subXs.length >= 2 && subStepPx >= PERT_TG_MIN_PX_SUB) {
-    ctx.strokeStyle = "rgba(126, 184, 247, " + PERT_TG_LINE_ALPHA + ")";
+    ctx.strokeStyle = "rgba(126, 184, 247, " + pertTgAlpha(PERT_TG_LINE_ALPHA, 0.35) + ")";
     ctx.lineWidth = 1;
     ctx.beginPath();
     subXs.forEach((x) => { ctx.moveTo(x, yTop); ctx.lineTo(x, yBottom); });
@@ -41691,6 +41801,8 @@ window.pertInstallTimeGrid = pertInstallTimeGrid;
 window.pertDrawTimeGrid = pertDrawTimeGrid;
 window.pertTimeGridEnabled = pertTimeGridEnabled;
 window.pertTimeGridScheme = pertTimeGridScheme;
+window.pertTimeGridIntensity = pertTimeGridIntensity;
+window.pertTgAlpha = pertTgAlpha;
 
 </script>
   <script>
@@ -42263,7 +42375,9 @@ window.pertMeta = {
   groups: {}, autosave: true,
   // Trame temporelle de fond : desactivee par defaut (aucun changement visuel pour
   // les plannings existants ; c'est une aide de lecture qu'on demande, cf. time_grid.js).
-  time_grid: false
+  time_grid: false,
+  // Intensite de la trame (facteur, 1 = reference) — reglage de gout, cf. time_grid.js
+  time_grid_intensity: 1
 };
 window.pertGraph = null;
 window.pertCanvas = null;
@@ -42637,6 +42751,21 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("settings-cancel").addEventListener("click", () => {
     document.getElementById("settings-dialog").style.display = "none";
   });
+
+  // ── Onglets du dialogue Paramètres ──────────────────────────────────────────
+  // Les panneaux inactifs sont MASQUÉS, jamais retirés du DOM : saveSettings() lit
+  // tous les champs par leur id, y compris ceux d'un onglet jamais ouvert.
+  document.querySelectorAll("#settings-tabs .settings-tab").forEach(tab => {
+    tab.addEventListener("click", () => pertSelectSettingsTab(tab.dataset.tab));
+  });
+
+  // ── Curseur d'intensité de la trame ─────────────────────────────────────────
+  // Le retour d'usage a été « pas assez visible », sans qu'aucune valeur ne fasse
+  // consensus : c'est un réglage de goût, il revient donc à l'utilisateur.
+  const intensity = document.getElementById("settings-timegrid-intensity");
+  const timegrid = document.getElementById("settings-timegrid");
+  if (intensity) intensity.addEventListener("input", pertRefreshTimeGridPreview);
+  if (timegrid) timegrid.addEventListener("change", pertRefreshTimeGridPreview);
 
   // ── Persistance JSON (.pert) — Session 3 ────────────────────────────────────
   document.getElementById("btn-save").addEventListener("click", () => {
@@ -43683,7 +43812,104 @@ function openAbout() {
 
 // ─── Paramètres ───────────────────────────────────────────────────────────────
 
+// Onglet des Parametres actuellement affiche. Memorise d'une ouverture a l'autre :
+// regler l'intensite de la trame se fait par essais successifs (ouvrir → regler →
+// valider → regarder), et repartir de « Projet » a chaque fois serait une corvee.
+let pertSettingsTab = "projet";
+
+// Affiche un onglet et son panneau ; les autres sont masques, pas retires du DOM.
+function pertSelectSettingsTab(name) {
+  const tabs = document.querySelectorAll("#settings-tabs .settings-tab");
+  const panels = document.querySelectorAll("#settings-box .settings-panel");
+  if (!tabs.length) return;
+  // Onglet inconnu (montage HTML modifie) → on retombe sur le premier plutot que
+  // d'afficher un dialogue vide.
+  let known = false;
+  tabs.forEach(t => { if (t.dataset.tab === name) known = true; });
+  if (!known) name = tabs[0].dataset.tab;
+  pertSettingsTab = name;
+  tabs.forEach(t => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  panels.forEach(p => p.classList.toggle("active", p.dataset.panel === name));
+}
+
+// Vignette d'apercu de la trame, redessinee a chaque mouvement du curseur.
+//
+// Pourquoi une vignette plutot qu'un apercu en direct sur le planning : le dialogue
+// des Parametres couvre le canvas d'un voile noir a 65 %, sous lequel la trame serait
+// vue bien plus sombre qu'elle ne l'est reellement — l'utilisateur reglerait donc
+// systematiquement trop fort. La vignette utilise le MEME fond que le canvas (#1e1e3a)
+// et les MEMES constantes d'alpha que le rendu (pertTgAlpha), a la seule difference
+// des largeurs, fixes ici.
+function pertRefreshTimeGridPreview() {
+  const cv = document.getElementById("settings-timegrid-preview");
+  const slider = document.getElementById("settings-timegrid-intensity");
+  const out = document.getElementById("settings-timegrid-val");
+  if (!cv || !slider) return;
+
+  const pct = parseFloat(slider.value);
+  if (out) out.textContent = (isNaN(pct) ? 100 : pct) + " %";
+
+  const ctx = cv.getContext("2d");
+  const w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#1e1e3a";
+  ctx.fillRect(0, 0, w, h);
+
+  // Case decochee : on montre le fond nu, pour que la vignette ne promette pas une
+  // trame qui ne sera pas dessinee.
+  const active = document.getElementById("settings-timegrid");
+  if (active && !active.checked) {
+    ctx.fillStyle = "rgba(200, 215, 240, 0.30)";
+    ctx.font = "italic 11px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("trame désactivée", w / 2, h / 2);
+    return;
+  }
+
+  // On force l'intensite le temps du dessin : pertTgAlpha lit meta, et l'utilisateur
+  // n'a pas encore valide. Restauration systematique dans le finally.
+  const memo = window.pertMeta ? window.pertMeta.time_grid_intensity : undefined;
+  try {
+    if (window.pertMeta) window.pertMeta.time_grid_intensity = (isNaN(pct) ? 100 : pct) / 100;
+    const alphaBand = window.pertTgAlpha ? pertTgAlpha(PERT_TG_BAND_ALPHA, 0.20) : PERT_TG_BAND_ALPHA;
+    const alphaLine = window.pertTgAlpha ? pertTgAlpha(PERT_TG_LINE_ALPHA, 0.35) : PERT_TG_LINE_ALPHA;
+    const alphaText = window.pertTgAlpha ? pertTgAlpha(PERT_TG_TEXT_ALPHA, 0.95) : PERT_TG_TEXT_ALPHA;
+
+    // Deux bandes alternees (une pleine, une vide) + trois subdivisions par bande.
+    const bandW = w / 2;
+    ctx.fillStyle = "rgba(126, 184, 247, " + alphaBand + ")";
+    ctx.fillRect(bandW, 0, bandW, h);
+
+    ctx.strokeStyle = "rgba(126, 184, 247, " + alphaLine + ")";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 1; i < 8; i++) {
+      const x = Math.round(i * (w / 8)) + 0.5;
+      ctx.moveTo(x, 0); ctx.lineTo(x, h);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(170, 210, 250, " + alphaText + ")";
+    ctx.font = "11px Arial";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("2026", 5, 4);
+    ctx.fillText("2027", bandW + 5, 4);
+  } finally {
+    if (window.pertMeta) window.pertMeta.time_grid_intensity = memo;
+  }
+}
+
 function openSettings() {
+  // Le curseur d'intensite est un reglage qu'on ajuste par essais successifs : on
+  // revient donc sur l'onglet ouvert la fois precedente plutot que de repartir de
+  // « Projet » a chaque ouverture.
+  pertSelectSettingsTab(pertSettingsTab);
   document.getElementById("settings-title").value = window.pertMeta.title || "";
   document.getElementById("settings-t0").value = window.pertMeta.t0 || "";
   document.getElementById("settings-unit").value = window.pertMeta.unit || "j";
@@ -43699,6 +43925,11 @@ function openSettings() {
     window.pertMeta.autosave !== false;
   // Trame temporelle : decochee par defaut (aide de lecture optionnelle)
   document.getElementById("settings-timegrid").checked = !!window.pertMeta.time_grid;
+  // Intensite : stockee en facteur (1 = reference), presentee en pourcentage.
+  const intens = window.pertMeta.time_grid_intensity;
+  document.getElementById("settings-timegrid-intensity").value =
+    Math.round(((typeof intens === "number" && isFinite(intens)) ? intens : 1) * 100);
+  pertRefreshTimeGridPreview();
   // S8.5 parametres d'estimation de cout
   document.getElementById("settings-hpm").value =
     window.pertMeta.hours_per_month != null ? window.pertMeta.hours_per_month : 135;
@@ -43726,6 +43957,8 @@ function saveSettings() {
   // Trame temporelle : simple bascule d'affichage, prise en compte au prochain redessin
   // (declenche plus bas a la validation des parametres, comme les autres options).
   window.pertMeta.time_grid = document.getElementById("settings-timegrid").checked;
+  const intensPct = parseFloat(document.getElementById("settings-timegrid-intensity").value);
+  window.pertMeta.time_grid_intensity = isNaN(intensPct) ? 1 : intensPct / 100;
   // S8.5 parametres de cout (planches a 0 ; defaut si champ vide/invalide)
   const hpm = parseFloat(document.getElementById("settings-hpm").value);
   const hpd = parseFloat(document.getElementById("settings-hpd").value);
