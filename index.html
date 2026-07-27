@@ -13,49 +13,78 @@
   <div id="settings-dialog">
     <div id="settings-box">
       <h2>Paramètres du projet</h2>
-      <label>Titre du projet
-        <input type="text" id="settings-title" placeholder="Mon projet PERT">
-      </label>
-      <label>Date de début (T0)
-        <input type="date" id="settings-t0">
-      </label>
-      <label>Unité de durée
-        <select id="settings-unit">
-          <option value="j">Jours</option>
-          <option value="sem">Semaines</option>
-          <option value="mois" selected>Mois</option>
-        </select>
-      </label>
-      <label>Espacement horizontal entre tâches (px)
-        <input type="number" id="settings-hgap" min="0" step="5">
-      </label>
-      <label>Style des liens
-        <select id="settings-linkmode">
-          <option value="courbe">Courbe</option>
-          <option value="droit">Droit</option>
-          <option value="coude">Coudé (contourne les tâches)</option>
-        </select>
-      </label>
-      <label class="settings-check">
-        <input type="checkbox" id="settings-propwidth">
-        Largeur des tâches proportionnelle à la durée
-      </label>
-      <label class="settings-check">
-        <input type="checkbox" id="settings-autosave">
-        Sauvegarde automatique (récupération après plantage)
-      </label>
-      <label class="settings-check">
-        <input type="checkbox" id="settings-timegrid">
-        Trame temporelle en fond (repères de périodes)
-      </label>
-      <p class="settings-hint">Bandes discrètes délimitant les années (planning en mois),
-        les mois (en semaines) ou les semaines (en jours), avec la subdivision
-        correspondante. Purement visuel : n'affecte ni le calcul ni le filtre.</p>
-      <p class="settings-hint">La sauvegarde automatique conserve une copie de récupération
-        dans le navigateur (proposée au redémarrage après un plantage). Elle ne remplace pas
-        la sauvegarde du fichier .pert.</p>
-      <fieldset class="settings-group">
-        <legend>Estimation des coûts</legend>
+
+      <!-- Onglets : les champs restent TOUS dans le DOM (seule leur visibilite change),
+           pour que openSettings()/saveSettings() continuent de les lire par leur id. -->
+      <div id="settings-tabs" role="tablist">
+        <button type="button" class="settings-tab active" data-tab="projet"
+                role="tab" aria-selected="true">Projet</button>
+        <button type="button" class="settings-tab" data-tab="affichage"
+                role="tab" aria-selected="false">Affichage</button>
+        <button type="button" class="settings-tab" data-tab="couts"
+                role="tab" aria-selected="false">Coûts</button>
+      </div>
+
+      <div class="settings-panel active" data-panel="projet" role="tabpanel">
+        <label>Titre du projet
+          <input type="text" id="settings-title" placeholder="Mon projet PERT">
+        </label>
+        <label>Date de début (T0)
+          <input type="date" id="settings-t0">
+        </label>
+        <label>Unité de durée
+          <select id="settings-unit">
+            <option value="j">Jours</option>
+            <option value="sem">Semaines</option>
+            <option value="mois" selected>Mois</option>
+          </select>
+        </label>
+        <label class="settings-check">
+          <input type="checkbox" id="settings-autosave">
+          Sauvegarde automatique (récupération après plantage)
+        </label>
+        <p class="settings-hint">La sauvegarde automatique conserve une copie de récupération
+          dans le navigateur (proposée au redémarrage après un plantage). Elle ne remplace pas
+          la sauvegarde du fichier .pert.</p>
+      </div>
+
+      <div class="settings-panel" data-panel="affichage" role="tabpanel">
+        <label>Espacement horizontal entre tâches (px)
+          <input type="number" id="settings-hgap" min="0" step="5">
+        </label>
+        <label>Style des liens
+          <select id="settings-linkmode">
+            <option value="courbe">Courbe</option>
+            <option value="droit">Droit</option>
+            <option value="coude">Coudé (contourne les tâches)</option>
+          </select>
+        </label>
+        <label class="settings-check">
+          <input type="checkbox" id="settings-propwidth">
+          Largeur des tâches proportionnelle à la durée
+        </label>
+        <label class="settings-check">
+          <input type="checkbox" id="settings-timegrid">
+          Trame temporelle en fond (repères de périodes)
+        </label>
+        <label class="settings-range">
+          <span class="range-head">Intensité de la trame
+            <output id="settings-timegrid-val">100 %</output></span>
+          <input type="range" id="settings-timegrid-intensity"
+                 min="20" max="400" step="10" value="100">
+        </label>
+        <!-- Apercu : le dialogue couvre le canvas d'un voile sombre, un apercu « en direct »
+             sur le planning serait donc trompeur. Cette vignette dessine la trame avec les
+             MEMES constantes et sur le meme fond que le canvas. -->
+        <canvas id="settings-timegrid-preview" width="292" height="44"></canvas>
+        <p class="settings-hint">Bandes discrètes délimitant les années (planning en mois),
+          les mois (en semaines) ou les semaines (en jours), avec la subdivision
+          correspondante. Purement visuel : n'affecte ni le calcul ni le filtre.
+          L'intensité dépend du goût et de l'écran — la vignette donne le ton, le rendu
+          définitif se juge sur votre planning.</p>
+      </div>
+
+      <div class="settings-panel" data-panel="couts" role="tabpanel">
         <label>Heures par mois
           <input type="number" id="settings-hpm" min="0" step="1">
         </label>
@@ -65,7 +94,10 @@
         <label>Taux horaire moyen (€/h)
           <input type="number" id="settings-rate" min="0" step="1">
         </label>
-      </fieldset>
+        <p class="settings-hint">Servent au coût estimé des tâches (durée convertie en heures
+          × ETP × taux). Les jalons et les labels n'ont pas de coût.</p>
+      </div>
+
       <div class="dialog-buttons">
         <button id="settings-cancel">Annuler</button>
         <button id="settings-ok" class="primary">Valider</button>

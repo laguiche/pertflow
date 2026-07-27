@@ -12,7 +12,9 @@ window.pertMeta = {
   groups: {}, autosave: true,
   // Trame temporelle de fond : desactivee par defaut (aucun changement visuel pour
   // les plannings existants ; c'est une aide de lecture qu'on demande, cf. time_grid.js).
-  time_grid: false
+  time_grid: false,
+  // Intensite de la trame (facteur, 1 = reference) — reglage de gout, cf. time_grid.js
+  time_grid_intensity: 1
 };
 window.pertGraph = null;
 window.pertCanvas = null;
@@ -386,6 +388,21 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("settings-cancel").addEventListener("click", () => {
     document.getElementById("settings-dialog").style.display = "none";
   });
+
+  // ── Onglets du dialogue Paramètres ──────────────────────────────────────────
+  // Les panneaux inactifs sont MASQUÉS, jamais retirés du DOM : saveSettings() lit
+  // tous les champs par leur id, y compris ceux d'un onglet jamais ouvert.
+  document.querySelectorAll("#settings-tabs .settings-tab").forEach(tab => {
+    tab.addEventListener("click", () => pertSelectSettingsTab(tab.dataset.tab));
+  });
+
+  // ── Curseur d'intensité de la trame ─────────────────────────────────────────
+  // Le retour d'usage a été « pas assez visible », sans qu'aucune valeur ne fasse
+  // consensus : c'est un réglage de goût, il revient donc à l'utilisateur.
+  const intensity = document.getElementById("settings-timegrid-intensity");
+  const timegrid = document.getElementById("settings-timegrid");
+  if (intensity) intensity.addEventListener("input", pertRefreshTimeGridPreview);
+  if (timegrid) timegrid.addEventListener("change", pertRefreshTimeGridPreview);
 
   // ── Persistance JSON (.pert) — Session 3 ────────────────────────────────────
   document.getElementById("btn-save").addEventListener("click", () => {
@@ -1432,7 +1449,104 @@ function openAbout() {
 
 // ─── Paramètres ───────────────────────────────────────────────────────────────
 
+// Onglet des Parametres actuellement affiche. Memorise d'une ouverture a l'autre :
+// regler l'intensite de la trame se fait par essais successifs (ouvrir → regler →
+// valider → regarder), et repartir de « Projet » a chaque fois serait une corvee.
+let pertSettingsTab = "projet";
+
+// Affiche un onglet et son panneau ; les autres sont masques, pas retires du DOM.
+function pertSelectSettingsTab(name) {
+  const tabs = document.querySelectorAll("#settings-tabs .settings-tab");
+  const panels = document.querySelectorAll("#settings-box .settings-panel");
+  if (!tabs.length) return;
+  // Onglet inconnu (montage HTML modifie) → on retombe sur le premier plutot que
+  // d'afficher un dialogue vide.
+  let known = false;
+  tabs.forEach(t => { if (t.dataset.tab === name) known = true; });
+  if (!known) name = tabs[0].dataset.tab;
+  pertSettingsTab = name;
+  tabs.forEach(t => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  panels.forEach(p => p.classList.toggle("active", p.dataset.panel === name));
+}
+
+// Vignette d'apercu de la trame, redessinee a chaque mouvement du curseur.
+//
+// Pourquoi une vignette plutot qu'un apercu en direct sur le planning : le dialogue
+// des Parametres couvre le canvas d'un voile noir a 65 %, sous lequel la trame serait
+// vue bien plus sombre qu'elle ne l'est reellement — l'utilisateur reglerait donc
+// systematiquement trop fort. La vignette utilise le MEME fond que le canvas (#1e1e3a)
+// et les MEMES constantes d'alpha que le rendu (pertTgAlpha), a la seule difference
+// des largeurs, fixes ici.
+function pertRefreshTimeGridPreview() {
+  const cv = document.getElementById("settings-timegrid-preview");
+  const slider = document.getElementById("settings-timegrid-intensity");
+  const out = document.getElementById("settings-timegrid-val");
+  if (!cv || !slider) return;
+
+  const pct = parseFloat(slider.value);
+  if (out) out.textContent = (isNaN(pct) ? 100 : pct) + " %";
+
+  const ctx = cv.getContext("2d");
+  const w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#1e1e3a";
+  ctx.fillRect(0, 0, w, h);
+
+  // Case decochee : on montre le fond nu, pour que la vignette ne promette pas une
+  // trame qui ne sera pas dessinee.
+  const active = document.getElementById("settings-timegrid");
+  if (active && !active.checked) {
+    ctx.fillStyle = "rgba(200, 215, 240, 0.30)";
+    ctx.font = "italic 11px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("trame désactivée", w / 2, h / 2);
+    return;
+  }
+
+  // On force l'intensite le temps du dessin : pertTgAlpha lit meta, et l'utilisateur
+  // n'a pas encore valide. Restauration systematique dans le finally.
+  const memo = window.pertMeta ? window.pertMeta.time_grid_intensity : undefined;
+  try {
+    if (window.pertMeta) window.pertMeta.time_grid_intensity = (isNaN(pct) ? 100 : pct) / 100;
+    const alphaBand = window.pertTgAlpha ? pertTgAlpha(PERT_TG_BAND_ALPHA, 0.20) : PERT_TG_BAND_ALPHA;
+    const alphaLine = window.pertTgAlpha ? pertTgAlpha(PERT_TG_LINE_ALPHA, 0.35) : PERT_TG_LINE_ALPHA;
+    const alphaText = window.pertTgAlpha ? pertTgAlpha(PERT_TG_TEXT_ALPHA, 0.95) : PERT_TG_TEXT_ALPHA;
+
+    // Deux bandes alternees (une pleine, une vide) + trois subdivisions par bande.
+    const bandW = w / 2;
+    ctx.fillStyle = "rgba(126, 184, 247, " + alphaBand + ")";
+    ctx.fillRect(bandW, 0, bandW, h);
+
+    ctx.strokeStyle = "rgba(126, 184, 247, " + alphaLine + ")";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 1; i < 8; i++) {
+      const x = Math.round(i * (w / 8)) + 0.5;
+      ctx.moveTo(x, 0); ctx.lineTo(x, h);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(170, 210, 250, " + alphaText + ")";
+    ctx.font = "11px Arial";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("2026", 5, 4);
+    ctx.fillText("2027", bandW + 5, 4);
+  } finally {
+    if (window.pertMeta) window.pertMeta.time_grid_intensity = memo;
+  }
+}
+
 function openSettings() {
+  // Le curseur d'intensite est un reglage qu'on ajuste par essais successifs : on
+  // revient donc sur l'onglet ouvert la fois precedente plutot que de repartir de
+  // « Projet » a chaque ouverture.
+  pertSelectSettingsTab(pertSettingsTab);
   document.getElementById("settings-title").value = window.pertMeta.title || "";
   document.getElementById("settings-t0").value = window.pertMeta.t0 || "";
   document.getElementById("settings-unit").value = window.pertMeta.unit || "j";
@@ -1448,6 +1562,11 @@ function openSettings() {
     window.pertMeta.autosave !== false;
   // Trame temporelle : decochee par defaut (aide de lecture optionnelle)
   document.getElementById("settings-timegrid").checked = !!window.pertMeta.time_grid;
+  // Intensite : stockee en facteur (1 = reference), presentee en pourcentage.
+  const intens = window.pertMeta.time_grid_intensity;
+  document.getElementById("settings-timegrid-intensity").value =
+    Math.round(((typeof intens === "number" && isFinite(intens)) ? intens : 1) * 100);
+  pertRefreshTimeGridPreview();
   // S8.5 parametres d'estimation de cout
   document.getElementById("settings-hpm").value =
     window.pertMeta.hours_per_month != null ? window.pertMeta.hours_per_month : 135;
@@ -1475,6 +1594,8 @@ function saveSettings() {
   // Trame temporelle : simple bascule d'affichage, prise en compte au prochain redessin
   // (declenche plus bas a la validation des parametres, comme les autres options).
   window.pertMeta.time_grid = document.getElementById("settings-timegrid").checked;
+  const intensPct = parseFloat(document.getElementById("settings-timegrid-intensity").value);
+  window.pertMeta.time_grid_intensity = isNaN(intensPct) ? 1 : intensPct / 100;
   // S8.5 parametres de cout (planches a 0 ; defaut si champ vide/invalide)
   const hpm = parseFloat(document.getElementById("settings-hpm").value);
   const hpd = parseFloat(document.getElementById("settings-hpd").value);

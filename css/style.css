@@ -384,6 +384,59 @@ body {
   cursor: pointer;
 }
 
+/* ─── Onglets du dialogue Paramètres ─────────────────────────────────────────── */
+/* Le dialogue accumulait une douzaine de réglages de natures différentes en une
+   seule colonne. Trois onglets les regroupent — Projet / Affichage / Coûts — sans
+   rien retirer du DOM : les panneaux inactifs sont seulement masqués, de sorte que
+   openSettings() et saveSettings() continuent de lire tous les champs par leur id. */
+#settings-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid #2a3a6a;
+  margin-bottom: 4px;
+}
+
+#settings-box .settings-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #8899bb;
+  font-size: 12px;
+  padding: 7px 4px;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+}
+
+#settings-box .settings-tab:hover { background: #1a2240; color: #b9c6de; }
+
+#settings-box .settings-tab.active {
+  color: #7eb8f7;
+  border-bottom-color: #5a8fd8;
+  background: #1a2240;
+}
+
+#settings-box .settings-panel { display: none; flex-direction: column; gap: 12px; }
+#settings-box .settings-panel.active { display: flex; }
+
+/* Curseur d'intensité de la trame : le libellé et sa valeur sur une ligne, le
+   curseur dessous (la valeur suit le déplacement, cf. ui.js). */
+#settings-box label.settings-range { gap: 6px; }
+#settings-box .range-head { display: flex; justify-content: space-between; align-items: baseline; }
+#settings-box .range-head output { color: #7eb8f7; font-size: 12px; font-variant-numeric: tabular-nums; }
+#settings-box input[type="range"] { width: 100%; padding: 0; accent-color: #5a8fd8; cursor: pointer; }
+
+/* Vignette d'aperçu de la trame : même fond que le canvas (#1e1e3a) pour que la
+   teinte perçue soit celle du planning, et non celle du dialogue. */
+#settings-timegrid-preview {
+  width: 100%;
+  height: 44px;
+  display: block;
+  background: #1e1e3a;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+}
+
 /* Note explicative sous une case a cocher (ex. sauvegarde auto) */
 #settings-box p.settings-hint {
   margin: -4px 0 2px;

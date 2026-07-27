@@ -28,6 +28,7 @@ function pertSerializeProject() {
       prop_width: meta.prop_width !== false,
       // Trame temporelle de fond (defaut false si absent : anciens .pert inchanges)
       time_grid: !!meta.time_grid,
+      time_grid_intensity: meta.time_grid_intensity != null ? meta.time_grid_intensity : 1,
       // S8.5 parametres d'estimation de cout (defauts si absents : anciens .pert)
       hours_per_month: meta.hours_per_month != null ? meta.hours_per_month : 135,
       hours_per_day: meta.hours_per_day != null ? meta.hours_per_day : 8,
@@ -109,6 +110,7 @@ function pertApplyProject(data) {
   window.pertMeta.prop_width = meta.prop_width !== false;
   // Trame temporelle (defaut false pour les fichiers anterieurs sans la cle)
   window.pertMeta.time_grid = !!meta.time_grid;
+  window.pertMeta.time_grid_intensity = meta.time_grid_intensity != null ? meta.time_grid_intensity : 1;
   // S8.5 parametres d'estimation de cout (defauts pour les fichiers anterieurs)
   window.pertMeta.hours_per_month = meta.hours_per_month != null ? meta.hours_per_month : 135;
   window.pertMeta.hours_per_day = meta.hours_per_day != null ? meta.hours_per_day : 8;

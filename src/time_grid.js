@@ -16,8 +16,12 @@
 // lecture du graphe ni le voile sombre du filtre. D'où trois précautions :
 //   - elle est dessinée en COUCHE DE FOND (derrière nœuds et liens), comme la bande
 //     d'anticipation, donc toujours dominée par ce qui compte ;
-//   - ses alphas sont volontairement très bas (bandes 0.030, traits 0.055) — assez
-//     pour délimiter, trop peu pour attirer l'œil ;
+//   - ses alphas de base sont volontairement très bas (bandes 0.030, traits 0.055) —
+//     assez pour délimiter, trop peu pour attirer l'œil. Ils sont MODULÉS par le
+//     curseur « Intensité de la trame » des Paramètres (`meta.time_grid_intensity`,
+//     défaut 1) : le premier retour utilisateur a été « pas assez visible », et le bon
+//     réglage s'est révélé affaire de goût et d'écran plutôt que de valeur juste. Les
+//     plafonds passés à pertTgAlpha garantissent qu'à fond, la trame reste un fond ;
 //   - chaque niveau s'efface de lui-même quand sa largeur PROJETÉE À L'ÉCRAN devient
 //     trop faible (même principe que la grille aimantée de ui.js) : en zoom arrière
 //     sur un planning long, les subdivisions disparaissent avant de virer au gris uni.
@@ -43,6 +47,24 @@ const PERT_TG_MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
 // La trame est-elle demandée ? (case des Paramètres, sérialisée dans meta)
 function pertTimeGridEnabled() {
   return !!(window.pertMeta && window.pertMeta.time_grid);
+}
+
+// Facteur d'intensité (curseur des Paramètres, `meta.time_grid_intensity`, défaut 1).
+// La bonne valeur dépend de l'écran, de la luminosité de la pièce et du goût de chacun :
+// aucun réglage codé en dur ne pouvait convenir à tout le monde — d'où le curseur.
+// Borné à [0,2 ; 4] : la borne haute protège d'un .pert edité à la main qui rendrait le
+// fond opaque, la borne basse d'une trame invisible qu'on croirait cassée.
+function pertTimeGridIntensity() {
+  const v = window.pertMeta ? window.pertMeta.time_grid_intensity : 1;
+  const n = (typeof v === "number" && isFinite(v)) ? v : 1;
+  return Math.max(0.2, Math.min(4, n));
+}
+
+// Alpha d'un élément de la trame, module par l'intensite choisie. Le plafond garde la
+// trame en ARRIERE-plan quoi qu'il arrive : meme a fond, elle ne doit pas concurrencer
+// les nœuds ni le voile du filtre.
+function pertTgAlpha(base, plafond) {
+  return Math.min(plafond, base * pertTimeGridIntensity());
 }
 
 // Découpage applicable à l'unité courante : quelles périodes pour les bandes, et
@@ -194,7 +216,7 @@ function pertDrawTimeGrid(ctx, graph) {
   }
   const bandWidthPx = bands.length ? (bands[0].x1 - bands[0].x0) * scale : 0;
   if (bands.length && bandWidthPx >= PERT_TG_MIN_PX_BAND) {
-    ctx.fillStyle = "rgba(126, 184, 247, " + PERT_TG_BAND_ALPHA + ")";
+    ctx.fillStyle = "rgba(126, 184, 247, " + pertTgAlpha(PERT_TG_BAND_ALPHA, 0.20) + ")";
     bands.forEach((b) => {
       if (pertTgBandParity(b.date, unit) === 0) return;   // une bande sur deux
       ctx.fillRect(b.x0, yTop, b.x1 - b.x0, h);
@@ -205,7 +227,7 @@ function pertDrawTimeGrid(ctx, graph) {
     ctx.font = "11px Arial";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillStyle = "rgba(170, 210, 250, " + PERT_TG_TEXT_ALPHA + ")";
+    ctx.fillStyle = "rgba(170, 210, 250, " + pertTgAlpha(PERT_TG_TEXT_ALPHA, 0.95) + ")";
     bands.forEach((b) => {
       const label = scheme.band.label(b.date);
       if (ctx.measureText(label).width + 8 > (b.x1 - b.x0)) return;  // n'entre pas : on saute
@@ -225,7 +247,7 @@ function pertDrawTimeGrid(ctx, graph) {
   let subStepPx = 0;
   if (subXs.length >= 2) subStepPx = (subXs[1] - subXs[0]) * scale;
   if (subXs.length >= 2 && subStepPx >= PERT_TG_MIN_PX_SUB) {
-    ctx.strokeStyle = "rgba(126, 184, 247, " + PERT_TG_LINE_ALPHA + ")";
+    ctx.strokeStyle = "rgba(126, 184, 247, " + pertTgAlpha(PERT_TG_LINE_ALPHA, 0.35) + ")";
     ctx.lineWidth = 1;
     ctx.beginPath();
     subXs.forEach((x) => { ctx.moveTo(x, yTop); ctx.lineTo(x, yBottom); });
@@ -261,3 +283,5 @@ window.pertInstallTimeGrid = pertInstallTimeGrid;
 window.pertDrawTimeGrid = pertDrawTimeGrid;
 window.pertTimeGridEnabled = pertTimeGridEnabled;
 window.pertTimeGridScheme = pertTimeGridScheme;
+window.pertTimeGridIntensity = pertTimeGridIntensity;
+window.pertTgAlpha = pertTgAlpha;
