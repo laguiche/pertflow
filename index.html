@@ -44,6 +44,13 @@
         <input type="checkbox" id="settings-autosave">
         Sauvegarde automatique (récupération après plantage)
       </label>
+      <label class="settings-check">
+        <input type="checkbox" id="settings-timegrid">
+        Trame temporelle en fond (repères de périodes)
+      </label>
+      <p class="settings-hint">Bandes discrètes délimitant les années (planning en mois),
+        les mois (en semaines) ou les semaines (en jours), avec la subdivision
+        correspondante. Purement visuel : n'affecte ni le calcul ni le filtre.</p>
       <p class="settings-hint">La sauvegarde automatique conserve une copie de récupération
         dans le navigateur (proposée au redémarrage après un plantage). Elle ne remplace pas
         la sauvegarde du fichier .pert.</p>
@@ -229,6 +236,7 @@
   <script src="src/export_microjalons.js"></script>
   <script src="src/link_routing.js"></script>
   <script src="src/t0_marker.js"></script>
+  <script src="src/time_grid.js"></script>
   <script src="src/align.js"></script>
   <script src="src/synthesis.js"></script>
   <script src="src/ui.js"></script>

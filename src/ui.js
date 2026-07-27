@@ -9,7 +9,10 @@
 window.pertMeta = {
   title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true,
   hours_per_month: 135, hours_per_day: 8, hourly_rate: 136,
-  groups: {}, autosave: true
+  groups: {}, autosave: true,
+  // Trame temporelle de fond : desactivee par defaut (aucun changement visuel pour
+  // les plannings existants ; c'est une aide de lecture qu'on demande, cf. time_grid.js).
+  time_grid: false
 };
 window.pertGraph = null;
 window.pertCanvas = null;
@@ -203,6 +206,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // purement et simplement écrasé (la bande ne se dessinait jamais).
   if (window.pertInstallT0Marker) pertInstallT0Marker(lgCanvas);
 
+  // Trame temporelle de fond (case « Trame temporelle » des Paramètres) — cf.
+  // src/time_grid.js. ⚠️ Même précaution que ci-dessus, et installée EN DERNIER :
+  // elle chaîne le handler déjà en place (grille + bande d'anticipation). Inversion
+  // de l'ordre = module précédent purement écrasé, sans la moindre erreur.
+  if (window.pertInstallTimeGrid) pertInstallTimeGrid(lgCanvas);
+
   // Resize dynamique
   function resizeCanvas() {
     const container = document.getElementById("canvas-container");
@@ -265,8 +274,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (sel.length === 1) showProperties(sel[0]);
   };
 
-  // Deplacement de noeud(s) termine (drag relache) → cran d'historique.
-  lgCanvas.onNodeMoved = function() { pertHistoryMark(); };
+  // Deplacement de noeud(s) termine (drag relache) → aimantation des Labels puis
+  // cran d'historique. L'aimantation intervient ICI et non pendant le glisser : c'est
+  // le meme moment que le snap-to-grid natif de LiteGraph (alignToGrid() est appele
+  // juste avant onNodeMoved), donc notre ajustement prime sur la grille au lieu de
+  // lutter contre elle. Reserve aux Labels — cf. pertSnapLabelToNeighbors.
+  lgCanvas.onNodeMoved = function(node) {
+    if (node && typeof pertSnapLabelToNeighbors === "function") {
+      if (pertSnapLabelToNeighbors(node)) lgCanvas.setDirty(true, true);
+    }
+    pertHistoryMark();
+  };
 
   // Premier calcul (graphe éventuellement déjà peuplé)
   pertRecalc();
@@ -1428,6 +1446,8 @@ function openSettings() {
   // Sauvegarde automatique (activee par defaut : cochee sauf desactivation explicite)
   document.getElementById("settings-autosave").checked =
     window.pertMeta.autosave !== false;
+  // Trame temporelle : decochee par defaut (aide de lecture optionnelle)
+  document.getElementById("settings-timegrid").checked = !!window.pertMeta.time_grid;
   // S8.5 parametres d'estimation de cout
   document.getElementById("settings-hpm").value =
     window.pertMeta.hours_per_month != null ? window.pertMeta.hours_per_month : 135;
@@ -1452,6 +1472,9 @@ function saveSettings() {
   // Sauvegarde automatique : bascule prise en compte immediatement par le module
   window.pertMeta.autosave = document.getElementById("settings-autosave").checked;
   if (window.pertAutosaveOnToggle) window.pertAutosaveOnToggle();
+  // Trame temporelle : simple bascule d'affichage, prise en compte au prochain redessin
+  // (declenche plus bas a la validation des parametres, comme les autres options).
+  window.pertMeta.time_grid = document.getElementById("settings-timegrid").checked;
   // S8.5 parametres de cout (planches a 0 ; defaut si champ vide/invalide)
   const hpm = parseFloat(document.getElementById("settings-hpm").value);
   const hpd = parseFloat(document.getElementById("settings-hpd").value);

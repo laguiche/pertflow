@@ -16,6 +16,27 @@
 // MEME que le trace rouge / la barre d'etat (window.pertCriticalPathIds : suit la
 // selection, ou marge minimale sans selection).
 
+// Etat visuel d'un jalon dans les listes de synthese. On REUTILISE la regle de la zone
+// de travail (MilestoneNode.targetState, nodes.js #20) pour qu'un jalon ait la meme
+// couleur a l'ecran et dans la synthese — une seule regle a retenir, une seule a
+// maintenir. Deux ecarts assumes, tous deux vers la neutralite :
+//   - « aucune cible » → etat "none" (police normale) et non orange : sans echeance,
+//     il n'y a aucun verdict a rendre ; l'orange serait une alerte sans objet ;
+//   - jalon PUREMENT ENTRANT (aucun lien entrant) → "none" egalement : sa cible est une
+//     DONNEE D'ENTREE, pas un engagement du projet. Le moteur applique deja cette regle
+//     (ES = EF = offset(cible), target_missed force a faux, cf. pert_engine.js) ; sans
+//     cet ecart, sa marge structurellement nulle le peindrait en orange a chaque fois.
+function pertSynthMilestoneState(node, row, hasIn) {
+  if (!row.hasDue) return "none";
+  if (!hasIn) return "none";
+  if (typeof node.targetState === "function") return node.targetState();
+  // Repli si la methode du nœud n'est pas disponible (nœud deserialise a plat) :
+  // meme seuil que nodes.js, MILESTONE_GREEN_MARGIN unites de temps.
+  if (node.target_missed) return "alert";
+  const seuil = (typeof MILESTONE_GREEN_MARGIN === "number") ? MILESTONE_GREEN_MARGIN : 1;
+  return (row.margin !== null && row.margin >= seuil) ? "safe" : "neutral";
+}
+
 // Construit le modele de synthese depuis le graphe + les metadonnees courants.
 function pertBuildSynthesisModel() {
   const g = window.pertGraph;
@@ -36,9 +57,14 @@ function pertBuildSynthesisModel() {
     endDate: null,
     critTasks: 0,
     critCost: 0,
-    milestonesTenus: [],
-    milestonesNonTenus: [],
-    milestonesSansCible: [],
+    // Jalons classes par TOPOLOGIE et non plus par tenue de cible : un jalon ENTRANT
+    // (au moins un lien sortant) alimente la suite du planning, un jalon SORTANT (au
+    // moins un lien entrant) est produit par lui. Un checkpoint intermediaire a les
+    // deux → il figure DANS LES DEUX LISTES, ce qui est voulu : il est a la fois un
+    // livrable pour l'amont et une donnee d'entree pour l'aval.
+    milestonesEntrants: [],
+    milestonesSortants: [],
+    milestonesIsoles: [],
     groups: [],
   };
   if (!g || !g._nodes) return model;
@@ -62,12 +88,20 @@ function pertBuildSynthesisModel() {
   });
   model.endDate = (maxEf != null) ? pertOffsetToDate(maxEf) : null;
 
-  // Passe 2 : jalons (tenus / non tenus / sans cible), avec marge vis-a-vis de la cible.
+  // Passe 2 : jalons ENTRANTS / SORTANTS, avec marge vis-a-vis de la cible.
   // La marge est en UNITES du projet : cible (offset) - EF (offset). Positive = tenu
   // avec avance, negative = rate. target_missed est calcule par pertRecalc (EF > cible).
+  //
+  // Le code couleur reprend TEL QUEL celui des Jalons dans la zone de travail
+  // (MilestoneNode.targetState, cf. nodes.js #20) — une seule regle a comprendre pour
+  // l'utilisateur, et une seule a maintenir : rouge = cible non tenue, vert = tenue
+  // avec au moins MILESTONE_GREEN_MARGIN unites d'avance, orange = tenue tout juste.
+  const adj = (typeof pertBuildAdjacency === "function") ? pertBuildAdjacency(g) : null;
   g._nodes.forEach(n => {
     if (n.type !== "pert/milestone") return;
     model.nbMilestones++;
+    const hasIn = !!(adj && adj.preds[n.id] && adj.preds[n.id].length > 0);
+    const hasOut = !!(adj && adj.succs[n.id] && adj.succs[n.id].length > 0);
     const row = {
       label: (n.properties && n.properties.label) || "(jalon)",
       tag: (n.properties && typeof pertMilestoneTag === "function") ? pertMilestoneTag(n.properties.tag) : null,
@@ -82,14 +116,11 @@ function pertBuildSynthesisModel() {
       // tot (meme regle que la reorganisation « axe temps seul », cf. pertTimeAxisOffset).
       sortOff: (typeof pertTimeAxisOffset === "function") ? pertTimeAxisOffset(n) : n.ef,
     };
-    if (row.hasDue) {
-      const dueOff = row.dueOff;
-      if (dueOff !== null && n.ef != null) row.margin = dueOff - n.ef;
-      if (n.target_missed) model.milestonesNonTenus.push(row);
-      else model.milestonesTenus.push(row);
-    } else {
-      model.milestonesSansCible.push(row);
-    }
+    if (row.hasDue && row.dueOff !== null && n.ef != null) row.margin = row.dueOff - n.ef;
+    row.state = pertSynthMilestoneState(n, row, hasIn);
+    if (hasOut) model.milestonesEntrants.push(row);
+    if (hasIn) model.milestonesSortants.push(row);
+    if (!hasIn && !hasOut) model.milestonesIsoles.push(row);
   });
 
   // Classement chronologique croissant des trois listes de jalons (cle : date cible si
@@ -100,9 +131,9 @@ function pertBuildSynthesisModel() {
     const ob = (b.sortOff != null) ? b.sortOff : Infinity;
     return (oa - ob) || a.label.localeCompare(b.label, "fr");
   };
-  model.milestonesTenus.sort(byChrono);
-  model.milestonesNonTenus.sort(byChrono);
-  model.milestonesSansCible.sort(byChrono);
+  model.milestonesEntrants.sort(byChrono);
+  model.milestonesSortants.sort(byChrono);
+  model.milestonesIsoles.sort(byChrono);
 
   // Passe 3 : synthese par groupe. « Fin au plus tard du groupe » = LF max de ses
   // Activites (la derniere tache a devoir etre terminee). Les taches sans groupe sont
@@ -174,8 +205,11 @@ function synthTable(headers, rows) {
   thead.appendChild(htr);
   table.appendChild(thead);
   const tbody = synthEl("tbody");
-  rows.forEach(cells => {
-    const tr = synthEl("tr");
+  rows.forEach(row => {
+    // Une ligne est soit un simple tableau de cellules, soit { cls, cells } quand elle
+    // porte une mise en forme d'ensemble (code couleur de tenue de cible des jalons).
+    const cells = Array.isArray(row) ? row : (row.cells || []);
+    const tr = synthEl("tr", Array.isArray(row) ? null : (row.cls || null));
     cells.forEach(c => {
       const td = synthEl("td", c.cls || null);
       if (c.node) td.appendChild(c.node);
@@ -236,36 +270,39 @@ function pertRenderSynthesis() {
   synthKV(ov, "Chemin critique", m.critTasks + " tâche(s) · " + pertFormatCost(m.critCost));
   synthSection(c, "Vue d'ensemble", ov);
 
-  // 2) Jalons tenus.
+  // 2) et 3) Jalons ENTRANTS puis SORTANTS, dans l'ordre chronologique. Un checkpoint
+  // intermediaire (lien entrant ET sortant) figure dans les deux listes : il est un
+  // livrable pour l'amont et une donnee d'entree pour l'aval. Le code couleur de tenue
+  // de cible est celui de la zone de travail (cf. pertSynthMilestoneState).
   const mileHeaders = [
     { text: "Jalon" }, { text: "Type" }, { text: "Fin t.tôt" },
     { text: "Cible" }, { text: "Marge", cls: "num" },
   ];
-  const mileRow = (r) => [
-    { text: r.label },
-    { node: synthTagNode(r.tag), text: r.tag ? "" : "—" },
-    { text: pertFormatDate(r.efDate) },
-    { text: r.dueLabel || "—" },
-    synthMarginCell(r.margin, m.unitLabel),
-  ];
-  synthSection(c, "Jalons tenus (" + m.milestonesTenus.length + ")",
-    m.milestonesTenus.length ? synthTable(mileHeaders, m.milestonesTenus.map(mileRow)) : null,
-    "Aucun jalon avec cible tenue.");
-
-  // 3) Jalons non tenus.
-  synthSection(c, "Jalons non tenus (" + m.milestonesNonTenus.length + ")",
-    m.milestonesNonTenus.length ? synthTable(mileHeaders, m.milestonesNonTenus.map(mileRow)) : null,
-    "Aucun jalon en retard sur sa cible.");
-
-  // 4) Jalons sans cible (facultatif — repere les jalons non contraints par une date).
-  if (m.milestonesSansCible.length) {
-    const rows = m.milestonesSansCible.map(r => [
+  const mileRow = (r) => ({
+    cls: "synth-mile-" + (r.state || "none"),
+    cells: [
       { text: r.label },
       { node: synthTagNode(r.tag), text: r.tag ? "" : "—" },
       { text: pertFormatDate(r.efDate) },
-    ]);
-    synthSection(c, "Jalons sans cible (" + m.milestonesSansCible.length + ")",
-      synthTable([{ text: "Jalon" }, { text: "Type" }, { text: "Fin t.tôt" }], rows));
+      { text: r.dueLabel || "—" },
+      synthMarginCell(r.margin, m.unitLabel),
+    ],
+  });
+
+  synthSection(c, "Jalons entrants (" + m.milestonesEntrants.length + ")",
+    m.milestonesEntrants.length ? synthTable(mileHeaders, m.milestonesEntrants.map(mileRow)) : null,
+    "Aucun jalon n'alimente le planning.");
+
+  synthSection(c, "Jalons sortants (" + m.milestonesSortants.length + ")",
+    m.milestonesSortants.length ? synthTable(mileHeaders, m.milestonesSortants.map(mileRow)) : null,
+    "Aucun jalon produit par le planning.");
+
+  // 4) Jalons isoles (ni entrant ni sortant) : signales seulement s'il y en a. Ils
+  // n'appartiennent a aucune des deux listes ci-dessus et passeraient sinon a la
+  // trappe — or un jalon sans aucun lien est le plus souvent un oubli de connexion.
+  if (m.milestonesIsoles.length) {
+    synthSection(c, "Jalons isolés (" + m.milestonesIsoles.length + ")",
+      synthTable(mileHeaders, m.milestonesIsoles.map(mileRow)));
   }
 
   // 5) Synthese par groupe : cout GLOBAL puis, si le planning comporte de
