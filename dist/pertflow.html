@@ -1423,6 +1423,104 @@ body {
   font-size: 13px;
   color: #dde3ec;
 }
+
+/* ─── Onglets de la synthèse (= chapitres à l'impression) ─────────────────────── */
+#synthesis-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid #2a3a6a;
+  flex-wrap: wrap;
+}
+
+#synthesis-tabs .synth-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #8899bb;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 7px 12px;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#synthesis-tabs .synth-tab:hover { background: #1a2240; color: #b9c6de; }
+#synthesis-tabs .synth-tab.active {
+  color: #7eb8f7;
+  border-bottom-color: #5a8fd8;
+  background: #1a2240;
+}
+
+/* Nombre de points d'attention, porté par l'onglet Analyse : on doit savoir qu'il y a
+   quelque chose à y voir sans avoir à l'ouvrir. */
+.synth-tab-badge {
+  background: #8a5b00;
+  color: #ffd9a0;
+  border-radius: 9px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+/* Un seul panneau visible à l'écran ; tous le sont à l'impression (cf. @media print). */
+#synthesis-content .synth-panel { display: none; flex-direction: column; gap: 18px; }
+#synthesis-content .synth-panel.active { display: flex; }
+
+/* Titre de chapitre : redondant à l'écran avec l'onglet actif, indispensable sur
+   papier où les onglets n'existent plus. */
+.synth-chapter { display: none; }
+
+/* Nom de nœud cliquable dans un tableau de synthèse : rendu comme du texte souligné et
+   non comme un bouton — une rangée de boutons dans un tableau serait assourdissante. */
+.synth-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #9ecbff;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: left;
+}
+.synth-link:hover { color: #d6e9ff; text-decoration-style: solid; }
+
+/* Dans les listes de jalons, la couleur de la ligne PORTE UN SENS (tenue de la
+   date-cible : rouge / orange / vert / neutre). Le nom doit donc garder la couleur de
+   sa ligne ; c'est le soulignement pointillé, seul, qui signale qu'on peut cliquer.
+   Sans cette règle, le bleu du lien effaçait le code couleur sur la cellule la plus
+   regardée du tableau. Dans l'onglet Analyse, où la couleur ne signifie rien, les
+   liens restent bleus. */
+#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link { color: inherit; }
+#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link:hover {
+  text-decoration-style: solid;
+}
+
+/* Bouton « mettre en évidence » en queue de ligne d'analyse. */
+.synth-goto {
+  background: #1e2a40;
+  border: 1px solid #34507a;
+  border-radius: 4px;
+  color: #cfe0ff;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.synth-goto:hover { background: #2a3d5e; border-color: #5a8fd8; }
+.synth-table th.synth-goto-col, .synth-table td.synth-goto-col { width: 1%; text-align: right; }
+
+/* Explication d'un contrôle d'analyse : ce que le point d'attention signifie et
+   pourquoi il vaut la peine d'être regardé. */
+.synth-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8a93b5;
+  margin: -2px 0 8px;
+}
 .synth-section h4 {
   margin: 0 0 8px;
   font-size: 13px;
@@ -1484,9 +1582,40 @@ body {
   }
   body.synthesis-printing #synthesis-dialog h3 { color: #000; }
   body.synthesis-printing .dialog-buttons { display: none !important; }
+  /* display:block OBLIGATOIRE ici : Chrome ignore `break-before` sur un élément dont
+     le parent est un conteneur flex — les chapitres se seraient enchaînés sans saut
+     de page, silencieusement. */
   body.synthesis-printing #synthesis-content {
+    display: block !important;
     max-height: none; overflow: visible; color: #000;
   }
+  body.synthesis-printing .synth-section { margin-bottom: 14px; }
+  /* Les onglets n'ont pas de sens sur papier : la barre disparaît, et les quatre
+     panneaux s'impriment à la suite, chacun ouvrant un CHAPITRE sur une page neuve
+     (sauf le premier, qui suit le titre de la synthèse). */
+  body.synthesis-printing #synthesis-tabs { display: none !important; }
+  body.synthesis-printing #synthesis-content .synth-panel {
+    display: block !important;
+    break-before: page;
+  }
+  body.synthesis-printing #synthesis-content .synth-panel:first-of-type {
+    break-before: auto;
+  }
+  body.synthesis-printing .synth-chapter {
+    display: block;
+    color: #000;
+    font-size: 15px;
+    margin: 0 0 10px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #333;
+  }
+  body.synthesis-printing .synth-hint { color: #444; }
+  /* Sur papier, un lien ne mène nulle part : le nom redevient du texte noir, et la
+     colonne d'action disparaît — elle ne ferait qu'ajouter une colonne vide. */
+  body.synthesis-printing .synth-link {
+    color: #000 !important; text-decoration: none; padding: 0;
+  }
+  body.synthesis-printing .synth-goto-col { display: none !important; }
   body.synthesis-printing .synth-section { break-inside: avoid; }
   body.synthesis-printing .synth-section h4 { color: #000; border-color: #999; }
   body.synthesis-printing .synth-kv .k,
@@ -1568,6 +1697,41 @@ body {
   padding: 4px;
 }
 .filter-menu[hidden] { display: none; }
+
+/* Zone de recherche du menu de filtre : fixe en haut, elle ne défile pas avec la
+   liste des options (le menu peut être long : groupes + responsables + couleurs). */
+#filter-search-row {
+  position: sticky;
+  top: 0;
+  background: #16183a;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid #2a3a7a;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 1;
+}
+
+#filter-search {
+  width: 100%;
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  color: #dde3ec;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-family: inherit;
+}
+#filter-search:focus { outline: none; border-color: #5a8fd8; }
+#filter-search::placeholder { color: #6a7390; }
+
+/* Compte de résultats : discret quand ça trouve, alerte quand ça ne trouve rien. */
+#filter-search-count {
+  font-size: 10px;
+  color: #7b88a8;
+  min-height: 12px;
+}
+#filter-search-count.empty { color: #e0a56a; }
 
 .filter-menu-header {
   font-size: 10px;
@@ -1697,7 +1861,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"28/07/2026","tag":"v0.19"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"28/07/2026","tag":"v0.20"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -1832,7 +1996,18 @@ body {
         <span id="filter-current">🔎 Filtre : aucun</span>
         <span class="filter-caret">▾</span>
       </button>
-      <div id="filter-menu" class="filter-menu" hidden></div>
+      <!-- La zone de recherche est FIXE dans le menu (et non reconstruite avec les
+           lignes par refreshFilterOptions) : sinon la saisie en cours serait perdue
+           à chaque réouverture du menu. -->
+      <div id="filter-menu" class="filter-menu" hidden>
+        <div id="filter-search-row">
+          <input type="text" id="filter-search" autocomplete="off" spellcheck="false"
+                 placeholder="Rechercher un nom, une note…"
+                 title="Met en évidence les nœuds dont le nom ou les notes contiennent ce texte">
+          <span id="filter-search-count"></span>
+        </div>
+        <div id="filter-options"></div>
+      </div>
     </div>
     <div class="tb-sep"></div>
     <button id="btn-settings" title="Paramètres du projet">⚙ Paramètres</button>
@@ -1897,7 +2072,10 @@ body {
   <div id="synthesis-dialog" class="dialog-overlay" style="display:none">
     <div class="dialog synthesis-dialog-box">
       <h3>Synthèse du planning</h3>
-      <!-- Contenu construit dynamiquement (src/synthesis.js) -->
+      <!-- Onglets + panneaux construits dynamiquement (src/synthesis.js). À l'écran un
+           seul panneau est visible ; à l'IMPRESSION ils le sont tous, chacun ouvrant un
+           chapitre sur une nouvelle page (cf. @media print dans css/style.css). -->
+      <div id="synthesis-tabs" role="tablist"></div>
       <div id="synthesis-content"></div>
       <div class="dialog-buttons">
         <button id="synthesis-close">Fermer</button>
@@ -37023,6 +37201,7 @@ function ellipsize(ctx, text, maxWidth) {
 //
 // window.pertFilter (defini dans ui.js, etat de vue non serialise) :
 //   null | { type:"group", value } | { type:"color", value } | { type:"responsible", value }
+//        | { type:"text", value }  (recherche par nom/notes, v0.20)
 // Un nœud "estompe" recoit un voile translucide (pertDrawDimVeil), dessine en
 // onDrawForeground → par-dessus le contenu ET les slots (l'avant-plan est rendu en
 // dernier par LiteGraph). Sans filtre actif, rien n'est estompe. Seules les
@@ -37030,10 +37209,34 @@ function ellipsize(ctx, text, maxWidth) {
 // Labels sont donc estompes des qu'un filtre est actif (ils ne portent ni groupe
 // ni couleur de groupe), ce qui concentre l'œil sur l'ensemble selectionne.
 
+// Normalisation de recherche : minuscules ET sans accents, pour que « etude » trouve
+// « Étude ». Un planning se saisit avec accents et se cherche souvent sans.
+function pertNormalizeSearch(s) {
+  return String(s == null ? "" : s)
+    // ̀-ͯ = marques diacritiques isolees par NFD. Ecrites en echappement :
+    // en clair, ce sont des caracteres combinants invisibles dans le source.
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+// Texte d'un nœud offert a la recherche : son NOM et sa DESCRIPTION, quel que soit le
+// type. Un Label n'a que son texte, qui tient lieu des deux.
+function pertNodeSearchText(node) {
+  const p = (node && node.properties) || {};
+  return [p.label, p.notes, p.text].filter(Boolean).join(" ");
+}
+
 function pertNodeDimmed(node) {
   const f = window.pertFilter;
   if (!f) return false;
   const isAct = node.type === "pert/activity" && node.properties;
+  // Recherche par nom : le SEUL filtre qui concerne les trois types de nœuds — on
+  // cherche « ou est passe X », pas « quelles taches appartiennent a X ».
+  if (f.type === "text") {
+    const needle = pertNormalizeSearch(f.value);
+    if (!needle) return false;
+    return pertNormalizeSearch(pertNodeSearchText(node)).indexOf(needle) === -1;
+  }
   if (f.type === "group") {
     return !(isAct && (node.properties.group || "").trim() === f.value);
   }
@@ -42200,6 +42403,10 @@ function pertBuildSynthesisModel() {
     milestonesSortants: [],
     milestonesIsoles: [],
     groups: [],
+    // Onglet ANALYSE : liste de « controles » du planning, chacun autonome (titre,
+    // explication, colonnes, lignes). Le rendu est generique, donc en ajouter un
+    // consiste a pousser un objet de plus dans pertBuildAnalyses().
+    analyses: [],
   };
   if (!g || !g._nodes) return model;
 
@@ -42237,6 +42444,9 @@ function pertBuildSynthesisModel() {
     const hasIn = !!(adj && adj.preds[n.id] && adj.preds[n.id].length > 0);
     const hasOut = !!(adj && adj.succs[n.id] && adj.succs[n.id].length > 0);
     const row = {
+      // Identifiant du nœud : la ligne doit pouvoir RAMENER au jalon dans le planning
+      // (cf. synthNodeLink). Rien d'autre dans le modele n'en depend.
+      id: n.id,
       label: (n.properties && n.properties.label) || "(jalon)",
       tag: (n.properties && typeof pertMilestoneTag === "function") ? pertMilestoneTag(n.properties.tag) : null,
       efDate: (n.ef != null) ? pertOffsetToDate(n.ef) : null,
@@ -42304,7 +42514,202 @@ function pertBuildSynthesisModel() {
     });
   });
 
+  model.analyses = pertBuildAnalyses(g, adj);
   return model;
+}
+
+// ─── Onglet ANALYSE : contrôles de qualité du planning ──────────────────────────
+//
+// Objectif : ce qui n'est PAS lisible dans les listes chronologiques — des anomalies de
+// STRUCTURE, qui ne sautent aux yeux que sur un petit planning. Chaque controle est un
+// objet autonome { id, title, hint, columns, rows } ; le rendu est generique, donc en
+// ajouter un nouveau consiste a pousser un objet de plus dans la liste ci-dessous.
+// Un controle sans anomalie n'est PAS affiche : l'onglet doit se lire comme une liste
+// de choses a regarder, pas comme une liste de cases vertes a faire defiler.
+
+// Forme normalisee d'un libelle pour la comparaison : minuscules, sans accents, sans
+// ponctuation ni espaces multiples. « Livraison MOTEUR (v2) » et « livraison moteur v2 »
+// doivent etre reconnus comme le meme nom.
+function pertSynthNormalizeLabel(s) {
+  const base = (typeof pertNormalizeSearch === "function")
+    ? pertNormalizeSearch(s)
+    : String(s == null ? "" : s).toLowerCase();
+  return base.replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+// Distance de Levenshtein (deux lignes seulement : les libelles sont courts).
+function pertSynthLevenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = new Array(b.length + 1);
+  let cur = new Array(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    const tmp = prev; prev = cur; cur = tmp;
+  }
+  return prev[b.length];
+}
+
+// Similitude de deux libelles, dans [0, 1]. Seuil d'alerte : PERT_SYNTH_SIMILARITY.
+// Une valeur trop basse noierait l'utilisateur sous les faux positifs (« Jalon 1 » et
+// « Jalon 2 » se ressemblent beaucoup en distance d'edition alors qu'ils designent
+// deux choses differentes) ; d'ou un seuil eleve, et des libelles courts exclus.
+const PERT_SYNTH_SIMILARITY = 0.85;
+const PERT_SYNTH_MIN_LABEL = 5;   // en deca, la distance d'edition ne veut plus rien dire
+
+function pertSynthSimilarity(a, b) {
+  if (!a || !b) return 0;
+  const max = Math.max(a.length, b.length);
+  if (!max) return 0;
+  return 1 - (pertSynthLevenshtein(a, b) / max);
+}
+
+// Deux libelles qui ne different QUE par leurs chiffres sont une SERIE numerotee
+// deliberee (« Jalon sortie 1 » / « Jalon sortie 2 »), pas un doublon. En distance
+// d'edition ils se ressemblent enormement — un seul caractere sur quinze — et sans
+// cette regle ils remontaient en tete des faux positifs, ce qui suffisait a
+// decredibiliser tout le controle.
+function pertSynthNumberedSiblings(a, b) {
+  const sansChiffres = (s) => s.replace(/[0-9]+/g, "").replace(/\s+/g, " ").trim();
+  const chiffres = (s) => (s.match(/[0-9]+/g) || []).join(",");
+  return sansChiffres(a) === sansChiffres(b) && chiffres(a) !== chiffres(b);
+}
+
+// Construit la liste des controles. `adj` = adjacence du moteur (preds/succs).
+function pertBuildAnalyses(g, adj) {
+  const out = [];
+  const preds = (adj && adj.preds) || {};
+  const succs = (adj && adj.succs) || {};
+  const nodes = (g && g._nodes) || [];
+  const labelOf = (n) => (n.properties && (n.properties.label || n.properties.text)) || "(sans nom)";
+  const nbIn = (n) => (preds[n.id] || []).length;
+  const nbOut = (n) => (succs[n.id] || []).length;
+  const milestones = nodes.filter(n => n.type === "pert/milestone");
+  const activities = nodes.filter(n => n.type === "pert/activity");
+
+  const push = (o) => { if (o.rows.length) out.push(o); };
+
+  // 1) Jalons orphelins — ni amont ni aval. Le plus souvent une connexion oubliee :
+  // le jalon n'est contraint par rien et ne contraint rien, il ne « tient » donc rien.
+  push({
+    id: "jalons-orphelins",
+    title: "Jalons orphelins",
+    hint: "Aucun lien entrant ni sortant : ce jalon ne contraint rien et n'est contraint "
+        + "par rien. Le plus souvent, une connexion a été oubliée.",
+    columns: [{ text: "Jalon" }, { text: "Cible" }],
+    rows: milestones.filter(n => !nbIn(n) && !nbOut(n)).map(n => ({
+      filterText: labelOf(n),
+      cells: [
+        { text: labelOf(n), nodeId: n.id },
+        { text: (typeof pertMilestoneDueLabel === "function" && pertMilestoneHasDue(n))
+            ? pertMilestoneDueLabel(n) : "—" },
+      ],
+    })),
+  });
+
+  // 2) Jalons de nom similaire. Le cas qui INTERESSE vraiment est le couple
+  // « sortant d'un lot » / « entrant d'un autre » portant le meme nom : c'est le meme
+  // evenement saisi deux fois, et le lien qui devrait les relier manque. On signale
+  // aussi les doublons a l'interieur d'une meme liste (saisie en double).
+  const simRows = [];
+  const norm = milestones.map(n => ({ n, key: pertSynthNormalizeLabel(labelOf(n)) }))
+                         .filter(x => x.key.length >= PERT_SYNTH_MIN_LABEL);
+  for (let i = 0; i < norm.length; i++) {
+    for (let j = i + 1; j < norm.length; j++) {
+      if (pertSynthNumberedSiblings(norm[i].key, norm[j].key)) continue;
+      const s = pertSynthSimilarity(norm[i].key, norm[j].key);
+      if (s < PERT_SYNTH_SIMILARITY) continue;
+      const a = norm[i].n, b = norm[j].n;
+      // Deja relies l'un a l'autre ? Alors le doublon est deliberement chaine, rien a dire.
+      if ((succs[a.id] || []).indexOf(b.id) !== -1 || (succs[b.id] || []).indexOf(a.id) !== -1) continue;
+      const role = (x) => (nbIn(x) ? (nbOut(x) ? "intermédiaire" : "sortant") : (nbOut(x) ? "entrant" : "orphelin"));
+      simRows.push({
+        // Une ligne, DEUX nœuds : le terme de filtre est ce qu'ils ont en commun, pour
+        // qu'un seul geste les mette tous les deux en evidence — c'est en les voyant
+        // cote a cote qu'on tranche entre doublon et homonymie.
+        filterText: pertSynthCommonTerm(labelOf(a), labelOf(b)),
+        cells: [
+          { text: labelOf(a), nodeId: a.id },
+          { text: role(a) },
+          { text: labelOf(b), nodeId: b.id },
+          { text: role(b) },
+          { text: s >= 0.999 ? "identique" : Math.round(s * 100) + " %", cls: "num" },
+        ],
+      });
+    }
+  }
+  push({
+    id: "jalons-similaires",
+    title: "Jalons de nom similaire",
+    hint: "Deux jalons portant presque le même nom sont souvent le même événement saisi "
+        + "deux fois — typiquement le jalon sortant d'un lot et le jalon entrant du "
+        + "suivant, entre lesquels le lien manque.",
+    columns: [{ text: "Jalon" }, { text: "Rôle" }, { text: "Jalon" }, { text: "Rôle" },
+              { text: "Ressemblance", cls: "num" }],
+    rows: simRows,
+  });
+
+  // 3) Taches isolees — une Activite sans aucun lien n'est ni tenue par une echeance
+  // ni tenante pour la suite : elle est hors du reseau, donc hors du calcul de chemin.
+  push({
+    id: "taches-isolees",
+    title: "Tâches isolées",
+    hint: "Aucun lien entrant ni sortant : la tâche est hors du réseau, elle ne participe "
+        + "à aucun enchaînement et ne peut pas être sur le chemin critique.",
+    columns: [{ text: "Tâche" }, { text: "Durée", cls: "num" }],
+    rows: activities.filter(n => !nbIn(n) && !nbOut(n)).map(n => ({
+      filterText: labelOf(n),
+      cells: [
+        { text: labelOf(n), nodeId: n.id },
+        { text: String(n.properties.duration || 0), cls: "num" },
+      ],
+    })),
+  });
+
+  // 4) Fins de chaine sans jalon — une tache qui ne debouche sur rien produit quelque
+  // chose que le planning ne materialise pas. C'est le controle « chaque branche
+  // se termine-t-elle par un livrable identifie ? ».
+  push({
+    id: "fins-sans-jalon",
+    title: "Fins de chaîne sans jalon",
+    hint: "Ces tâches n'ont aucun successeur : leur aboutissement n'est matérialisé par "
+        + "aucun jalon. Ajouter un jalon de sortie rend le livrable explicite et "
+        + "vérifiable.",
+    columns: [{ text: "Tâche" }, { text: "Fin t.tôt" }],
+    rows: activities.filter(n => nbIn(n) && !nbOut(n)).map(n => ({
+      filterText: labelOf(n),
+      cells: [
+        { text: labelOf(n), nodeId: n.id },
+        { text: (typeof pertFormatDate === "function" && n.ef != null)
+            ? pertFormatDate(pertOffsetToDate(n.ef)) : "—" },
+      ],
+    })),
+  });
+
+  // 5) Taches de duree nulle — une Activite de duree 0 est un JALON deguise : elle
+  // n'occupe personne et brouille la lecture des enchainements.
+  push({
+    id: "duree-nulle",
+    title: "Tâches de durée nulle",
+    hint: "Une tâche sans durée est en réalité un jalon : la convertir clarifie le "
+        + "planning et évite de la compter comme une charge.",
+    columns: [{ text: "Tâche" }, { text: "Groupe" }],
+    rows: activities.filter(n => !(parseFloat(n.properties.duration) > 0)).map(n => ({
+      filterText: labelOf(n),
+      cells: [
+        { text: labelOf(n), nodeId: n.id },
+        { text: (n.properties.group || "").trim() || "—" },
+      ],
+    })),
+  });
+
+  return out;
 }
 
 // ─── Rendu DOM ──────────────────────────────────────────────────────────────────
@@ -42347,6 +42752,10 @@ function synthTable(headers, rows) {
     cells.forEach(c => {
       const td = synthEl("td", c.cls || null);
       if (c.node) td.appendChild(c.node);
+      // Cellule DESIGNANT UN NŒUD : rendue cliquable, elle mene au nœud. Le lecteur
+      // d'une synthese veut aller voir ce qu'on lui signale, pas le retrouver a l'œil
+      // dans le planning. Meme geste que les voisins du panneau lateral.
+      else if (c.nodeId != null) td.appendChild(synthNodeLink(c.text, c.nodeId));
       else td.textContent = (c.text != null ? c.text : "");
       tr.appendChild(td);
     });
@@ -42354,6 +42763,81 @@ function synthTable(headers, rows) {
   });
   table.appendChild(tbody);
   return table;
+}
+
+// ─── Depuis la synthèse vers le planning ────────────────────────────────────────
+//
+// Deux gestes complementaires, parce que les deux questions ne sont pas les memes :
+//   - « montre-moi CE nœud »        → le lien sur le nom : on ferme la fenetre, le nœud
+//                                     est selectionne et la vue centree dessus ;
+//   - « montre-moi CES nœuds-la »   → le bouton 🔎 de la ligne : on ferme la fenetre en
+//                                     posant le filtre de recherche sur leur nom commun,
+//                                     ce qui les met en evidence ENSEMBLE dans le plan.
+// Le premier convient a une anomalie ponctuelle (un jalon orphelin), le second a une
+// anomalie qui met en jeu PLUSIEURS nœuds (deux jalons de nom similaire) : les voir
+// cote a cote est justement ce qui permet de trancher.
+//
+// Dans les deux cas la fenetre se ferme : elle recouvre le planning, l'y laisser
+// ouverte rendrait le resultat invisible.
+
+function pertSynthGoToNode(id) {
+  const g = window.pertGraph;
+  const node = g && g._nodes ? g._nodes.find(n => n.id === id) : null;
+  pertCloseSynthesisDialog();
+  if (!node) return;
+  if (typeof pertFocusNode === "function") pertFocusNode(node);
+}
+window.pertSynthGoToNode = pertSynthGoToNode;
+
+// Pose le filtre de RECHERCHE sur un texte, en passant par la vraie zone de saisie du
+// menu Filtre : tout ce qui en depend (compteur, libelle du declencheur, regles de
+// vidage) reste ainsi valable, sans dupliquer la moindre logique.
+function pertSynthFilterOn(text) {
+  pertCloseSynthesisDialog();
+  const input = document.getElementById("filter-search");
+  if (!input) return;
+  input.value = text || "";
+  input.dispatchEvent(new Event("input"));
+  if (typeof showToast === "function" && text) {
+    showToast("Filtre de recherche : « " + text + " »");
+  }
+}
+window.pertSynthFilterOn = pertSynthFilterOn;
+
+// Lien cliquable vers un nœud (rendu comme du texte souligne, pas comme un bouton :
+// dans un tableau, une rangee de boutons serait visuellement assourdissante).
+function synthNodeLink(text, nodeId) {
+  const b = synthEl("button", "synth-link", text != null ? text : "");
+  b.type = "button";
+  b.title = "Aller à ce nœud dans le planning";
+  b.addEventListener("click", () => pertSynthGoToNode(nodeId));
+  return b;
+}
+
+// Bouton d'action « mettre en évidence » d'une ligne d'analyse.
+function synthFilterButton(text) {
+  const b = synthEl("button", "synth-goto", "🔎");
+  b.type = "button";
+  b.title = "Mettre en évidence dans le planning (filtre « " + text + " »)";
+  b.addEventListener("click", () => pertSynthFilterOn(text));
+  return b;
+}
+
+// Plus longue amorce commune a deux libelles, ramenee a une limite de mot. Sert de
+// terme de filtre pour une ligne qui met en jeu DEUX nœuds : c'est ce qu'ils ont en
+// commun qu'on veut voir surligne, pas l'un des deux. Repli sur le premier libelle
+// quand l'amorce commune est trop courte pour etre discriminante.
+function pertSynthCommonTerm(a, b) {
+  a = String(a || ""); b = String(b || "");
+  let i = 0;
+  while (i < a.length && i < b.length && a[i].toLowerCase() === b[i].toLowerCase()) i++;
+  let common = a.slice(0, i).trim();
+  // Ne pas couper au milieu d'un mot : « Livraison protot » filtrerait large et mal.
+  if (i < a.length && i < b.length && !/\s$/.test(a.slice(0, i))) {
+    const cut = common.lastIndexOf(" ");
+    if (cut > 0) common = common.slice(0, cut);
+  }
+  return common.length >= 4 ? common : a.trim();
 }
 
 // Section titree ; ajoute un message « vide » si aucune ligne.
@@ -42380,12 +42864,88 @@ function synthTagNode(tag) {
   return s;
 }
 
+// ─── Onglets (= chapitres à l'impression) ───────────────────────────────────────
+//
+// Sur un gros planning, tout empiler dans une seule colonne rendait la fenetre
+// illisible malgre le defilement. Quatre onglets a l'ecran ; a l'IMPRESSION les quatre
+// panneaux sont visibles a la suite, chacun ouvrant un chapitre sur une nouvelle page
+// (regles @media print). Le titre de chapitre est donc dans le DOM en permanence, mais
+// masque a l'ecran : il ferait doublon avec l'onglet actif.
+const PERT_SYNTH_TABS = [
+  { id: "generique", label: "Générique", chapter: "Générique" },
+  { id: "sortants",  label: "Jalons sortants", chapter: "Jalons sortants" },
+  { id: "entrants",  label: "Jalons entrants", chapter: "Jalons entrants" },
+  { id: "analyse",   label: "Analyse", chapter: "Analyse du planning" },
+];
+
+// Onglet courant, memorise d'une ouverture a l'autre (meme principe que les
+// Parametres et le panneau lateral) : on revient souvent verifier le meme chapitre.
+let pertSynthTab = "generique";
+
+function pertSelectSynthTab(name) {
+  const tabs = document.querySelectorAll("#synthesis-tabs .synth-tab");
+  const panels = document.querySelectorAll("#synthesis-content .synth-panel");
+  if (!tabs.length) return;
+  let known = false;
+  tabs.forEach(t => { if (t.dataset.tab === name) known = true; });
+  if (!known) name = tabs[0].dataset.tab;
+  pertSynthTab = name;
+  tabs.forEach(t => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  panels.forEach(p => p.classList.toggle("active", p.dataset.panel === name));
+  // Le defilement appartient au panneau : changer d'onglet doit repartir du haut,
+  // sinon on arrive au milieu d'un tableau sans savoir ou l'on est.
+  const c = document.getElementById("synthesis-content");
+  if (c) c.scrollTop = 0;
+}
+window.pertSelectSynthTab = pertSelectSynthTab;
+
+// Construit la barre d'onglets et les quatre panneaux vides ; renvoie les panneaux
+// indexes par id, que le rendu remplit ensuite.
+function pertBuildSynthTabs(model) {
+  const bar = document.getElementById("synthesis-tabs");
+  const c = document.getElementById("synthesis-content");
+  const panels = {};
+  if (!bar || !c) return panels;
+  bar.innerHTML = "";
+  c.innerHTML = "";
+
+  // Nombre de points d'attention : porte par l'onglet Analyse, pour qu'on sache qu'il
+  // y a quelque chose a y voir sans avoir a l'ouvrir.
+  const nbAnalyses = model.analyses.reduce((s, a) => s + a.rows.length, 0);
+
+  PERT_SYNTH_TABS.forEach(t => {
+    const b = synthEl("button", "synth-tab", t.label);
+    b.type = "button";
+    b.dataset.tab = t.id;
+    b.setAttribute("role", "tab");
+    if (t.id === "analyse" && nbAnalyses) {
+      const badge = synthEl("span", "synth-tab-badge", String(nbAnalyses));
+      b.appendChild(badge);
+    }
+    b.addEventListener("click", () => pertSelectSynthTab(t.id));
+    bar.appendChild(b);
+
+    const p = synthEl("div", "synth-panel");
+    p.dataset.panel = t.id;
+    // Titre de chapitre : masque a l'ecran (l'onglet le dit deja), affiche a l'impression.
+    p.appendChild(synthEl("h3", "synth-chapter", t.chapter));
+    c.appendChild(p);
+    panels[t.id] = p;
+  });
+  return panels;
+}
+
 // (Re)construit le contenu de la fenetre de synthese.
 function pertRenderSynthesis() {
   const c = document.getElementById("synthesis-content");
   if (!c) return;
-  c.innerHTML = "";
   const m = pertBuildSynthesisModel();
+  const panels = pertBuildSynthTabs(m);
+  const gen = panels.generique || c;
 
   // 1) Vue d'ensemble.
   const ov = synthEl("div", "synth-overview");
@@ -42402,7 +42962,7 @@ function pertRenderSynthesis() {
     synthKV(ov, "dont anticipé (avant T0)", pertFormatCost(m.anticCost));
   }
   synthKV(ov, "Chemin critique", m.critTasks + " tâche(s) · " + pertFormatCost(m.critCost));
-  synthSection(c, "Vue d'ensemble", ov);
+  synthSection(gen, "Vue d'ensemble", ov);
 
   // 2) et 3) Jalons ENTRANTS puis SORTANTS, dans l'ordre chronologique. Un checkpoint
   // intermediaire (lien entrant ET sortant) figure dans les deux listes : il est un
@@ -42412,10 +42972,13 @@ function pertRenderSynthesis() {
     { text: "Jalon" }, { text: "Type" }, { text: "Fin t.tôt" },
     { text: "Cible" }, { text: "Marge", cls: "num" },
   ];
+  // Le nom du jalon MENE au jalon (meme mecanique que l'onglet Analyse). Pas de bouton
+  // « mettre en évidence » ici : une ligne ne designe qu'UN nœud, et l'y conduire
+  // directement est strictement plus utile que de le surligner parmi les autres.
   const mileRow = (r) => ({
     cls: "synth-mile-" + (r.state || "none"),
     cells: [
-      { text: r.label },
+      { text: r.label, nodeId: r.id },
       { node: synthTagNode(r.tag), text: r.tag ? "" : "—" },
       { text: pertFormatDate(r.efDate) },
       { text: r.dueLabel || "—" },
@@ -42423,20 +42986,25 @@ function pertRenderSynthesis() {
     ],
   });
 
-  synthSection(c, "Jalons entrants (" + m.milestonesEntrants.length + ")",
+  synthSection(panels.entrants || c, "Jalons entrants (" + m.milestonesEntrants.length + ")",
     m.milestonesEntrants.length ? synthTable(mileHeaders, m.milestonesEntrants.map(mileRow)) : null,
     "Aucun jalon n'alimente le planning.");
 
-  synthSection(c, "Jalons sortants (" + m.milestonesSortants.length + ")",
+  synthSection(panels.sortants || c, "Jalons sortants (" + m.milestonesSortants.length + ")",
     m.milestonesSortants.length ? synthTable(mileHeaders, m.milestonesSortants.map(mileRow)) : null,
     "Aucun jalon produit par le planning.");
 
   // 4) Jalons isoles (ni entrant ni sortant) : signales seulement s'il y en a. Ils
   // n'appartiennent a aucune des deux listes ci-dessus et passeraient sinon a la
-  // trappe — or un jalon sans aucun lien est le plus souvent un oubli de connexion.
+  // trappe. Ils sont RAPPELES ici, dans les deux onglets de jalons, parce qu'un
+  // lecteur qui parcourt « les jalons » doit les voir ; leur diagnostic, lui, vit
+  // dans l'onglet Analyse.
   if (m.milestonesIsoles.length) {
-    synthSection(c, "Jalons isolés (" + m.milestonesIsoles.length + ")",
-      synthTable(mileHeaders, m.milestonesIsoles.map(mileRow)));
+    [panels.entrants, panels.sortants].forEach(p => {
+      if (!p) return;
+      synthSection(p, "Jalons isolés (" + m.milestonesIsoles.length + ")",
+        synthTable(mileHeaders, m.milestonesIsoles.map(mileRow)));
+    });
   }
 
   // 5) Synthese par groupe : cout GLOBAL puis, si le planning comporte de
@@ -42472,9 +43040,32 @@ function pertRenderSynthesis() {
     grpHeaders.push({ text: "dont non anticipé", cls: "num" });
   }
   grpHeaders.push({ text: "Fin au plus tard", cls: "num" });
-  synthSection(c, "Par groupe (WP / métier)",
+  synthSection(gen, "Par groupe (WP / métier)",
     m.groups.length ? synthTable(grpHeaders, grpRows) : null,
     "Aucune tâche.");
+
+  // 6) ANALYSE : un tableau par controle non vide, precede de son explication. Rien
+  // detecte → un message unique, plutot que quatre sections vides a faire defiler.
+  const an = panels.analyse || c;
+  if (!m.analyses.length) {
+    synthSection(an, "Points d'attention", null,
+      "Aucun point d'attention détecté sur ce planning.");
+  } else {
+    m.analyses.forEach(a => {
+      const box = synthEl("div");
+      box.appendChild(synthEl("p", "synth-hint", a.hint));
+      // Colonne d'action en queue de ligne : met en evidence dans le planning les
+      // nœuds de CETTE ligne (le nom, lui, mene directement au nœud — cf. synthNodeLink).
+      const cols = a.columns.concat([{ text: "", cls: "synth-goto-col" }]);
+      const rows = a.rows.map(r => ({
+        cells: r.cells.concat([{ node: synthFilterButton(r.filterText), cls: "synth-goto-col" }]),
+      }));
+      box.appendChild(synthTable(cols, rows));
+      synthSection(an, a.title + " (" + a.rows.length + ")", box);
+    });
+  }
+
+  pertSelectSynthTab(pertSynthTab);
 }
 
 // ─── Ouverture / fermeture / impression ──────────────────────────────────────────
@@ -42890,6 +43481,19 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     // Echap → ferme le menu.
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeFilterMenu(); });
+  }
+
+  // Recherche par nom / notes : filtre appliqué à la frappe (pas de bouton à presser).
+  const filterSearch = document.getElementById("filter-search");
+  if (filterSearch) {
+    filterSearch.addEventListener("input", pertApplySearchFilter);
+    // Entrée referme le menu en gardant la recherche active : on veut voir le
+    // planning, pas le menu qui le recouvre.
+    filterSearch.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); closeFilterMenu(); }
+    });
+    // Le clic dans le champ ne doit pas etre pris pour un choix de ligne du menu.
+    filterSearch.addEventListener("click", (e) => e.stopPropagation());
   }
 
   // Undo / Redo (Session 4)
@@ -43586,6 +44190,10 @@ function pertRecolorGroup(groupName, color) {
 //   { type:"group", value:"WP1" }      → seules les Activites du groupe restent vives
 //   { type:"color", value:"#.." }      → seules les Activites de cette couleur restent vives
 //   { type:"responsible", value:"..." }→ seules les Activites de ce responsable restent vives
+//   { type:"text", value:"..." }       → seuls les nœuds dont le NOM ou les NOTES contiennent
+//                                        la chaine restent vifs (recherche, v0.20). Seul filtre
+//                                        a concerner les trois types de nœuds : on cherche « ou
+//                                        est passe X », pas « quelles taches appartiennent a X ».
 // Les nœuds non concernes sont ESTOMPES (voile translucide dessine dans nodes.js,
 // pertDrawDimVeil). On ne cache rien (les liens et la structure restent lisibles),
 // on attire l'œil sur l'ensemble selectionne. Couvre import (couleur d'un lot) et
@@ -43627,6 +44235,10 @@ function filterEquals(a, b) {
 function pertFilterStillValid() {
   const f = window.pertFilter;
   if (!f) return true;
+  // Recherche : toujours valide, elle ne depend d'aucune valeur du graphe. Une
+  // recherche sans resultat n'est pas invalide — c'est une reponse, et le compteur
+  // du menu la rend lisible plutot que de laisser un planning tout estompe muet.
+  if (f.type === "text") return true;
   if (f.type === "group") return collectGroupNames().indexOf(f.value) !== -1;
   if (f.type === "color") {
     const lc = String(f.value).toLowerCase();
@@ -43644,6 +44256,13 @@ function openFilterMenu() {
   const t = document.getElementById("filter-trigger");
   if (m) m.hidden = false;
   if (t) t.setAttribute("aria-expanded", "true");
+  // Le compteur peut avoir vieilli (nœuds ajoutes/renommes depuis la derniere
+  // ouverture) : on le recalcule a l'ouverture, seul moment ou il est visible.
+  pertUpdateSearchCount();
+  // Ouvrir le menu, c'est vouloir filtrer : le curseur va dans la recherche, prete a
+  // l'usage, sans empecher de cliquer une ligne.
+  const s = document.getElementById("filter-search");
+  if (s) s.focus();
 }
 function closeFilterMenu() {
   const m = document.getElementById("filter-menu");
@@ -43694,6 +44313,10 @@ function buildFilterRow(filter, label, color, icon) {
   row.appendChild(txt);
   row.addEventListener("click", (e) => {
     e.stopPropagation();
+    // Choisir un filtre d'une autre nature (ou « Aucun ») VIDE la recherche : les
+    // deux filtres s'excluent, et laisser une chaine dans la zone de saisie alors
+    // qu'elle ne filtre plus rien serait le meilleur moyen de croire a un bug.
+    pertClearFilterSearch();
     applyFilter(filter);
     updateFilterTrigger();
     closeFilterMenu();
@@ -43701,12 +44324,72 @@ function buildFilterRow(filter, label, color, icon) {
   return row;
 }
 
+// ── Recherche par nom / notes ───────────────────────────────────────────────────
+
+// Vide la zone de recherche et son compteur, SANS toucher au filtre courant :
+// l'appelant vient d'en poser un autre, ou s'apprete a le faire.
+function pertClearFilterSearch() {
+  const input = document.getElementById("filter-search");
+  if (input) input.value = "";
+  pertUpdateSearchCount();
+}
+
+// Nombre de nœuds actuellement mis en évidence — affiché sous la zone de recherche.
+// Sans lui, une recherche infructueuse estompe tout le planning sans rien dire.
+function pertUpdateSearchCount() {
+  const out = document.getElementById("filter-search-count");
+  if (!out) return;
+  const f = window.pertFilter;
+  const input = document.getElementById("filter-search");
+  if (!f || f.type !== "text" || !(input && input.value.trim())) {
+    out.textContent = "";
+    out.classList.remove("empty");
+    return;
+  }
+  const g = window.pertGraph;
+  let n = 0;
+  if (g && g._nodes) g._nodes.forEach(node => { if (!pertNodeDimmed(node)) n++; });
+  out.textContent = n ? n + " nœud" + (n > 1 ? "s" : "") : "aucun résultat";
+  out.classList.toggle("empty", n === 0);
+}
+
+// Remet a jour le marqueur « ligne active » du menu SANS le reconstruire : taper dans
+// la recherche change le filtre courant, mais reconstruire les options ferait perdre
+// le focus et la saisie en cours. Sans cela, « Aucun filtre » restait surligne pendant
+// qu'une recherche etait active.
+function pertRefreshFilterActiveRows() {
+  const menu = document.getElementById("filter-options");
+  if (!menu) return;
+  const actif = !!(window.pertFilter && window.pertFilter.type === "text");
+  menu.querySelectorAll(".filter-menu-row").forEach(row => {
+    // Une recherche n'est representee par AUCUNE ligne du menu : toutes se
+    // desactivent, y compris « Aucun filtre » (un filtre est bien actif).
+    if (actif) row.classList.remove("active");
+  });
+  if (!actif) refreshFilterOptions();
+}
+
+// Applique (ou retire) le filtre de recherche depuis la zone de saisie. Silencieux :
+// un toast a chaque frappe serait insupportable — le compteur et le declencheur du
+// menu suffisent a rendre compte de l'etat.
+function pertApplySearchFilter() {
+  const input = document.getElementById("filter-search");
+  if (!input) return;
+  const q = input.value.trim();
+  applyFilter(q ? { type: "text", value: q } : null, true);
+  updateFilterTrigger();
+  pertUpdateSearchCount();
+  pertRefreshFilterActiveRows();
+}
+
 // (Re)construit le contenu du menu de filtre (aucun + groupes + couleurs).
 function refreshFilterOptions() {
   // Invalide d'abord un filtre devenu obsolete (groupe/couleur disparu).
   if (!pertFilterStillValid()) { applyFilter(null); updateFilterTrigger(); }
 
-  const menu = document.getElementById("filter-menu");
+  // On ne reconstruit QUE la liste des options : la zone de recherche, elle, est
+  // fixe dans le HTML, sinon la saisie serait perdue a chaque ouverture du menu.
+  const menu = document.getElementById("filter-options");
   if (!menu) return;
   menu.innerHTML = "";
 
@@ -43743,6 +44426,7 @@ function updateFilterTrigger() {
   let color = null, label, icon = null;
   if (f.type === "group") { color = pertGroups()[f.value] || null; label = f.value; }
   else if (f.type === "responsible") { label = f.value; icon = "👤"; }
+  else if (f.type === "text") { label = "« " + f.value + " »"; icon = "🔎"; }
   else { color = f.value; label = pertColorGroupLabel(f.value); }
   cur.appendChild(buildFilterSwatch(color, icon));
   const txt = document.createElement("span");
@@ -43752,13 +44436,17 @@ function updateFilterTrigger() {
 }
 
 // Active un filtre (ou null), redessine et informe l'utilisateur.
-function applyFilter(filter) {
+// silent : n'affiche pas de toast — utilise par la recherche, qui s'applique a chaque
+// frappe (un toast par caractere serait insupportable).
+function applyFilter(filter, silent) {
   window.pertFilter = filter;
   if (window.pertGraph) window.pertGraph.setDirtyCanvas(true, true);
+  if (silent) return;
   if (!filter) { showToast("Filtre désactivé"); return; }
   let label;
   if (filter.type === "group") label = "groupe « " + filter.value + " »";
   else if (filter.type === "responsible") label = "responsable « " + filter.value + " »";
+  else if (filter.type === "text") label = "recherche « " + filter.value + " »";
   else label = "couleur de « " + pertColorGroupLabel(filter.value) + " »";
   showToast("Filtre actif : " + label + " mis en évidence");
 }
