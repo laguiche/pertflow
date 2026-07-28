@@ -6,10 +6,17 @@
 // Optionnel — desactivable via le dialogue Parametres ; serialise dans le .pert.
 // hours_per_month / hours_per_day / hourly_rate (S8.5) : parametres d'estimation de
 // cout (cf. pertActivityCost) ; defauts entreprise, modifiables dans Parametres.
+// new_task_mode / new_task_group : couleur (et groupe) des taches NOUVELLEMENT creees.
+//   "libre"  (defaut) → premiere couleur de la palette qu'AUCUN groupe n'utilise, et
+//                       aucun groupe : la tache neuve se voit comme non rattachee.
+//   "groupe"          → rattachee d'emblee au groupe new_task_group, dont elle herite
+//                       la couleur (cf. pertApplyNewTaskDefaults).
+// Le bleu fixe d'origine devenait trompeur des qu'un groupe se l'appropriait.
 window.pertMeta = {
   title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true,
   hours_per_month: 135, hours_per_day: 8, hourly_rate: 136,
   groups: {}, autosave: true,
+  new_task_mode: "libre", new_task_group: "",
   // Trame temporelle de fond : desactivee par defaut (aucun changement visuel pour
   // les plannings existants ; c'est une aide de lecture qu'on demande, cf. time_grid.js).
   time_grid: false,
@@ -91,6 +98,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Ajoute un nœud du type donné à la position graphe fournie (ou au centre).
   function addNodeAt(typeName, pos) {
     const n = LiteGraph.createNode(typeName);
+    // Couleur/groupe par defaut des taches CREEES a la main (toolbar, clic droit)
+    // uniquement : l'import et le chargement d'un .pert apportent leurs propres
+    // couleurs, il ne faut surtout pas les ecraser.
+    pertApplyNewTaskDefaults(n);
     if (n.updateSize) n.updateSize();
     if (pos) {
       // Position explicite (clic droit) : coin haut-gauche sous le curseur
@@ -395,6 +406,15 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("#settings-tabs .settings-tab").forEach(tab => {
     tab.addEventListener("click", () => pertSelectSettingsTab(tab.dataset.tab));
   });
+
+  // ── Couleur / groupe des nouvelles tâches ───────────────────────────────────
+  // La ligne « Groupe par défaut » n'a de sens qu'en mode « groupe » : on la masque
+  // sinon (elle reste dans le DOM, comme les panneaux d'onglets, pour que
+  // saveSettings() puisse la lire par son id).
+  const ntMode = document.getElementById("settings-newtask-mode");
+  const ntGroup = document.getElementById("settings-newtask-group");
+  if (ntMode) ntMode.addEventListener("change", pertRefreshNewTaskRow);
+  if (ntGroup) ntGroup.addEventListener("change", pertRefreshNewTaskRow);
 
   // ── Curseur d'intensité de la trame ─────────────────────────────────────────
   // Le retour d'usage a été « pas assez visible », sans qu'aucune valeur ne fasse
@@ -918,6 +938,45 @@ function pertApplyGroup(node) {
   const reg = pertGroups();
   if (reg[g]) { node.properties.color = reg[g]; node.color = reg[g]; }
   else { reg[g] = node.properties.color; }
+}
+
+// ─── Couleur / groupe des nouvelles tâches (meta.new_task_*) ────────────────────
+
+// Premiere couleur de la palette qu'AUCUN groupe ne s'est appropriee. On ne regarde
+// que le registre des groupes (et non les couleurs portees par les taches) : deux
+// taches sans groupe creees a la suite doivent garder la MEME teinte — c'est la
+// couleur « sans groupe » du projet, pas un code couleur par tache. Fallback : la
+// premiere couleur de la palette (tous les tons sont pris par des groupes).
+function pertPickFreeColor() {
+  const used = new Set();
+  const reg = pertGroups();
+  Object.keys(reg).forEach(k => {
+    if (reg[k]) used.add(String(reg[k]).toLowerCase());
+  });
+  const free = PERT_COLOR_PALETTE.find(c => !used.has(c.toLowerCase()));
+  return free || PERT_COLOR_PALETTE[0];
+}
+
+// Applique a une Activite neuve la couleur (et le groupe) choisis dans les Parametres.
+// Appelee par addNodeAt AVANT l'ajout au graphe — donc jamais sur les nœuds issus d'un
+// import, d'un chargement ou d'un collage, qui portent deja leurs propres couleurs.
+// Mode "groupe" dont le groupe a disparu (renomme, plus aucune tache) → repli sur la
+// couleur libre, plutot qu'un rattachement fantome.
+function pertApplyNewTaskDefaults(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return;
+  const meta = window.pertMeta || {};
+  const color = pertPickFreeColor();
+  node.properties.color = color;
+  node.color = color;
+
+  if (meta.new_task_mode !== "groupe") return;
+  const g = (meta.new_task_group || "").trim();
+  if (!g) return;
+  node.properties.group = g;
+  // pertApplyGroup tranche : couleur HERITEE si le groupe est au registre, sinon la
+  // couleur libre qu'on vient de poser DEVIENT celle du groupe ("premier venu", #14).
+  pertApplyGroup(node);
+  node.color = node.properties.color;
 }
 
 // Action explicite (bouton du panneau) : affecte le groupe courant a toutes les autres
@@ -1545,6 +1604,58 @@ function pertRefreshTimeGridPreview() {
   }
 }
 
+// Remplit le selecteur « Groupe par defaut » avec les groupes CONNUS a l'instant de
+// l'ouverture (registre + groupes portes par des taches), et selectionne celui de
+// meta. Aucun groupe defini → une seule option desactivee, et le mode « libre » est
+// impose : proposer un rattachement sans cible n'aurait aucun sens.
+function pertFillNewTaskGroupSelect() {
+  const sel = document.getElementById("settings-newtask-group");
+  const modeSel = document.getElementById("settings-newtask-mode");
+  if (!sel || !modeSel) return;
+  const names = collectGroupNames();
+  sel.innerHTML = "";
+  if (!names.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "(aucun groupe défini)";
+    sel.appendChild(opt);
+    sel.disabled = true;
+    modeSel.value = "libre";
+    // On desactive aussi l'option « groupe » : un choix impossible ne doit pas etre
+    // offert (il retomberait silencieusement sur « libre » a la validation).
+    Array.from(modeSel.options).forEach(o => { if (o.value === "groupe") o.disabled = true; });
+    return;
+  }
+  sel.disabled = false;
+  Array.from(modeSel.options).forEach(o => { o.disabled = false; });
+  names.forEach(n => {
+    const opt = document.createElement("option");
+    opt.value = n;
+    opt.textContent = n;
+    sel.appendChild(opt);
+  });
+  const wanted = (window.pertMeta.new_task_group || "").trim();
+  sel.value = names.indexOf(wanted) !== -1 ? wanted : names[0];
+}
+
+// Affiche/masque la ligne « Groupe par defaut » selon le mode, et met la pastille a
+// la couleur du groupe selectionne (pastille vide si le groupe n'est pas encore au
+// registre : sa teinte ne sera fixee qu'a la premiere tache creee).
+function pertRefreshNewTaskRow() {
+  const modeSel = document.getElementById("settings-newtask-mode");
+  const row = document.getElementById("settings-newtask-group-row");
+  const sel = document.getElementById("settings-newtask-group");
+  const swatch = document.getElementById("settings-newtask-swatch");
+  if (!modeSel || !row || !sel) return;
+  const isGroup = modeSel.value === "groupe";
+  row.style.display = isGroup ? "" : "none";
+  if (swatch) {
+    const c = isGroup ? (pertGroups()[sel.value] || "") : "";
+    swatch.style.background = c || "transparent";
+    swatch.title = c ? "Couleur du groupe " + sel.value : "Couleur non encore fixée";
+  }
+}
+
 function openSettings() {
   // Le curseur d'intensite est un reglage qu'on ajuste par essais successifs : on
   // revient donc sur l'onglet ouvert la fois precedente plutot que de repartir de
@@ -1563,6 +1674,12 @@ function openSettings() {
   // Sauvegarde automatique (activee par defaut : cochee sauf desactivation explicite)
   document.getElementById("settings-autosave").checked =
     window.pertMeta.autosave !== false;
+  // Couleur/groupe des nouvelles taches. La liste des groupes est reconstruite a
+  // CHAQUE ouverture : elle bouge au fil du projet (imports, saisies dans le panneau).
+  document.getElementById("settings-newtask-mode").value =
+    window.pertMeta.new_task_mode === "groupe" ? "groupe" : "libre";
+  pertFillNewTaskGroupSelect();
+  pertRefreshNewTaskRow();
   // Trame temporelle : decochee par defaut (aide de lecture optionnelle)
   document.getElementById("settings-timegrid").checked = !!window.pertMeta.time_grid;
   // Intensite : stockee en facteur (1 = reference), presentee en pourcentage.
@@ -1594,6 +1711,13 @@ function saveSettings() {
   // Sauvegarde automatique : bascule prise en compte immediatement par le module
   window.pertMeta.autosave = document.getElementById("settings-autosave").checked;
   if (window.pertAutosaveOnToggle) window.pertAutosaveOnToggle();
+  // Couleur/groupe des nouvelles taches. Le mode « groupe » n'est retenu que s'il
+  // designe reellement un groupe : sinon on retombe sur « libre » (le selecteur peut
+  // etre vide, ou le groupe avoir disparu depuis le dernier chargement).
+  const ntMode = document.getElementById("settings-newtask-mode").value;
+  const ntGroup = (document.getElementById("settings-newtask-group").value || "").trim();
+  window.pertMeta.new_task_mode = (ntMode === "groupe" && ntGroup) ? "groupe" : "libre";
+  window.pertMeta.new_task_group = ntGroup;
   // Trame temporelle : simple bascule d'affichage, prise en compte au prochain redessin
   // (declenche plus bas a la validation des parametres, comme les autres options).
   window.pertMeta.time_grid = document.getElementById("settings-timegrid").checked;
@@ -1734,9 +1858,11 @@ function handleExcelFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
-// Palette de couleurs distinctes proposees pour distinguer visuellement les lots
-// importes successivement (un import = une couleur appliquee a toutes ses Activites).
-const IMPORT_COLOR_PALETTE = [
+// Palette de couleurs distinctes du projet. Deux usages :
+//   - import : un lot importe = une couleur (cf. pickDefaultImportColor) ;
+//   - creation d'une tache : couleur « libre », non prise par un groupe
+//     (cf. pertPickFreeColor).
+const PERT_COLOR_PALETTE = [
   "#4A90D9", // bleu (defaut historique)
   "#7ED321", // vert
   "#F5A623", // orange
@@ -1759,8 +1885,8 @@ function pickDefaultImportColor() {
       }
     });
   }
-  const free = IMPORT_COLOR_PALETTE.find(c => !used.has(c.toLowerCase()));
-  return free || IMPORT_COLOR_PALETTE[0];
+  const free = PERT_COLOR_PALETTE.find(c => !used.has(c.toLowerCase()));
+  return free || PERT_COLOR_PALETTE[0];
 }
 
 // Demande le GROUPE (et la couleur qui en decoule) des taches importees, puis
@@ -1884,7 +2010,7 @@ function promptImportGroup(defaultColor, onChoose, opts) {
       e.classList.toggle("selected", e.title.toLowerCase() === current.toLowerCase()));
   };
 
-  IMPORT_COLOR_PALETTE.forEach(c => {
+  PERT_COLOR_PALETTE.forEach(c => {
     const sw = document.createElement("button");
     sw.className = "color-swatch";
     sw.style.background = c;

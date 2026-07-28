@@ -108,6 +108,9 @@
         global.pertMeta.hourly_rate = data.meta.hourly_rate != null ? data.meta.hourly_rate : 136;
         // #14 registre des couleurs de groupes (capte dans le snapshot via pertMeta)
         global.pertMeta.groups = data.meta.groups || {};
+        // Couleur/groupe des nouvelles taches (defaut "libre" si snapshot anterieur)
+        global.pertMeta.new_task_mode = data.meta.new_task_mode === "groupe" ? "groupe" : "libre";
+        global.pertMeta.new_task_group = data.meta.new_task_group || "";
         // Sauvegarde automatique (activee par defaut si snapshot anterieur sans la cle)
         global.pertMeta.autosave = data.meta.autosave !== false;
       }

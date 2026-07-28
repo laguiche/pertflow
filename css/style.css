@@ -437,6 +437,25 @@ body {
   border-radius: 4px;
 }
 
+/* Ligne « champ + pastille de couleur » (groupe par défaut des nouvelles tâches) :
+   le select prend toute la largeur restante, la pastille reste collée à sa droite. */
+#settings-box .settings-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#settings-box .settings-inline select { flex: 1 1 auto; min-width: 0; }
+
+/* Pastille montrant la couleur héritée du groupe choisi (lecture seule) */
+#settings-box .group-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.35);
+  flex: 0 0 auto;
+  background: transparent;
+}
+
 /* Note explicative sous une case a cocher (ex. sauvegarde auto) */
 #settings-box p.settings-hint {
   margin: -4px 0 2px;

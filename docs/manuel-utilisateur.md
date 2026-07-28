@@ -530,6 +530,9 @@ nouveau nom, ou choisissez-en un déjà utilisé.
 - **Changer la couleur** d'une tâche groupée recolore **tout** le groupe.
 - **Bouton « Appliquer ce groupe aux tâches de même couleur »** : rattache d'un clic toutes les
   tâches d'une même couleur au groupe courant — pratique pour taguer un lot importé.
+- **La couleur des tâches que vous créez** se règle dans **Paramètres → Projet → Couleur des nouvelles tâches**
+  (§13) : soit une couleur **libre**, qu'aucun groupe n'utilise, soit directement **le groupe** de
+  votre choix, avec sa couleur.
 
 ---
 
@@ -694,13 +697,35 @@ répartis en **trois onglets** :
 
 | Onglet | Ce qu'on y règle |
 |---|---|
-| **Projet** | Titre, **date de début (T0)**, **unité de durée** (jours / semaines / mois), sauvegarde automatique. |
+| **Projet** | Titre, **date de début (T0)**, **unité de durée** (jours / semaines / mois), **couleur des nouvelles tâches**, sauvegarde automatique. |
 | **Affichage** | Espacement horizontal entre tâches (utilisé par « Réorganiser »), style des liens (§6), largeur des tâches proportionnelle à la durée, **trame temporelle** et son intensité. |
 | **Coûts** | Heures par mois, heures par jour, taux horaire moyen (§10). |
 
 > Changer d'onglet **ne perd rien** : vous pouvez modifier un réglage dans « Affichage » et un autre
 > dans « Coûts », un seul **Valider** enregistre l'ensemble. PertFlow rouvre le dialogue sur le
 > dernier onglet consulté, ce qui est commode pour régler la trame par essais successifs.
+
+### La couleur des nouvelles tâches
+
+![Le réglage « Couleur des nouvelles tâches » de l'onglet Projet](images/manuel/parametres-nouvelle-tache.png)
+
+Historiquement, toute tâche créée était **bleue**. Dès qu'un groupe s'appropriait ce bleu (§7), une
+tâche neuve paraissait déjà rattachée à ce groupe alors qu'elle ne l'était pas. Le réglage
+**Couleur des nouvelles tâches** (onglet **Projet**) lève l'ambiguïté, avec deux façons de travailler :
+
+| Réglage | Ce que devient une tâche créée |
+|---|---|
+| **Couleur libre (aucun groupe)** | Elle prend la première couleur de la palette **qu'aucun groupe n'utilise**, et n'appartient à aucun groupe. Elle se voit donc comme « pas encore rattachée ». |
+| **Rattachée à un groupe existant** | Elle est créée **dans le groupe choisi**, avec la couleur de ce groupe — sans passer par le panneau. |
+
+- En **couleur libre**, toutes les tâches non rattachées partagent la **même** teinte : c'est la
+  couleur « sans groupe » du projet, pas un code couleur par tâche. Tant qu'aucun groupe n'a pris
+  le bleu, c'est le bleu historique qui est utilisé.
+- Le mode **« Rattachée à un groupe »** est fait pour les séances où l'on saisit un lot entier :
+  choisissez le groupe une fois, puis enchaînez les créations.
+- Tant qu'**aucun groupe n'est défini**, seul le mode « couleur libre » est proposé.
+- Le réglage est **enregistré dans le `.pert`** : il suit le projet, pas le poste de travail. Il ne
+  change **jamais** la couleur des tâches déjà présentes, ni celle des tâches importées.
 
 ### La trame temporelle
 

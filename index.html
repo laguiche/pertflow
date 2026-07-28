@@ -39,6 +39,24 @@
             <option value="mois" selected>Mois</option>
           </select>
         </label>
+        <!-- Couleur des nouvelles tâches : le bleu historique devenait trompeur dès
+             qu'un groupe se l'appropriait (une tâche neuve semblait déjà rattachée). -->
+        <label>Couleur des nouvelles tâches
+          <select id="settings-newtask-mode">
+            <option value="libre">Couleur libre (aucun groupe)</option>
+            <option value="groupe">Rattachée à un groupe existant</option>
+          </select>
+        </label>
+        <label id="settings-newtask-group-row">Groupe par défaut
+          <span class="settings-inline">
+            <select id="settings-newtask-group"></select>
+            <span id="settings-newtask-swatch" class="group-swatch" title="Couleur du groupe"></span>
+          </span>
+        </label>
+        <p class="settings-hint">« Couleur libre » donne aux tâches créées la première couleur de
+          la palette qu'aucun groupe n'utilise : elles restent visiblement non rattachées.
+          « Rattachée à un groupe » crée directement les tâches dans le groupe choisi, avec sa
+          couleur. Sans aucun groupe défini, seule la couleur libre est possible.</p>
         <label class="settings-check">
           <input type="checkbox" id="settings-autosave">
           Sauvegarde automatique (récupération après plantage)
