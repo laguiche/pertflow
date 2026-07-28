@@ -1168,6 +1168,66 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Recherche par nom + synthèse en chapitres et onglet Analyse ✅ TERMINÉ (28/07/2026, tag **v0.20**)
+Branche `evo/filtre-recherche`. Trois évolutions, toutes tournées vers la lecture d'un **gros**
+planning. Validation fonctionnelle par les tests automatiques seuls (utilisateur en remote),
+relecture visuelle sur captures — qui a de nouveau attrapé deux défauts invisibles aux tests.
+
+**(1) Filtre de recherche** (`{ type:"text", value }`). Insensible à la casse ET aux accents
+(NFD + suppression des diacritiques) : un planning se saisit avec accents et se cherche sans.
+Seul filtre à porter sur les **trois types de nœuds** — les autres ne concernent que les
+Activités — parce que la question n'est pas la même : « où est passé X » et non « quelles tâches
+appartiennent à X ». Appliqué à la frappe donc **sans toast** (`applyFilter(filter, silent)`),
+avec un **compteur de résultats** qui n'est pas cosmétique : sans lui une recherche infructueuse
+estompe tout le planning sans rien dire, et c'est le moment précis où l'on croit à un bug.
+Exigence tenue : choisir un autre filtre ou « Aucun filtre » vide la zone, et inversement. Deux
+points de structure : la zone est **fixe dans le HTML** (`refreshFilterOptions` ne reconstruit
+plus que `#filter-options`), sans quoi la saisie serait perdue à chaque ouverture du menu ; et
+taper ne reconstruit pas les options — cela ferait perdre le focus — mais **retire le marqueur
+« ligne active »**, sans quoi « Aucun filtre » restait surligné pendant une recherche (défaut vu
+sur capture).
+
+**(2) Synthèse en quatre onglets** — Générique / Jalons sortants / Jalons entrants / Analyse —
+qui deviennent les **chapitres du document imprimé**. L'impression a été la contrainte
+structurante : à l'écran un panneau visible, à l'impression les quatre, chacun ouvrant une page
+avec un titre présent en permanence dans le DOM mais masqué à l'écran (il ferait doublon avec
+l'onglet actif). **PIÈGE** : Chrome **ignore `break-before` sous un parent flex** —
+`#synthesis-content` passe donc en `display:block` à l'impression, sans quoi les chapitres
+s'enchaînaient sans saut de page, en silence. Le test demande un **vrai PDF au moteur** et compte
+ses pages : seul contrôle capable de l'attraper.
+
+**(3) Onglet Analyse** — anomalies de **structure**, celles qui se perdent quand le graphe
+grandit : jalons orphelins, jalons de nom similaire, tâches isolées, fins de chaîne sans jalon,
+tâches de durée nulle. Un contrôle = un objet `{ id, title, hint, columns, rows }` rendu
+génériquement → **fait pour s'enrichir**. Un contrôle sans anomalie n'est pas affiché : l'onglet
+doit se lire comme une liste de choses à regarder, pas de cases vertes à faire défiler. Le
+rapprochement des noms compare des libellés normalisés par **distance de Levenshtein**, seuil 85 %
+(validé par l'utilisateur, à revoir à l'usage) ; deux écarts ajoutés **après relecture d'une
+capture** où le contrôle ne remontait que du bruit : les **séries numérotées** (« Revue de lot 1 »
+/ « … 2 ») sont écartées — un caractère d'écart sur quinze, mais la numérotation est délibérée —
+et les jalons **déjà reliés** entre eux ne sont pas signalés.
+
+**(4) De la synthèse vers le planning** (demandé après relecture). Deux gestes : cliquer un **nom**
+mène au nœud (même `pertFocusNode` que le panneau latéral) ; le bouton **🔎** d'une ligne
+d'analyse pose le **filtre de recherche** sur le nom commun aux nœuds de la ligne, les mettant en
+évidence **ensemble** — c'est en voyant deux jalons similaires côte à côte qu'on tranche entre
+doublon et homonymie. Le filtre passe par la **vraie zone de saisie** du menu, donc compteur,
+libellé du déclencheur et règles de vidage restent valables sans duplication. Étendu ensuite aux
+listes de jalons, où un **second défaut de capture** a été corrigé : le bleu du lien écrasait le
+code couleur de tenue de cible sur la cellule la plus regardée → dans ces listes le nom hérite de
+la couleur de sa ligne, le **soulignement pointillé** portant seul l'affordance de clic.
+
+Fichiers : `index.html`, `css/style.css`, `src/nodes.js`, `src/ui.js`, `src/synthesis.js`,
+`docs/manuel-utilisateur.md` (§6 recherche, §12 synthèse restructurée), `docs/conception.md`.
+Tests (gitignorés) : `smoke-evo-filtre-recherche.js` (dont un contrôle **au pixel** : un filtre
+qui n'estompe rien passerait tous les tests d'état), `smoke-evo-synthese-onglets.js` (dont le PDF
+à quatre pages), `doc-shots-filtre-recherche.js`, `doc-shots-synthese-onglets.js`. Le script de
+capture du filtre choisit le terme le plus **discriminant** de la fixture et **cadre la vue sur les
+nœuds trouvés** — sans quoi l'illustration montrait un planning entièrement estompé, soit
+l'inverse du propos. Suite complète : **27 tests, 0 échec**. **Validé par l'utilisateur**
+(relecture sur captures), mergé sur `main`, tagué `v0.20`, poussé (rituel : bundle `--tag v0.20`
+régénéré + versionné).
+
 ### Panneau en deux onglets + couleur des nouvelles tâches ✅ TERMINÉ (28/07/2026, tag **v0.19**)
 Branche `evo/couleur-nouvelle-tache`. Deux évolutions demandées dans la même session, sur le
 chemin d'une future 1.0. La validation fonctionnelle a été faite **par les tests automatiques

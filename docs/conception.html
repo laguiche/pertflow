@@ -196,7 +196,10 @@ sur des couloirs voisins, jalons terminaux en bande haute. <strong>Déclenché m
   d'instance <code>flags.no_title</code> <strong>n'a aucun effet</strong> — piège classique).</li>
 <li><strong>Positions de slots explicites</strong> (<code>input.pos</code> / <code>output.pos</code>) puisque le titre est masqué.</li>
 <li><strong>Filtre</strong> : voile translucide <strong>sombre</strong> dessiné en <code>onDrawForeground</code> (donc par-dessus le
-  contenu et les slots). L'état de filtre <code>window.pertFilter</code> est un <strong>état de vue non sérialisé</strong>.</li>
+  contenu et les slots). L'état de filtre <code>window.pertFilter</code> est un <strong>état de vue non sérialisé</strong>.
+  Quatre natures : groupe, couleur, responsable — qui ne concernent que les Activités — et
+  <strong>recherche</strong> (<code>type:"text"</code>, v0.20), la seule qui porte sur les <strong>trois types de nœuds</strong>, sur
+  leur nom comme sur leurs notes, insensible à la casse et aux accents.</li>
 <li><strong>Rendu des liens</strong> : <code>renderLink</code> est <strong>surchargé sur l'instance</strong> <code>LGraphCanvas</code> (sans patcher
   la lib). Trois styles (<code>meta.link_mode</code>) : courbe (spline natif), droit (straight natif), et
   <strong>coudé</strong> = routage <strong>orthogonal custom</strong> qui <strong>contourne</strong> les nœuds (best-effort : canal

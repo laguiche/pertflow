@@ -142,7 +142,18 @@
         <span id="filter-current">🔎 Filtre : aucun</span>
         <span class="filter-caret">▾</span>
       </button>
-      <div id="filter-menu" class="filter-menu" hidden></div>
+      <!-- La zone de recherche est FIXE dans le menu (et non reconstruite avec les
+           lignes par refreshFilterOptions) : sinon la saisie en cours serait perdue
+           à chaque réouverture du menu. -->
+      <div id="filter-menu" class="filter-menu" hidden>
+        <div id="filter-search-row">
+          <input type="text" id="filter-search" autocomplete="off" spellcheck="false"
+                 placeholder="Rechercher un nom, une note…"
+                 title="Met en évidence les nœuds dont le nom ou les notes contiennent ce texte">
+          <span id="filter-search-count"></span>
+        </div>
+        <div id="filter-options"></div>
+      </div>
     </div>
     <div class="tb-sep"></div>
     <button id="btn-settings" title="Paramètres du projet">⚙ Paramètres</button>
@@ -207,7 +218,10 @@
   <div id="synthesis-dialog" class="dialog-overlay" style="display:none">
     <div class="dialog synthesis-dialog-box">
       <h3>Synthèse du planning</h3>
-      <!-- Contenu construit dynamiquement (src/synthesis.js) -->
+      <!-- Onglets + panneaux construits dynamiquement (src/synthesis.js). À l'écran un
+           seul panneau est visible ; à l'IMPRESSION ils le sont tous, chacun ouvrant un
+           chapitre sur une nouvelle page (cf. @media print dans css/style.css). -->
+      <div id="synthesis-tabs" role="tablist"></div>
       <div id="synthesis-content"></div>
       <div class="dialog-buttons">
         <button id="synthesis-close">Fermer</button>

@@ -377,6 +377,19 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeFilterMenu(); });
   }
 
+  // Recherche par nom / notes : filtre appliqué à la frappe (pas de bouton à presser).
+  const filterSearch = document.getElementById("filter-search");
+  if (filterSearch) {
+    filterSearch.addEventListener("input", pertApplySearchFilter);
+    // Entrée referme le menu en gardant la recherche active : on veut voir le
+    // planning, pas le menu qui le recouvre.
+    filterSearch.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); closeFilterMenu(); }
+    });
+    // Le clic dans le champ ne doit pas etre pris pour un choix de ligne du menu.
+    filterSearch.addEventListener("click", (e) => e.stopPropagation());
+  }
+
   // Undo / Redo (Session 4)
   document.getElementById("btn-undo").addEventListener("click", () => pertUndo());
   document.getElementById("btn-redo").addEventListener("click", () => pertRedo());
@@ -1071,6 +1084,10 @@ function pertRecolorGroup(groupName, color) {
 //   { type:"group", value:"WP1" }      → seules les Activites du groupe restent vives
 //   { type:"color", value:"#.." }      → seules les Activites de cette couleur restent vives
 //   { type:"responsible", value:"..." }→ seules les Activites de ce responsable restent vives
+//   { type:"text", value:"..." }       → seuls les nœuds dont le NOM ou les NOTES contiennent
+//                                        la chaine restent vifs (recherche, v0.20). Seul filtre
+//                                        a concerner les trois types de nœuds : on cherche « ou
+//                                        est passe X », pas « quelles taches appartiennent a X ».
 // Les nœuds non concernes sont ESTOMPES (voile translucide dessine dans nodes.js,
 // pertDrawDimVeil). On ne cache rien (les liens et la structure restent lisibles),
 // on attire l'œil sur l'ensemble selectionne. Couvre import (couleur d'un lot) et
@@ -1112,6 +1129,10 @@ function filterEquals(a, b) {
 function pertFilterStillValid() {
   const f = window.pertFilter;
   if (!f) return true;
+  // Recherche : toujours valide, elle ne depend d'aucune valeur du graphe. Une
+  // recherche sans resultat n'est pas invalide — c'est une reponse, et le compteur
+  // du menu la rend lisible plutot que de laisser un planning tout estompe muet.
+  if (f.type === "text") return true;
   if (f.type === "group") return collectGroupNames().indexOf(f.value) !== -1;
   if (f.type === "color") {
     const lc = String(f.value).toLowerCase();
@@ -1129,6 +1150,13 @@ function openFilterMenu() {
   const t = document.getElementById("filter-trigger");
   if (m) m.hidden = false;
   if (t) t.setAttribute("aria-expanded", "true");
+  // Le compteur peut avoir vieilli (nœuds ajoutes/renommes depuis la derniere
+  // ouverture) : on le recalcule a l'ouverture, seul moment ou il est visible.
+  pertUpdateSearchCount();
+  // Ouvrir le menu, c'est vouloir filtrer : le curseur va dans la recherche, prete a
+  // l'usage, sans empecher de cliquer une ligne.
+  const s = document.getElementById("filter-search");
+  if (s) s.focus();
 }
 function closeFilterMenu() {
   const m = document.getElementById("filter-menu");
@@ -1179,6 +1207,10 @@ function buildFilterRow(filter, label, color, icon) {
   row.appendChild(txt);
   row.addEventListener("click", (e) => {
     e.stopPropagation();
+    // Choisir un filtre d'une autre nature (ou « Aucun ») VIDE la recherche : les
+    // deux filtres s'excluent, et laisser une chaine dans la zone de saisie alors
+    // qu'elle ne filtre plus rien serait le meilleur moyen de croire a un bug.
+    pertClearFilterSearch();
     applyFilter(filter);
     updateFilterTrigger();
     closeFilterMenu();
@@ -1186,12 +1218,72 @@ function buildFilterRow(filter, label, color, icon) {
   return row;
 }
 
+// ── Recherche par nom / notes ───────────────────────────────────────────────────
+
+// Vide la zone de recherche et son compteur, SANS toucher au filtre courant :
+// l'appelant vient d'en poser un autre, ou s'apprete a le faire.
+function pertClearFilterSearch() {
+  const input = document.getElementById("filter-search");
+  if (input) input.value = "";
+  pertUpdateSearchCount();
+}
+
+// Nombre de nœuds actuellement mis en évidence — affiché sous la zone de recherche.
+// Sans lui, une recherche infructueuse estompe tout le planning sans rien dire.
+function pertUpdateSearchCount() {
+  const out = document.getElementById("filter-search-count");
+  if (!out) return;
+  const f = window.pertFilter;
+  const input = document.getElementById("filter-search");
+  if (!f || f.type !== "text" || !(input && input.value.trim())) {
+    out.textContent = "";
+    out.classList.remove("empty");
+    return;
+  }
+  const g = window.pertGraph;
+  let n = 0;
+  if (g && g._nodes) g._nodes.forEach(node => { if (!pertNodeDimmed(node)) n++; });
+  out.textContent = n ? n + " nœud" + (n > 1 ? "s" : "") : "aucun résultat";
+  out.classList.toggle("empty", n === 0);
+}
+
+// Remet a jour le marqueur « ligne active » du menu SANS le reconstruire : taper dans
+// la recherche change le filtre courant, mais reconstruire les options ferait perdre
+// le focus et la saisie en cours. Sans cela, « Aucun filtre » restait surligne pendant
+// qu'une recherche etait active.
+function pertRefreshFilterActiveRows() {
+  const menu = document.getElementById("filter-options");
+  if (!menu) return;
+  const actif = !!(window.pertFilter && window.pertFilter.type === "text");
+  menu.querySelectorAll(".filter-menu-row").forEach(row => {
+    // Une recherche n'est representee par AUCUNE ligne du menu : toutes se
+    // desactivent, y compris « Aucun filtre » (un filtre est bien actif).
+    if (actif) row.classList.remove("active");
+  });
+  if (!actif) refreshFilterOptions();
+}
+
+// Applique (ou retire) le filtre de recherche depuis la zone de saisie. Silencieux :
+// un toast a chaque frappe serait insupportable — le compteur et le declencheur du
+// menu suffisent a rendre compte de l'etat.
+function pertApplySearchFilter() {
+  const input = document.getElementById("filter-search");
+  if (!input) return;
+  const q = input.value.trim();
+  applyFilter(q ? { type: "text", value: q } : null, true);
+  updateFilterTrigger();
+  pertUpdateSearchCount();
+  pertRefreshFilterActiveRows();
+}
+
 // (Re)construit le contenu du menu de filtre (aucun + groupes + couleurs).
 function refreshFilterOptions() {
   // Invalide d'abord un filtre devenu obsolete (groupe/couleur disparu).
   if (!pertFilterStillValid()) { applyFilter(null); updateFilterTrigger(); }
 
-  const menu = document.getElementById("filter-menu");
+  // On ne reconstruit QUE la liste des options : la zone de recherche, elle, est
+  // fixe dans le HTML, sinon la saisie serait perdue a chaque ouverture du menu.
+  const menu = document.getElementById("filter-options");
   if (!menu) return;
   menu.innerHTML = "";
 
@@ -1228,6 +1320,7 @@ function updateFilterTrigger() {
   let color = null, label, icon = null;
   if (f.type === "group") { color = pertGroups()[f.value] || null; label = f.value; }
   else if (f.type === "responsible") { label = f.value; icon = "👤"; }
+  else if (f.type === "text") { label = "« " + f.value + " »"; icon = "🔎"; }
   else { color = f.value; label = pertColorGroupLabel(f.value); }
   cur.appendChild(buildFilterSwatch(color, icon));
   const txt = document.createElement("span");
@@ -1237,13 +1330,17 @@ function updateFilterTrigger() {
 }
 
 // Active un filtre (ou null), redessine et informe l'utilisateur.
-function applyFilter(filter) {
+// silent : n'affiche pas de toast — utilise par la recherche, qui s'applique a chaque
+// frappe (un toast par caractere serait insupportable).
+function applyFilter(filter, silent) {
   window.pertFilter = filter;
   if (window.pertGraph) window.pertGraph.setDirtyCanvas(true, true);
+  if (silent) return;
   if (!filter) { showToast("Filtre désactivé"); return; }
   let label;
   if (filter.type === "group") label = "groupe « " + filter.value + " »";
   else if (filter.type === "responsible") label = "responsable « " + filter.value + " »";
+  else if (filter.type === "text") label = "recherche « " + filter.value + " »";
   else label = "couleur de « " + pertColorGroupLabel(filter.value) + " »";
   showToast("Filtre actif : " + label + " mis en évidence");
 }

@@ -148,6 +148,9 @@ LiteGraph fournit le canvas, le pan/zoom, la sélection, la sérialisation et le
 - **Positions de slots explicites** (`input.pos` / `output.pos`) puisque le titre est masqué.
 - **Filtre** : voile translucide **sombre** dessiné en `onDrawForeground` (donc par-dessus le
   contenu et les slots). L'état de filtre `window.pertFilter` est un **état de vue non sérialisé**.
+  Quatre natures : groupe, couleur, responsable — qui ne concernent que les Activités — et
+  **recherche** (`type:"text"`, v0.20), la seule qui porte sur les **trois types de nœuds**, sur
+  leur nom comme sur leurs notes, insensible à la casse et aux accents.
 - **Rendu des liens** : `renderLink` est **surchargé sur l'instance** `LGraphCanvas` (sans patcher
   la lib). Trois styles (`meta.link_mode`) : courbe (spline natif), droit (straight natif), et
   **coudé** = routage **orthogonal custom** qui **contourne** les nœuds (best-effort : canal

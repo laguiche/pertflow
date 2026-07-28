@@ -538,9 +538,10 @@ Dans **Paramètres → Style des liens**, trois rendus au choix :
 
 ![Filtre par groupe : le reste est estompé](images/manuel/filtre.png)
 
-Le bouton **🔎 Filtre** met en évidence un sous-ensemble de tâches ; les autres nœuds sont
-**estompés** (voile sombre). Vous pouvez filtrer par :
+Le bouton **🔎 Filtre** met en évidence un sous-ensemble de nœuds ; les autres sont **estompés**
+(voile sombre). Vous pouvez filtrer par :
 
+- **Recherche** (nom ou notes) — voir ci-dessous ;
 - **Groupe** (WP / métier / service) ;
 - **Couleur** ;
 - **Responsable**.
@@ -548,6 +549,24 @@ Le bouton **🔎 Filtre** met en évidence un sous-ensemble de tâches ; les aut
 Le menu affiche une **pastille** de couleur (ou une icône 👤 pour les responsables) et un libellé
 parlant. Choisissez « Aucun filtre » pour tout réafficher. Le filtre est un **état de vue** : il
 n'est pas enregistré dans le fichier.
+
+#### La recherche par nom
+
+![La recherche dans le menu Filtre : deux nœuds trouvés, les autres estompés](images/manuel/filtre-recherche.png)
+
+En haut du menu, une **zone de saisie** met en évidence les nœuds dont le **nom** ou les **notes**
+contiennent le texte tapé. La mise en évidence suit la frappe, sans bouton à presser.
+
+- La recherche ignore la **casse** et les **accents** : `etude` trouve « Étude mécanique ».
+- Elle porte sur les **trois types de nœuds** — Activité, Jalon et Label — contrairement aux
+  autres filtres, qui ne concernent que les tâches. On cherche « où est passé X », pas « quelles
+  tâches appartiennent à X ».
+- Un **compteur** sous la zone indique le nombre de nœuds trouvés, et affiche **« aucun
+  résultat »** le cas échéant : sans lui, une recherche infructueuse estomperait tout le planning
+  sans rien dire.
+- **Entrée** referme le menu en gardant la recherche active, pour voir le planning dégagé.
+- **Vider la zone** retire le filtre. Choisir un **autre filtre** ou **« Aucun filtre »** vide
+  aussi la zone : les deux façons de filtrer s'excluent.
 
 ---
 
@@ -671,18 +690,40 @@ du résumé compact de la barre d'état en bas de l'écran.
 
 ![La fenêtre de synthèse](images/manuel/synthese.png)
 
-Elle regroupe :
+Sur un gros projet, tout empiler dans une seule colonne devenait illisible : la fenêtre est donc
+répartie en **quatre onglets**, qui deviennent les **chapitres du document imprimé** (§ *Imprimer*).
+
+| Onglet | Contenu |
+|---|---|
+| **Générique** | Les informations globales du projet et les **coûts par groupe**. |
+| **Jalons sortants** | Ce que le planning **produit**. |
+| **Jalons entrants** | Ce qui l'**alimente**. |
+| **Analyse** | Les **points d'attention** détectés dans la structure du planning. |
+
+L'onglet consulté est **conservé d'une ouverture à l'autre**, et l'onglet **Analyse** porte une
+**pastille** indiquant le nombre de points d'attention — vous savez qu'il y a quelque chose à y voir
+sans avoir à l'ouvrir.
+
+### Onglet Générique
 
 - **Vue d'ensemble** — titre du projet, T0, unité, **fin de projet**, nombre de tâches et de jalons,
   **coût total** et **chemin critique** (nombre de tâches + coût). Le chemin critique repris est le
   même que le tracé rouge : sans sélection, c'est le chemin de marge minimale ; avec une tâche
   sélectionnée avant d'ouvrir la fenêtre, c'est le chemin qui la contraint.
+- **Par groupe (WP / métier)** — pour chaque groupe : nombre de tâches, **coût global** et
+  **fin au plus tard** (la date de fin la plus tardive parmi ses tâches).
+
+### Onglets Jalons entrants / Jalons sortants
+
 - **Jalons entrants** — ceux qui **alimentent** le planning, c'est-à-dire qui ont au moins un lien
   **sortant** : contraintes externes, livraisons attendues d'un tiers, déblocages de budget.
 - **Jalons sortants** — ceux que le planning **produit**, c'est-à-dire qui ont au moins un lien
   **entrant** : livrables, revues, échéances contractuelles.
-- **Par groupe (WP / métier)** — pour chaque groupe : nombre de tâches, **coût global** et
-  **fin au plus tard** (la date de fin la plus tardive parmi ses tâches).
+
+Dans ces deux listes, **le nom de chaque jalon mène au jalon** : un clic ferme la synthèse,
+sélectionne le nœud et centre la vue dessus. Le **soulignement pointillé** signale qu'on peut
+cliquer — la **couleur**, elle, reste réservée à la tenue de la date-cible (voir le tableau
+ci-dessous).
 
 Un **jalon intermédiaire**, qui a à la fois un lien entrant et un lien sortant, **figure dans les
 deux listes** : c'est un livrable pour ce qui le précède, et une donnée d'entrée pour ce qui le
@@ -698,8 +739,9 @@ retenir :
 | **Vert** | Cible tenue avec de la marge. |
 | Blanc (normal) | **Aucun verdict** : soit le jalon n'a pas de cible, soit c'est un jalon purement entrant, dont la date est une **donnée d'entrée** et non un engagement du projet. |
 
-> Une dernière liste, **Jalons isolés**, n'apparaît que si un jalon n'a **aucun lien**. Elle n'est
-> pas décorative : c'est presque toujours le signe d'une connexion oubliée.
+> Une liste **Jalons isolés** s'ajoute aux deux onglets si un jalon n'a **aucun lien** — pour qu'un
+> lecteur qui parcourt « les jalons » ne puisse pas passer à côté. Son diagnostic, lui, est dans
+> l'onglet **Analyse**.
 
 Si le planning comporte des **travaux anticipés** (§4), la vue d'ensemble ajoute une ligne
 **« dont anticipé (avant T0) »**, et le tableau par groupe se dédouble en **coût global**,
@@ -710,11 +752,53 @@ que se décide qui porte l'effort d'anticipation, et sur quel budget :
 
 > Les deux colonnes se somment toujours au coût global du groupe.
 
+### Onglet Analyse
+
+![L'onglet Analyse : les points d'attention détectés](images/manuel/synthese-analyse.png)
+
+Cet onglet cherche dans le planning les anomalies de **structure** — celles qui ne sautent aux yeux
+que sur un petit graphe, et qui se perdent dès qu'il grandit. Chaque contrôle explique **ce qu'il
+signale et pourquoi**, et **n'apparaît que s'il a trouvé quelque chose** : l'onglet se lit comme une
+liste de choses à regarder, pas comme une liste de cases vertes à faire défiler.
+
+| Contrôle | Ce qu'il cherche |
+|---|---|
+| **Jalons orphelins** | Un jalon sans aucun lien : il ne contraint rien et n'est contraint par rien — le plus souvent une connexion oubliée. |
+| **Jalons de nom similaire** | Deux jalons portant presque le même nom, typiquement le jalon **sortant** d'un lot et le jalon **entrant** du suivant : c'est le même événement saisi deux fois, et le lien entre eux manque. Le rôle de chacun est indiqué. |
+| **Tâches isolées** | Une tâche hors du réseau : elle ne participe à aucun enchaînement et ne peut pas être sur le chemin critique. |
+| **Fins de chaîne sans jalon** | Une tâche sans successeur : son aboutissement n'est matérialisé par aucun jalon. |
+| **Tâches de durée nulle** | Une tâche sans durée est en réalité un jalon. |
+
+**Chaque ligne mène au planning**, de deux façons complémentaires :
+
+- **Cliquer le nom** d'un jalon ou d'une tâche (souligné) **ferme la synthèse, sélectionne ce
+  nœud et centre la vue dessus** — comme les prédécesseurs/successeurs du panneau (§5). C'est le
+  geste pour aller voir *un* nœud.
+- **Le bouton 🔎 en bout de ligne** ferme la synthèse en posant le **filtre de recherche** (§6)
+  sur le nom commun aux nœuds de la ligne : ils sont alors mis en évidence **ensemble** dans le
+  planning. C'est le geste quand l'anomalie en met **plusieurs** en jeu — deux jalons de nom
+  similaire, par exemple : c'est en les voyant côte à côte qu'on tranche entre doublon et
+  homonymie.
+
+> Dans les deux cas la fenêtre se ferme : elle recouvre le planning, la garder ouverte rendrait le
+> résultat invisible. Ni les liens ni le bouton n'apparaissent sur le document imprimé.
+
+> La détection des noms similaires **ignore les séries numérotées** (« Revue de lot 1 » / « Revue de
+> lot 2 ») : elles ne diffèrent que d'un caractère, mais la numérotation est délibérée. Deux jalons
+> déjà reliés l'un à l'autre ne sont pas signalés non plus.
+
+Si rien n'est détecté, l'onglet le dit explicitement. **Cette liste de contrôles a vocation à
+s'enrichir.**
+
 ### Imprimer / enregistrer en PDF
 
 Le bouton **🖨 Imprimer / PDF** de la fenêtre lance l'impression de **la seule synthèse** (en noir
 sur blanc). Dans l'aperçu du navigateur, choisissez **« Enregistrer au format PDF »** comme
 imprimante pour obtenir un fichier PDF de la synthèse, prêt à diffuser.
+
+**Les onglets deviennent des chapitres** : le document imprimé contient les quatre, à la suite,
+chacun **commençant sur une nouvelle page** avec son titre. L'onglet affiché à l'écran au moment de
+l'impression n'a aucune importance — tout est imprimé.
 
 > La synthèse est **recalculée à chaque ouverture** : elle reflète toujours l'état courant du
 > planning (durées, ETP, dates-cibles, paramètres de coût).

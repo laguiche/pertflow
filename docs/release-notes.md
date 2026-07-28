@@ -11,6 +11,24 @@ technique, est dans `CLAUDE.md` et `docs/journal-developpement.md`).
 
 ---
 
+## v0.20 — 28/07/2026 · Recherche par nom & synthèse en chapitres
+- **Recherche par nom** dans le menu **🔎 Filtre** : une zone de saisie met en évidence les
+  nœuds dont le **nom** ou les **notes** contiennent le texte tapé. Insensible à la casse et
+  aux accents (`etude` trouve « Étude mécanique »), et valable pour les **trois types de
+  nœuds** — tâches, jalons et labels. Un **compteur** indique le nombre de nœuds trouvés, ou
+  « aucun résultat ». Choisir un autre filtre vide la zone, et inversement.
+- La **synthèse** est répartie en **quatre onglets** — *Générique*, *Jalons sortants*,
+  *Jalons entrants*, *Analyse* — qui deviennent les **chapitres du document imprimé**, chacun
+  sur une nouvelle page. L'onglet consulté est conservé d'une ouverture à l'autre.
+- Nouvel onglet **Analyse** : les **points d'attention** de la structure du planning — jalons
+  orphelins, **jalons de nom similaire** (typiquement le jalon sortant d'un lot et le jalon
+  entrant du suivant, entre lesquels le lien manque), tâches isolées, fins de chaîne sans
+  jalon, tâches de durée nulle. Chaque contrôle explique ce qu'il signale et **n'apparaît que
+  s'il a trouvé quelque chose**. Une pastille sur l'onglet donne le total.
+- **La synthèse ramène au planning** : cliquer le nom d'un jalon ou d'une tâche ferme la
+  fenêtre, sélectionne le nœud et centre la vue dessus ; le bouton **🔎** d'une ligne
+  d'analyse met en évidence **tous** les nœuds concernés d'un coup.
+
 ## v0.19 — 28/07/2026 · Panneau en deux onglets & couleur des nouvelles tâches
 - Le **panneau latéral se divise en deux onglets** : **Propriétés** (ce que vous saisissez) et
   **Synthèse** (ce que PertFlow calcule). Le bouton **Supprimer** reste accessible depuis les

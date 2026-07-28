@@ -298,6 +298,44 @@ Découpage : **ce qui est saisi** d'un côté, **ce qui est calculé ou déduit*
 > Corollaire : **un test qui interroge le DOM par id ne prouve rien** si l'id n'est pas unique —
 > vérifier aussi la **surface occupée** (`getBoundingClientRect`) ou faire une capture.
 
+### Filtre (`window.pertFilter`) — état de vue, jamais sérialisé
+Quatre natures : `group`, `color`, `responsible` — qui ne « matchent » que des **Activités** — et
+`text` (v0.20), **seule à porter sur les trois types de nœuds**, sur le **nom ET les notes**
+(`pertNodeSearchText`), insensible à la casse et aux accents (`pertNormalizeSearch`).
+- La zone de recherche est **fixe dans `index.html`** ; `refreshFilterOptions()` ne reconstruit
+  que `#filter-options`. La reconstruire ferait perdre la saisie **et** le focus.
+- Taper applique le filtre **en silence** (`applyFilter(filter, silent)`) : un toast par
+  caractère serait insupportable. Le compteur et le libellé du déclencheur rendent l'état.
+- Taper **ne reconstruit pas** les options mais retire le marqueur `.active`
+  (`pertRefreshFilterActiveRows`) — sinon « Aucun filtre » reste surligné pendant une recherche.
+- Poser un filtre depuis ailleurs (synthèse) : passer par l'**événement `input` sur
+  `#filter-search`**, jamais par `window.pertFilter` directement — sinon compteur, libellé et
+  règles de vidage divergent.
+
+### Fenêtre de synthèse — **quatre onglets = quatre chapitres imprimés** (v0.20)
+`Générique` / `Jalons sortants` / `Jalons entrants` / `Analyse`. À l'écran un panneau visible ; à
+l'impression **tous**, chacun ouvrant une page. Titre de chapitre toujours dans le DOM, masqué à
+l'écran (doublon avec l'onglet actif). Onglet mémorisé (`pertSynthTab`).
+
+> **PIÈGE — `break-before` sous un parent flex.** Chrome l'**ignore** : `#synthesis-content` doit
+> passer en `display:block` dans `@media print`, sinon les chapitres s'enchaînent sans saut de
+> page, **en silence**. Seul contrôle capable de l'attraper : demander un **vrai PDF** au moteur
+> (`page.pdf()`) et compter ses pages.
+
+**Onglet Analyse — fait pour s'enrichir.** Un contrôle = un objet
+`{ id, title, hint, columns, rows }` poussé par `pertBuildAnalyses()` ; le rendu est générique.
+Règles à respecter en ajoutant un contrôle :
+- **un contrôle sans anomalie n'est pas affiché** (liste de choses à regarder, pas de cases
+  vertes à faire défiler) ; chaque contrôle porte son `hint` : ce qu'il signale **et pourquoi** ;
+- chaque ligne **désigne au moins un nœud** (cellule avec `nodeId` → lien vers le nœud) et porte
+  un `filterText` (bouton 🔎 → met en évidence **tous** les nœuds de la ligne) ;
+- se méfier des **faux positifs** : le rapprochement de noms écarte les **séries numérotées** et
+  les jalons **déjà reliés**. Un contrôle qui remonte du bruit décrédibilise tout l'onglet.
+
+**Couleur vs cliquabilité** : dans les listes de jalons, la couleur porte la **tenue de cible** —
+le lien hérite donc de la couleur de sa ligne, et le **soulignement pointillé** porte seul
+l'affordance de clic. Ailleurs (Analyse), les liens sont bleus.
+
 ### Raccourcis clavier
 - `Delete` / `Backspace` : supprimer nœud(s) sélectionné(s)
 - `Ctrl+Z` : undo
@@ -374,7 +412,7 @@ onDrawForeground(ctx) {
 
 ## ÉTAT D'AVANCEMENT
 
-> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.19** (28/07/2026).
+> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.20** (28/07/2026).
 > **Le récit détaillé de chaque session vit dans [`docs/historique-sessions.md`](docs/historique-sessions.md)** —
 > décisions d'implémentation, pièges rencontrés, validations. Ce tableau n'en est
 > que l'index. **À la clôture d'une session : détail dans l'archive, UNE ligne ici.**
@@ -412,6 +450,7 @@ onDrawForeground(ctx) {
 | Anticipation avant T0 + cible en « T0+X » | v0.16 | Offsets négatifs légaux (T0 = origine, plus un plancher) ; case « tâche anticipée » ; cible de jalon en date **ou** T0±X ; repère T0 + coût anticipé au prorata |
 | Date-cible des jalons prise en compte | v0.15.5 | `pertTimeAxisOffset` (cible → sinon ES) : réorg « axe temps seul » place le jalon sur sa cible ; listes de jalons de la synthèse triées chronologiquement |
 | Lisibilité de la trame + date « À propos » | v0.18.1 | Libellé d'année en filigrane (`PERT_TG_LABEL_PX`, suit le zoom) ; date de bundle sans heure, corrigée côté générateur ET côté affichage pour les bundles antérieurs ; fixture `pert_a_exporter.pert` restaurée → suite smoke complète (23/23), attendus MSPDI déduits de la fixture |
+| Recherche par nom + synthèse en chapitres et Analyse | v0.20 | Filtre `type:"text"` (nom/notes, 3 types de nœuds, casse+accents, compteur) ; synthèse en 4 onglets = chapitres imprimés (piège : `break-before` ignoré sous parent flex) ; onglet **Analyse** extensible (orphelins, noms similaires, isolées, fins sans jalon, durée nulle) ; synthèse cliquable → nœud ou mise en évidence |
 | Panneau en 2 onglets + couleur des nouvelles tâches | v0.19 | Panneau scindé *Propriétés* (saisie) / *Synthèse* (calculs + prédécesseurs/successeurs cliquables, Supprimer en pied fixe, onglet mémorisé) ; réglage « Couleur des nouvelles tâches » (libre / groupe existant). Piège : id dupliqué `synthesis-content` — tests verts, écran vide |
 | Intensité réglable de la trame + Paramètres en onglets | v0.18 | Curseur d'intensité (goût/écran : aucune valeur ne fait consensus) avec vignette d'aperçu — le voile du dialogue rendrait un aperçu en direct trompeur ; dialogue réparti en 3 onglets, panneaux masqués et non retirés du DOM |
 | Synthèse entrants/sortants, aimantation Labels, trame temporelle | v0.17 | Jalons classés par topologie (intermédiaire = dans les 2 listes), tenue de cible passée en couleur de ligne (règle des nœuds réutilisée) ; Labels aimantés aux bords voisins au lâcher ; trame calendaire de fond optionnelle (`src/time_grid.js`) |

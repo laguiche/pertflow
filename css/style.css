@@ -731,6 +731,104 @@ body {
   font-size: 13px;
   color: #dde3ec;
 }
+
+/* ─── Onglets de la synthèse (= chapitres à l'impression) ─────────────────────── */
+#synthesis-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid #2a3a6a;
+  flex-wrap: wrap;
+}
+
+#synthesis-tabs .synth-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #8899bb;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 7px 12px;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#synthesis-tabs .synth-tab:hover { background: #1a2240; color: #b9c6de; }
+#synthesis-tabs .synth-tab.active {
+  color: #7eb8f7;
+  border-bottom-color: #5a8fd8;
+  background: #1a2240;
+}
+
+/* Nombre de points d'attention, porté par l'onglet Analyse : on doit savoir qu'il y a
+   quelque chose à y voir sans avoir à l'ouvrir. */
+.synth-tab-badge {
+  background: #8a5b00;
+  color: #ffd9a0;
+  border-radius: 9px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+/* Un seul panneau visible à l'écran ; tous le sont à l'impression (cf. @media print). */
+#synthesis-content .synth-panel { display: none; flex-direction: column; gap: 18px; }
+#synthesis-content .synth-panel.active { display: flex; }
+
+/* Titre de chapitre : redondant à l'écran avec l'onglet actif, indispensable sur
+   papier où les onglets n'existent plus. */
+.synth-chapter { display: none; }
+
+/* Nom de nœud cliquable dans un tableau de synthèse : rendu comme du texte souligné et
+   non comme un bouton — une rangée de boutons dans un tableau serait assourdissante. */
+.synth-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #9ecbff;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: left;
+}
+.synth-link:hover { color: #d6e9ff; text-decoration-style: solid; }
+
+/* Dans les listes de jalons, la couleur de la ligne PORTE UN SENS (tenue de la
+   date-cible : rouge / orange / vert / neutre). Le nom doit donc garder la couleur de
+   sa ligne ; c'est le soulignement pointillé, seul, qui signale qu'on peut cliquer.
+   Sans cette règle, le bleu du lien effaçait le code couleur sur la cellule la plus
+   regardée du tableau. Dans l'onglet Analyse, où la couleur ne signifie rien, les
+   liens restent bleus. */
+#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link { color: inherit; }
+#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link:hover {
+  text-decoration-style: solid;
+}
+
+/* Bouton « mettre en évidence » en queue de ligne d'analyse. */
+.synth-goto {
+  background: #1e2a40;
+  border: 1px solid #34507a;
+  border-radius: 4px;
+  color: #cfe0ff;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.synth-goto:hover { background: #2a3d5e; border-color: #5a8fd8; }
+.synth-table th.synth-goto-col, .synth-table td.synth-goto-col { width: 1%; text-align: right; }
+
+/* Explication d'un contrôle d'analyse : ce que le point d'attention signifie et
+   pourquoi il vaut la peine d'être regardé. */
+.synth-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8a93b5;
+  margin: -2px 0 8px;
+}
 .synth-section h4 {
   margin: 0 0 8px;
   font-size: 13px;
@@ -792,9 +890,40 @@ body {
   }
   body.synthesis-printing #synthesis-dialog h3 { color: #000; }
   body.synthesis-printing .dialog-buttons { display: none !important; }
+  /* display:block OBLIGATOIRE ici : Chrome ignore `break-before` sur un élément dont
+     le parent est un conteneur flex — les chapitres se seraient enchaînés sans saut
+     de page, silencieusement. */
   body.synthesis-printing #synthesis-content {
+    display: block !important;
     max-height: none; overflow: visible; color: #000;
   }
+  body.synthesis-printing .synth-section { margin-bottom: 14px; }
+  /* Les onglets n'ont pas de sens sur papier : la barre disparaît, et les quatre
+     panneaux s'impriment à la suite, chacun ouvrant un CHAPITRE sur une page neuve
+     (sauf le premier, qui suit le titre de la synthèse). */
+  body.synthesis-printing #synthesis-tabs { display: none !important; }
+  body.synthesis-printing #synthesis-content .synth-panel {
+    display: block !important;
+    break-before: page;
+  }
+  body.synthesis-printing #synthesis-content .synth-panel:first-of-type {
+    break-before: auto;
+  }
+  body.synthesis-printing .synth-chapter {
+    display: block;
+    color: #000;
+    font-size: 15px;
+    margin: 0 0 10px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #333;
+  }
+  body.synthesis-printing .synth-hint { color: #444; }
+  /* Sur papier, un lien ne mène nulle part : le nom redevient du texte noir, et la
+     colonne d'action disparaît — elle ne ferait qu'ajouter une colonne vide. */
+  body.synthesis-printing .synth-link {
+    color: #000 !important; text-decoration: none; padding: 0;
+  }
+  body.synthesis-printing .synth-goto-col { display: none !important; }
   body.synthesis-printing .synth-section { break-inside: avoid; }
   body.synthesis-printing .synth-section h4 { color: #000; border-color: #999; }
   body.synthesis-printing .synth-kv .k,
@@ -876,6 +1005,41 @@ body {
   padding: 4px;
 }
 .filter-menu[hidden] { display: none; }
+
+/* Zone de recherche du menu de filtre : fixe en haut, elle ne défile pas avec la
+   liste des options (le menu peut être long : groupes + responsables + couleurs). */
+#filter-search-row {
+  position: sticky;
+  top: 0;
+  background: #16183a;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid #2a3a7a;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 1;
+}
+
+#filter-search {
+  width: 100%;
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  color: #dde3ec;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-family: inherit;
+}
+#filter-search:focus { outline: none; border-color: #5a8fd8; }
+#filter-search::placeholder { color: #6a7390; }
+
+/* Compte de résultats : discret quand ça trouve, alerte quand ça ne trouve rien. */
+#filter-search-count {
+  font-size: 10px;
+  color: #7b88a8;
+  min-height: 12px;
+}
+#filter-search-count.empty { color: #e0a56a; }
 
 .filter-menu-header {
   font-size: 10px;
