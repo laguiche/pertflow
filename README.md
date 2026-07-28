@@ -31,3 +31,14 @@ pertflow/
 ├── src/          # Code source de l'application
 └── css/          # Styles
 ```
+
+## Téléchargement
+
+La dernière version prête à l'emploi (application + manuel) est publiée dans
+[Releases](https://github.com/laguiche/pertflow/releases) : télécharger l'archive,
+la dézipper, double-cliquer sur `pertflow.html`.
+
+## Licence
+
+[MIT](LICENSE) — © Stéphane Guichard.
+Les bibliothèques tierces embarquées (LiteGraph.js, jsPDF, fflate) sont également MIT.
