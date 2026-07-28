@@ -796,6 +796,17 @@ body {
 }
 .synth-link:hover { color: #d6e9ff; text-decoration-style: solid; }
 
+/* Dans les listes de jalons, la couleur de la ligne PORTE UN SENS (tenue de la
+   date-cible : rouge / orange / vert / neutre). Le nom doit donc garder la couleur de
+   sa ligne ; c'est le soulignement pointillé, seul, qui signale qu'on peut cliquer.
+   Sans cette règle, le bleu du lien effaçait le code couleur sur la cellule la plus
+   regardée du tableau. Dans l'onglet Analyse, où la couleur ne signifie rien, les
+   liens restent bleus. */
+#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link { color: inherit; }
+#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link:hover {
+  text-decoration-style: solid;
+}
+
 /* Bouton « mettre en évidence » en queue de ligne d'analyse. */
 .synth-goto {
   background: #1e2a40;

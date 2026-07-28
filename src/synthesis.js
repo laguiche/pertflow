@@ -107,6 +107,9 @@ function pertBuildSynthesisModel() {
     const hasIn = !!(adj && adj.preds[n.id] && adj.preds[n.id].length > 0);
     const hasOut = !!(adj && adj.succs[n.id] && adj.succs[n.id].length > 0);
     const row = {
+      // Identifiant du nœud : la ligne doit pouvoir RAMENER au jalon dans le planning
+      // (cf. synthNodeLink). Rien d'autre dans le modele n'en depend.
+      id: n.id,
       label: (n.properties && n.properties.label) || "(jalon)",
       tag: (n.properties && typeof pertMilestoneTag === "function") ? pertMilestoneTag(n.properties.tag) : null,
       efDate: (n.ef != null) ? pertOffsetToDate(n.ef) : null,
@@ -632,10 +635,13 @@ function pertRenderSynthesis() {
     { text: "Jalon" }, { text: "Type" }, { text: "Fin t.tôt" },
     { text: "Cible" }, { text: "Marge", cls: "num" },
   ];
+  // Le nom du jalon MENE au jalon (meme mecanique que l'onglet Analyse). Pas de bouton
+  // « mettre en évidence » ici : une ligne ne designe qu'UN nœud, et l'y conduire
+  // directement est strictement plus utile que de le surligner parmi les autres.
   const mileRow = (r) => ({
     cls: "synth-mile-" + (r.state || "none"),
     cells: [
-      { text: r.label },
+      { text: r.label, nodeId: r.id },
       { node: synthTagNode(r.tag), text: r.tag ? "" : "—" },
       { text: pertFormatDate(r.efDate) },
       { text: r.dueLabel || "—" },

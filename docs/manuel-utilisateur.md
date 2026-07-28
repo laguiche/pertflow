@@ -720,6 +720,11 @@ sans avoir à l'ouvrir.
 - **Jalons sortants** — ceux que le planning **produit**, c'est-à-dire qui ont au moins un lien
   **entrant** : livrables, revues, échéances contractuelles.
 
+Dans ces deux listes, **le nom de chaque jalon mène au jalon** : un clic ferme la synthèse,
+sélectionne le nœud et centre la vue dessus. Le **soulignement pointillé** signale qu'on peut
+cliquer — la **couleur**, elle, reste réservée à la tenue de la date-cible (voir le tableau
+ci-dessous).
+
 Un **jalon intermédiaire**, qui a à la fois un lien entrant et un lien sortant, **figure dans les
 deux listes** : c'est un livrable pour ce qui le précède, et une donnée d'entrée pour ce qui le
 suit. Chaque liste est classée par **ordre chronologique**.
