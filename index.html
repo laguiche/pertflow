@@ -142,7 +142,18 @@
         <span id="filter-current">🔎 Filtre : aucun</span>
         <span class="filter-caret">▾</span>
       </button>
-      <div id="filter-menu" class="filter-menu" hidden></div>
+      <!-- La zone de recherche est FIXE dans le menu (et non reconstruite avec les
+           lignes par refreshFilterOptions) : sinon la saisie en cours serait perdue
+           à chaque réouverture du menu. -->
+      <div id="filter-menu" class="filter-menu" hidden>
+        <div id="filter-search-row">
+          <input type="text" id="filter-search" autocomplete="off" spellcheck="false"
+                 placeholder="Rechercher un nom, une note…"
+                 title="Met en évidence les nœuds dont le nom ou les notes contiennent ce texte">
+          <span id="filter-search-count"></span>
+        </div>
+        <div id="filter-options"></div>
+      </div>
     </div>
     <div class="tb-sep"></div>
     <button id="btn-settings" title="Paramètres du projet">⚙ Paramètres</button>

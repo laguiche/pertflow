@@ -538,9 +538,10 @@ Dans **Paramètres → Style des liens**, trois rendus au choix :
 
 ![Filtre par groupe : le reste est estompé](images/manuel/filtre.png)
 
-Le bouton **🔎 Filtre** met en évidence un sous-ensemble de tâches ; les autres nœuds sont
-**estompés** (voile sombre). Vous pouvez filtrer par :
+Le bouton **🔎 Filtre** met en évidence un sous-ensemble de nœuds ; les autres sont **estompés**
+(voile sombre). Vous pouvez filtrer par :
 
+- **Recherche** (nom ou notes) — voir ci-dessous ;
 - **Groupe** (WP / métier / service) ;
 - **Couleur** ;
 - **Responsable**.
@@ -548,6 +549,24 @@ Le bouton **🔎 Filtre** met en évidence un sous-ensemble de tâches ; les aut
 Le menu affiche une **pastille** de couleur (ou une icône 👤 pour les responsables) et un libellé
 parlant. Choisissez « Aucun filtre » pour tout réafficher. Le filtre est un **état de vue** : il
 n'est pas enregistré dans le fichier.
+
+#### La recherche par nom
+
+![La recherche dans le menu Filtre : deux nœuds trouvés, les autres estompés](images/manuel/filtre-recherche.png)
+
+En haut du menu, une **zone de saisie** met en évidence les nœuds dont le **nom** ou les **notes**
+contiennent le texte tapé. La mise en évidence suit la frappe, sans bouton à presser.
+
+- La recherche ignore la **casse** et les **accents** : `etude` trouve « Étude mécanique ».
+- Elle porte sur les **trois types de nœuds** — Activité, Jalon et Label — contrairement aux
+  autres filtres, qui ne concernent que les tâches. On cherche « où est passé X », pas « quelles
+  tâches appartiennent à X ».
+- Un **compteur** sous la zone indique le nombre de nœuds trouvés, et affiche **« aucun
+  résultat »** le cas échéant : sans lui, une recherche infructueuse estomperait tout le planning
+  sans rien dire.
+- **Entrée** referme le menu en gardant la recherche active, pour voir le planning dégagé.
+- **Vider la zone** retire le filtre. Choisir un **autre filtre** ou **« Aucun filtre »** vide
+  aussi la zone : les deux façons de filtrer s'excluent.
 
 ---
 

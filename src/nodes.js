@@ -88,6 +88,7 @@ function ellipsize(ctx, text, maxWidth) {
 //
 // window.pertFilter (defini dans ui.js, etat de vue non serialise) :
 //   null | { type:"group", value } | { type:"color", value } | { type:"responsible", value }
+//        | { type:"text", value }  (recherche par nom/notes, v0.20)
 // Un nœud "estompe" recoit un voile translucide (pertDrawDimVeil), dessine en
 // onDrawForeground → par-dessus le contenu ET les slots (l'avant-plan est rendu en
 // dernier par LiteGraph). Sans filtre actif, rien n'est estompe. Seules les
@@ -95,10 +96,34 @@ function ellipsize(ctx, text, maxWidth) {
 // Labels sont donc estompes des qu'un filtre est actif (ils ne portent ni groupe
 // ni couleur de groupe), ce qui concentre l'œil sur l'ensemble selectionne.
 
+// Normalisation de recherche : minuscules ET sans accents, pour que « etude » trouve
+// « Étude ». Un planning se saisit avec accents et se cherche souvent sans.
+function pertNormalizeSearch(s) {
+  return String(s == null ? "" : s)
+    // ̀-ͯ = marques diacritiques isolees par NFD. Ecrites en echappement :
+    // en clair, ce sont des caracteres combinants invisibles dans le source.
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+// Texte d'un nœud offert a la recherche : son NOM et sa DESCRIPTION, quel que soit le
+// type. Un Label n'a que son texte, qui tient lieu des deux.
+function pertNodeSearchText(node) {
+  const p = (node && node.properties) || {};
+  return [p.label, p.notes, p.text].filter(Boolean).join(" ");
+}
+
 function pertNodeDimmed(node) {
   const f = window.pertFilter;
   if (!f) return false;
   const isAct = node.type === "pert/activity" && node.properties;
+  // Recherche par nom : le SEUL filtre qui concerne les trois types de nœuds — on
+  // cherche « ou est passe X », pas « quelles taches appartiennent a X ».
+  if (f.type === "text") {
+    const needle = pertNormalizeSearch(f.value);
+    if (!needle) return false;
+    return pertNormalizeSearch(pertNodeSearchText(node)).indexOf(needle) === -1;
+  }
   if (f.type === "group") {
     return !(isAct && (node.properties.group || "").trim() === f.value);
   }

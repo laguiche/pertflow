@@ -877,6 +877,41 @@ body {
 }
 .filter-menu[hidden] { display: none; }
 
+/* Zone de recherche du menu de filtre : fixe en haut, elle ne défile pas avec la
+   liste des options (le menu peut être long : groupes + responsables + couleurs). */
+#filter-search-row {
+  position: sticky;
+  top: 0;
+  background: #16183a;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid #2a3a7a;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 1;
+}
+
+#filter-search {
+  width: 100%;
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  color: #dde3ec;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-family: inherit;
+}
+#filter-search:focus { outline: none; border-color: #5a8fd8; }
+#filter-search::placeholder { color: #6a7390; }
+
+/* Compte de résultats : discret quand ça trouve, alerte quand ça ne trouve rien. */
+#filter-search-count {
+  font-size: 10px;
+  color: #7b88a8;
+  min-height: 12px;
+}
+#filter-search-count.empty { color: #e0a56a; }
+
 .filter-menu-header {
   font-size: 10px;
   text-transform: uppercase;
