@@ -11,6 +11,22 @@ technique, est dans `CLAUDE.md` et `docs/journal-developpement.md`).
 
 ---
 
+## v0.19 — 28/07/2026 · Panneau en deux onglets & couleur des nouvelles tâches
+- Le **panneau latéral se divise en deux onglets** : **Propriétés** (ce que vous saisissez) et
+  **Synthèse** (ce que PertFlow calcule). Le bouton **Supprimer** reste accessible depuis les
+  deux, et l'onglet consulté est **conservé quand vous changez de nœud**.
+- L'onglet **Synthèse** liste les **prédécesseurs et les successeurs** du nœud sélectionné —
+  avec, pour chacun, la date qui compte : la **fin au plus tôt** d'un prédécesseur, le **début
+  au plus tôt** d'un successeur. Sur un planning dense, plus besoin de suivre les liens à l'œil.
+- Chaque voisin est **cliquable** : le clic le sélectionne et **centre la vue dessus** sans
+  changer le zoom, ce qui permet de remonter une chaîne de dépendances de proche en proche.
+  Les voisins situés sur le **chemin critique** sont bordés de rouge.
+- Nouveau réglage **« Couleur des nouvelles tâches »** (Paramètres → Projet). Une tâche créée
+  naissait toujours bleue, y compris quand un groupe s'était approprié ce bleu — elle semblait
+  alors rattachée à ce groupe sans l'être. Deux modes désormais : **couleur libre** (la première
+  teinte qu'aucun groupe n'utilise, aucun rattachement) ou **rattachement direct à un groupe
+  existant**, avec sa couleur.
+
 ## v0.18.1 — 28/07/2026 · Lisibilité de la trame
 - Le **libellé d'année** de la trame temporelle est **nettement plus grand** : il se lit
   désormais comme un filigrane, d'un coup d'œil et sur un planning dézoomé.

@@ -374,7 +374,7 @@ onDrawForeground(ctx) {
 
 ## ÉTAT D'AVANCEMENT
 
-> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.16** (24/07/2026).
+> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.19** (28/07/2026).
 > **Le récit détaillé de chaque session vit dans [`docs/historique-sessions.md`](docs/historique-sessions.md)** —
 > décisions d'implémentation, pièges rencontrés, validations. Ce tableau n'en est
 > que l'index. **À la clôture d'une session : détail dans l'archive, UNE ligne ici.**
@@ -412,6 +412,7 @@ onDrawForeground(ctx) {
 | Anticipation avant T0 + cible en « T0+X » | v0.16 | Offsets négatifs légaux (T0 = origine, plus un plancher) ; case « tâche anticipée » ; cible de jalon en date **ou** T0±X ; repère T0 + coût anticipé au prorata |
 | Date-cible des jalons prise en compte | v0.15.5 | `pertTimeAxisOffset` (cible → sinon ES) : réorg « axe temps seul » place le jalon sur sa cible ; listes de jalons de la synthèse triées chronologiquement |
 | Lisibilité de la trame + date « À propos » | v0.18.1 | Libellé d'année en filigrane (`PERT_TG_LABEL_PX`, suit le zoom) ; date de bundle sans heure, corrigée côté générateur ET côté affichage pour les bundles antérieurs ; fixture `pert_a_exporter.pert` restaurée → suite smoke complète (23/23), attendus MSPDI déduits de la fixture |
+| Panneau en 2 onglets + couleur des nouvelles tâches | v0.19 | Panneau scindé *Propriétés* (saisie) / *Synthèse* (calculs + prédécesseurs/successeurs cliquables, Supprimer en pied fixe, onglet mémorisé) ; réglage « Couleur des nouvelles tâches » (libre / groupe existant). Piège : id dupliqué `synthesis-content` — tests verts, écran vide |
 | Intensité réglable de la trame + Paramètres en onglets | v0.18 | Curseur d'intensité (goût/écran : aucune valeur ne fait consensus) avec vignette d'aperçu — le voile du dialogue rendrait un aperçu en direct trompeur ; dialogue réparti en 3 onglets, panneaux masqués et non retirés du DOM |
 | Synthèse entrants/sortants, aimantation Labels, trame temporelle | v0.17 | Jalons classés par topologie (intermédiaire = dans les 2 listes), tenue de cible passée en couleur de ligne (règle des nœuds réutilisée) ; Labels aimantés aux bords voisins au lâcher ; trame calendaire de fond optionnelle (`src/time_grid.js`) |
 

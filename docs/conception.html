@@ -211,7 +211,13 @@ sur des couloirs voisins, jalons terminaux en bande haute. <strong>Déclenché m
   native neutralisée.</li>
 <li><strong>Panneau Propriétés</strong> : reconstruit à la sélection ; helpers <code>buildField</code>, <code>buildCombobox</code>
   (menu déroulant custom à pastilles, fiable multi-navigateurs — le <code>&lt;datalist&gt;</code> natif est
-  inadapté), <code>buildSelect</code>, <code>buildTextarea</code>, <code>buildReadonly</code>.</li>
+  inadapté), <code>buildSelect</code>, <code>buildTextarea</code>, <code>buildReadonly</code>. Depuis v0.19, il est scindé en
+  <strong>deux onglets</strong> — <em>Propriétés</em> (saisie) et <em>Synthèse</em> (valeurs calculées + prédécesseurs /
+  successeurs) — sur la ligne de partage « saisi / déduit ». Le panneau inactif est <strong>masqué,
+  jamais retiré du DOM</strong> (les fonctions de rafraîchissement retrouvent leurs conteneurs par id),
+  le bouton <strong>Supprimer</strong> vit dans un pied fixe hors de la zone qui défile, et l'onglet consulté
+  est mémorisé entre deux sélections. Le voisinage est lu via <code>pertBuildAdjacency</code> (moteur) :
+  une seule source de vérité avec le calcul PERT.</li>
 <li><strong>Undo/Redo</strong> : historique par <strong>snapshots</strong> (<code>meta</code> + <code>graph.serialize()</code>), restaurés par
   <code>configure()</code> — même mécanisme que la persistance, donc exhaustif. Coalescence des frappes.</li>
 <li><strong>Sauvegarde automatique</strong> : en <code>file://</code>, impossible d'écrire un fichier silencieusement → un

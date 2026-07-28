@@ -1168,6 +1168,65 @@ l'utilisateur** (relecture du manuel + retouches appliquées).
 > La roadmap est terminée (S1→Doc). Les évolutions mineures et corrections de bugs
 > demandées ensuite sont consignées ici, du plus récent au plus ancien.
 
+### Panneau en deux onglets + couleur des nouvelles tâches ✅ TERMINÉ (28/07/2026, tag **v0.19**)
+Branche `evo/couleur-nouvelle-tache`. Deux évolutions demandées dans la même session, sur le
+chemin d'une future 1.0. La validation fonctionnelle a été faite **par les tests automatiques
+seuls** (utilisateur en remote) ; la validation **visuelle** est passée par des captures d'écran
+envoyées à la relecture — méthode qui a payé, cf. le piège ci-dessous.
+
+**(1) Couleur des nouvelles tâches** (`meta.new_task_mode` / `new_task_group`, Paramètres →
+Projet). Le bleu en dur d'une tâche neuve devenait mensonger dès qu'un groupe se l'appropriait
+(« le premier venu fixe la teinte », #14) : la couleur annonçait une appartenance métier
+inexistante. Mode **« libre »** (défaut) : première couleur de la palette qu'**aucun groupe**
+n'utilise. On ne regarde **que le registre des groupes**, et non les couleurs déjà portées par des
+tâches — contrairement à l'import, où une couleur = un lot : deux tâches libres créées à la suite
+doivent partager la MÊME teinte, sinon la couleur devient un code par tâche. Effet de bord
+heureux : tant que le bleu n'est pris par personne, il reste utilisé, donc le comportement
+historique ne change **que là où il devenait trompeur**. Mode **« groupe »** : rattachement direct
++ héritage de couleur via `pertApplyGroup`, pensé pour les séances de saisie d'un lot entier ;
+désactivé dans l'IHM tant qu'aucun groupe n'existe (un choix impossible n'est pas offert).
+Appliqué **uniquement** dans `addNodeAt` — seul chemin de création manuelle : import, chargement
+et collage portent déjà leurs couleurs. `IMPORT_COLOR_PALETTE` renommée `PERT_COLOR_PALETTE`
+(deux usages désormais). Libellé du réglage arbitré par l'utilisateur sur capture (« Nouvelle
+tâche » → « Couleur des nouvelles tâches »).
+
+**(2) Panneau latéral en deux onglets** — ligne de partage : ce qui est **saisi** / ce qui est
+**calculé ou déduit**. Les valeurs calculées quittent le bas de la colonne de saisie pour
+rejoindre « Synthèse », où elles voisinent avec les **prédécesseurs / successeurs** (question de
+départ : sur un PERT dense, suivre les liens à l'œil est fastidieux). Chaque voisin porte la date
+utile — **fin** au plus tôt d'un prédécesseur (c'est elle qui libère la tâche), **début** au plus
+tôt d'un successeur — et est **cliquable** (`pertFocusNode` : sélection + recentrage sans toucher
+au zoom, pour remonter une chaîne de proche en proche). Adjacence lue via `pertBuildAdjacency`
+(moteur) : une seule source de vérité, pas de divergence possible avec le calcul.
+Les deux exigences explicites sont traitées **structurellement** : bouton Supprimer dans un pied
+fixe hors de la zone qui défile (seul `#properties-body` défile désormais), et onglet **mémorisé
+entre deux sélections** (`pertPanelTab`, même principe que `pertSettingsTab`) — sans quoi
+enchaîner les clics ramènerait à « Propriétés » à chaque fois et rendrait la Synthèse inutilisable
+en navigation. État de **vue**, non sérialisé, comme le filtre.
+
+**PIÈGE — id dupliqué, tests verts et écran vide.** Le panneau s'appelait d'abord
+`synthesis-content` : id **déjà porté** par la fenêtre de synthèse globale (v0.15.4). Un id en
+double ne lève **aucune** erreur — `getElementById` rend le **premier du document**. Le panneau
+écrivait donc silencieusement dans la modale ; l'onglet restait vide à l'écran **pendant que le
+smoke passait au vert**, puisqu'il interrogeait le DOM par le même id et lisait donc la modale.
+Détecté par la **capture d'écran**, pas par les tests. Corrigé par le préfixe `properties-`, et le
+smoke vérifie désormais l'**unicité des ids de la page** et la **surface réellement occupée** par
+l'onglet. Leçon consignée dans `CLAUDE.md` : *un test qui interroge le DOM par id ne prouve rien
+si l'id n'est pas unique*.
+
+Second piège, côté outillage : les slots d'entrée sont **dynamiques** (`manageDynamicInputs`),
+viser deux fois le slot 0 **remplace** le premier lien au lieu d'en ajouter un — un test qui
+construit un réseau doit cibler le **dernier** slot.
+
+Fichiers : `index.html`, `css/style.css`, `src/ui.js`, `src/storage.js`, `src/history.js`,
+`docs/manuel-utilisateur.md` (§7 et §13 pour la couleur, §5 restructuré pour les onglets, avec
+`panneau-synthese.png` ; captures montrant le panneau régénérées — la barre d'onglets y apparaît).
+Tests (gitignorés) : `smoke-evo-couleur-nouvelle-tache.js`, `smoke-evo-panneau-onglets.js`,
+`doc-shots-nouvelle-tache.js`, `doc-shots-panneau-synthese.js` ; les scripts de captures existants
+**forcent désormais l'onglet attendu**, celui-ci étant mémorisé. Suite complète : **25 tests,
+0 échec**. **Validé par l'utilisateur** (relecture sur captures), mergé sur `main`, tagué `v0.19`,
+poussé (rituel : bundle `--tag v0.19` régénéré + versionné).
+
 ### Lisibilité de la trame + date « À propos » ✅ TERMINÉ (28/07/2026, tag **v0.18.1**)
 Deux retouches demandées après usage de la v0.18, l'intensité de la trame étant jugée bonne.
 
