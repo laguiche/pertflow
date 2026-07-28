@@ -23,3 +23,7 @@ test_cases/
 
 # Le bundle HTML standalone (dist/pertflow.html) EST versionne : il est regenere et
 # committe a chaque fin de session (cf. CLAUDE.md « Rituel de fin de session »).
+
+# Archives de livraison : regenerables (scripts/make-release.js) et hebergees par les
+# « Releases » GitHub. Les versionner ferait un doublon du bundle, deja suivi.
+dist/release/
