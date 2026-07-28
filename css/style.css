@@ -781,6 +781,35 @@ body {
    papier où les onglets n'existent plus. */
 .synth-chapter { display: none; }
 
+/* Nom de nœud cliquable dans un tableau de synthèse : rendu comme du texte souligné et
+   non comme un bouton — une rangée de boutons dans un tableau serait assourdissante. */
+.synth-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #9ecbff;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: left;
+}
+.synth-link:hover { color: #d6e9ff; text-decoration-style: solid; }
+
+/* Bouton « mettre en évidence » en queue de ligne d'analyse. */
+.synth-goto {
+  background: #1e2a40;
+  border: 1px solid #34507a;
+  border-radius: 4px;
+  color: #cfe0ff;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.synth-goto:hover { background: #2a3d5e; border-color: #5a8fd8; }
+.synth-table th.synth-goto-col, .synth-table td.synth-goto-col { width: 1%; text-align: right; }
+
 /* Explication d'un contrôle d'analyse : ce que le point d'attention signifie et
    pourquoi il vaut la peine d'être regardé. */
 .synth-hint {
@@ -878,6 +907,12 @@ body {
     border-bottom: 2px solid #333;
   }
   body.synthesis-printing .synth-hint { color: #444; }
+  /* Sur papier, un lien ne mène nulle part : le nom redevient du texte noir, et la
+     colonne d'action disparaît — elle ne ferait qu'ajouter une colonne vide. */
+  body.synthesis-printing .synth-link {
+    color: #000 !important; text-decoration: none; padding: 0;
+  }
+  body.synthesis-printing .synth-goto-col { display: none !important; }
   body.synthesis-printing .synth-section { break-inside: avoid; }
   body.synthesis-printing .synth-section h4 { color: #000; border-color: #999; }
   body.synthesis-printing .synth-kv .k,

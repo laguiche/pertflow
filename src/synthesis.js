@@ -263,11 +263,14 @@ function pertBuildAnalyses(g, adj) {
     hint: "Aucun lien entrant ni sortant : ce jalon ne contraint rien et n'est contraint "
         + "par rien. Le plus souvent, une connexion a été oubliée.",
     columns: [{ text: "Jalon" }, { text: "Cible" }],
-    rows: milestones.filter(n => !nbIn(n) && !nbOut(n)).map(n => [
-      { text: labelOf(n) },
-      { text: (typeof pertMilestoneDueLabel === "function" && pertMilestoneHasDue(n))
-          ? pertMilestoneDueLabel(n) : "—" },
-    ]),
+    rows: milestones.filter(n => !nbIn(n) && !nbOut(n)).map(n => ({
+      filterText: labelOf(n),
+      cells: [
+        { text: labelOf(n), nodeId: n.id },
+        { text: (typeof pertMilestoneDueLabel === "function" && pertMilestoneHasDue(n))
+            ? pertMilestoneDueLabel(n) : "—" },
+      ],
+    })),
   });
 
   // 2) Jalons de nom similaire. Le cas qui INTERESSE vraiment est le couple
@@ -286,13 +289,19 @@ function pertBuildAnalyses(g, adj) {
       // Deja relies l'un a l'autre ? Alors le doublon est deliberement chaine, rien a dire.
       if ((succs[a.id] || []).indexOf(b.id) !== -1 || (succs[b.id] || []).indexOf(a.id) !== -1) continue;
       const role = (x) => (nbIn(x) ? (nbOut(x) ? "intermédiaire" : "sortant") : (nbOut(x) ? "entrant" : "orphelin"));
-      simRows.push([
-        { text: labelOf(a) },
-        { text: role(a) },
-        { text: labelOf(b) },
-        { text: role(b) },
-        { text: s >= 0.999 ? "identique" : Math.round(s * 100) + " %", cls: "num" },
-      ]);
+      simRows.push({
+        // Une ligne, DEUX nœuds : le terme de filtre est ce qu'ils ont en commun, pour
+        // qu'un seul geste les mette tous les deux en evidence — c'est en les voyant
+        // cote a cote qu'on tranche entre doublon et homonymie.
+        filterText: pertSynthCommonTerm(labelOf(a), labelOf(b)),
+        cells: [
+          { text: labelOf(a), nodeId: a.id },
+          { text: role(a) },
+          { text: labelOf(b), nodeId: b.id },
+          { text: role(b) },
+          { text: s >= 0.999 ? "identique" : Math.round(s * 100) + " %", cls: "num" },
+        ],
+      });
     }
   }
   push({
@@ -314,10 +323,13 @@ function pertBuildAnalyses(g, adj) {
     hint: "Aucun lien entrant ni sortant : la tâche est hors du réseau, elle ne participe "
         + "à aucun enchaînement et ne peut pas être sur le chemin critique.",
     columns: [{ text: "Tâche" }, { text: "Durée", cls: "num" }],
-    rows: activities.filter(n => !nbIn(n) && !nbOut(n)).map(n => [
-      { text: labelOf(n) },
-      { text: String(n.properties.duration || 0), cls: "num" },
-    ]),
+    rows: activities.filter(n => !nbIn(n) && !nbOut(n)).map(n => ({
+      filterText: labelOf(n),
+      cells: [
+        { text: labelOf(n), nodeId: n.id },
+        { text: String(n.properties.duration || 0), cls: "num" },
+      ],
+    })),
   });
 
   // 4) Fins de chaine sans jalon — une tache qui ne debouche sur rien produit quelque
@@ -330,11 +342,14 @@ function pertBuildAnalyses(g, adj) {
         + "aucun jalon. Ajouter un jalon de sortie rend le livrable explicite et "
         + "vérifiable.",
     columns: [{ text: "Tâche" }, { text: "Fin t.tôt" }],
-    rows: activities.filter(n => nbIn(n) && !nbOut(n)).map(n => [
-      { text: labelOf(n) },
-      { text: (typeof pertFormatDate === "function" && n.ef != null)
-          ? pertFormatDate(pertOffsetToDate(n.ef)) : "—" },
-    ]),
+    rows: activities.filter(n => nbIn(n) && !nbOut(n)).map(n => ({
+      filterText: labelOf(n),
+      cells: [
+        { text: labelOf(n), nodeId: n.id },
+        { text: (typeof pertFormatDate === "function" && n.ef != null)
+            ? pertFormatDate(pertOffsetToDate(n.ef)) : "—" },
+      ],
+    })),
   });
 
   // 5) Taches de duree nulle — une Activite de duree 0 est un JALON deguise : elle
@@ -345,10 +360,13 @@ function pertBuildAnalyses(g, adj) {
     hint: "Une tâche sans durée est en réalité un jalon : la convertir clarifie le "
         + "planning et évite de la compter comme une charge.",
     columns: [{ text: "Tâche" }, { text: "Groupe" }],
-    rows: activities.filter(n => !(parseFloat(n.properties.duration) > 0)).map(n => [
-      { text: labelOf(n) },
-      { text: (n.properties.group || "").trim() || "—" },
-    ]),
+    rows: activities.filter(n => !(parseFloat(n.properties.duration) > 0)).map(n => ({
+      filterText: labelOf(n),
+      cells: [
+        { text: labelOf(n), nodeId: n.id },
+        { text: (n.properties.group || "").trim() || "—" },
+      ],
+    })),
   });
 
   return out;
@@ -394,6 +412,10 @@ function synthTable(headers, rows) {
     cells.forEach(c => {
       const td = synthEl("td", c.cls || null);
       if (c.node) td.appendChild(c.node);
+      // Cellule DESIGNANT UN NŒUD : rendue cliquable, elle mene au nœud. Le lecteur
+      // d'une synthese veut aller voir ce qu'on lui signale, pas le retrouver a l'œil
+      // dans le planning. Meme geste que les voisins du panneau lateral.
+      else if (c.nodeId != null) td.appendChild(synthNodeLink(c.text, c.nodeId));
       else td.textContent = (c.text != null ? c.text : "");
       tr.appendChild(td);
     });
@@ -401,6 +423,81 @@ function synthTable(headers, rows) {
   });
   table.appendChild(tbody);
   return table;
+}
+
+// ─── Depuis la synthèse vers le planning ────────────────────────────────────────
+//
+// Deux gestes complementaires, parce que les deux questions ne sont pas les memes :
+//   - « montre-moi CE nœud »        → le lien sur le nom : on ferme la fenetre, le nœud
+//                                     est selectionne et la vue centree dessus ;
+//   - « montre-moi CES nœuds-la »   → le bouton 🔎 de la ligne : on ferme la fenetre en
+//                                     posant le filtre de recherche sur leur nom commun,
+//                                     ce qui les met en evidence ENSEMBLE dans le plan.
+// Le premier convient a une anomalie ponctuelle (un jalon orphelin), le second a une
+// anomalie qui met en jeu PLUSIEURS nœuds (deux jalons de nom similaire) : les voir
+// cote a cote est justement ce qui permet de trancher.
+//
+// Dans les deux cas la fenetre se ferme : elle recouvre le planning, l'y laisser
+// ouverte rendrait le resultat invisible.
+
+function pertSynthGoToNode(id) {
+  const g = window.pertGraph;
+  const node = g && g._nodes ? g._nodes.find(n => n.id === id) : null;
+  pertCloseSynthesisDialog();
+  if (!node) return;
+  if (typeof pertFocusNode === "function") pertFocusNode(node);
+}
+window.pertSynthGoToNode = pertSynthGoToNode;
+
+// Pose le filtre de RECHERCHE sur un texte, en passant par la vraie zone de saisie du
+// menu Filtre : tout ce qui en depend (compteur, libelle du declencheur, regles de
+// vidage) reste ainsi valable, sans dupliquer la moindre logique.
+function pertSynthFilterOn(text) {
+  pertCloseSynthesisDialog();
+  const input = document.getElementById("filter-search");
+  if (!input) return;
+  input.value = text || "";
+  input.dispatchEvent(new Event("input"));
+  if (typeof showToast === "function" && text) {
+    showToast("Filtre de recherche : « " + text + " »");
+  }
+}
+window.pertSynthFilterOn = pertSynthFilterOn;
+
+// Lien cliquable vers un nœud (rendu comme du texte souligne, pas comme un bouton :
+// dans un tableau, une rangee de boutons serait visuellement assourdissante).
+function synthNodeLink(text, nodeId) {
+  const b = synthEl("button", "synth-link", text != null ? text : "");
+  b.type = "button";
+  b.title = "Aller à ce nœud dans le planning";
+  b.addEventListener("click", () => pertSynthGoToNode(nodeId));
+  return b;
+}
+
+// Bouton d'action « mettre en évidence » d'une ligne d'analyse.
+function synthFilterButton(text) {
+  const b = synthEl("button", "synth-goto", "🔎");
+  b.type = "button";
+  b.title = "Mettre en évidence dans le planning (filtre « " + text + " »)";
+  b.addEventListener("click", () => pertSynthFilterOn(text));
+  return b;
+}
+
+// Plus longue amorce commune a deux libelles, ramenee a une limite de mot. Sert de
+// terme de filtre pour une ligne qui met en jeu DEUX nœuds : c'est ce qu'ils ont en
+// commun qu'on veut voir surligne, pas l'un des deux. Repli sur le premier libelle
+// quand l'amorce commune est trop courte pour etre discriminante.
+function pertSynthCommonTerm(a, b) {
+  a = String(a || ""); b = String(b || "");
+  let i = 0;
+  while (i < a.length && i < b.length && a[i].toLowerCase() === b[i].toLowerCase()) i++;
+  let common = a.slice(0, i).trim();
+  // Ne pas couper au milieu d'un mot : « Livraison protot » filtrerait large et mal.
+  if (i < a.length && i < b.length && !/\s$/.test(a.slice(0, i))) {
+    const cut = common.lastIndexOf(" ");
+    if (cut > 0) common = common.slice(0, cut);
+  }
+  return common.length >= 4 ? common : a.trim();
 }
 
 // Section titree ; ajoute un message « vide » si aucune ligne.
@@ -614,7 +711,13 @@ function pertRenderSynthesis() {
     m.analyses.forEach(a => {
       const box = synthEl("div");
       box.appendChild(synthEl("p", "synth-hint", a.hint));
-      box.appendChild(synthTable(a.columns, a.rows));
+      // Colonne d'action en queue de ligne : met en evidence dans le planning les
+      // nœuds de CETTE ligne (le nom, lui, mene directement au nœud — cf. synthNodeLink).
+      const cols = a.columns.concat([{ text: "", cls: "synth-goto-col" }]);
+      const rows = a.rows.map(r => ({
+        cells: r.cells.concat([{ node: synthFilterButton(r.filterText), cls: "synth-goto-col" }]),
+      }));
+      box.appendChild(synthTable(cols, rows));
       synthSection(an, a.title + " (" + a.rows.length + ")", box);
     });
   }

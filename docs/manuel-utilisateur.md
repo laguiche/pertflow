@@ -764,6 +764,20 @@ liste de choses à regarder, pas comme une liste de cases vertes à faire défil
 | **Fins de chaîne sans jalon** | Une tâche sans successeur : son aboutissement n'est matérialisé par aucun jalon. |
 | **Tâches de durée nulle** | Une tâche sans durée est en réalité un jalon. |
 
+**Chaque ligne mène au planning**, de deux façons complémentaires :
+
+- **Cliquer le nom** d'un jalon ou d'une tâche (souligné) **ferme la synthèse, sélectionne ce
+  nœud et centre la vue dessus** — comme les prédécesseurs/successeurs du panneau (§5). C'est le
+  geste pour aller voir *un* nœud.
+- **Le bouton 🔎 en bout de ligne** ferme la synthèse en posant le **filtre de recherche** (§6)
+  sur le nom commun aux nœuds de la ligne : ils sont alors mis en évidence **ensemble** dans le
+  planning. C'est le geste quand l'anomalie en met **plusieurs** en jeu — deux jalons de nom
+  similaire, par exemple : c'est en les voyant côte à côte qu'on tranche entre doublon et
+  homonymie.
+
+> Dans les deux cas la fenêtre se ferme : elle recouvre le planning, la garder ouverte rendrait le
+> résultat invisible. Ni les liens ni le bouton n'apparaissent sur le document imprimé.
+
 > La détection des noms similaires **ignore les séries numérotées** (« Revue de lot 1 » / « Revue de
 > lot 2 ») : elles ne diffèrent que d'un caractère, mais la numérotation est délibérée. Deux jalons
 > déjà reliés l'un à l'autre ne sont pas signalés non plus.
