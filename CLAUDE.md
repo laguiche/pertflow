@@ -267,12 +267,36 @@ Barre d'état (`updateStatus`, rafraîchie toutes les 600 ms **et** par `pertHig
 - **Undo** (Ctrl+Z)
 - **Redo** (Ctrl+Y)
 
-### Panneau propriétés (droite)
-Affiché quand un nœud est sélectionné. Champs selon le type :
-- Activité : Libellé (text), Durée (number), Responsable (text), Couleur (color picker)
-- Jalon : Libellé (text), Date butée (date)
-- Label : Texte (textarea)
-Bouton **Supprimer** en bas du panneau (rouge).
+### Panneau propriétés (droite) — **deux onglets** depuis v0.19
+Découpage : **ce qui est saisi** d'un côté, **ce qui est calculé ou déduit** de l'autre.
+- **Propriétés** (`#properties-content`) — champs éditables selon le type : Activité (libellé,
+  durée, anticipée, ETP, responsable, couleur, groupe, notes), Jalon (libellé, cible, tag,
+  notes), Label (texte + mise en forme).
+- **Synthèse** (`#properties-synthesis`) — valeurs calculées (`#calc-section`, ES/EF/LS/LF,
+  marge, coût, « Avant T0 ») **et** voisinage (`#links-section`, prédécesseurs / successeurs).
+- Bouton **Supprimer** dans `#properties-footer`, **hors des onglets** : il doit rester
+  accessible depuis les deux. Seul `#properties-body` défile ; le panneau, lui, ne défile plus.
+- **Onglet mémorisé** entre deux sélections (`pertPanelTab`, même principe que
+  `pertSettingsTab`) : sur un planning dense on enchaîne les clics de nœud en nœud, revenir à
+  « Propriétés » à chaque clic rendrait la Synthèse inutilisable. **État de vue** — non sérialisé
+  dans le `.pert`, comme le filtre.
+- Voisins **cliquables** (`pertFocusNode`) : sélectionne le nœud et centre la vue dessus **sans
+  changer le zoom**. `selectNode()` ne déclenche PAS `onNodeSelected` (réservé au clic souris) →
+  appeler `showProperties()` soi-même.
+- Adjacence lue via **`pertBuildAdjacency`** (moteur), jamais recalculée à la main : même source
+  de vérité que le calcul PERT, donc pas de divergence entre ce que le panneau annonce et ce que
+  le moteur a pris en compte (doublons de liens écartés, Labels exclus).
+- **Rafraîchissement** : `fillSynthesis(node)` (= `fillCalcSection` + `fillLinksSection`) après
+  tout changement qui déplace les dates — modifier une durée décale aussi les successeurs, dont
+  les dates sont affichées dans la liste.
+
+> **PIÈGE — ids dupliqués dans `index.html`.** Un id en double ne lève **aucune** erreur :
+> `getElementById` rend le **premier du document**. Le panneau Synthèse, nommé d'abord
+> `synthesis-content`, écrivait donc silencieusement dans la **fenêtre de synthèse globale**
+> (`#synthesis-dialog`, v0.15.4) qui portait déjà cet id — tests au vert, onglet vide à l'écran.
+> D'où le préfixe `properties-` et le garde-fou d'unicité des ids dans le smoke correspondant.
+> Corollaire : **un test qui interroge le DOM par id ne prouve rien** si l'id n'est pas unique —
+> vérifier aussi la **surface occupée** (`getBoundingClientRect`) ou faire une capture.
 
 ### Raccourcis clavier
 - `Delete` / `Backspace` : supprimer nœud(s) sélectionné(s)

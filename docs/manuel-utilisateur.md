@@ -270,7 +270,7 @@ entre les deux est la **marge**.
 Ces quatre repères (ES / EF / LS / LF), la marge et le coût estimé sont affichés dans la section
 **Valeurs calculées / Chemin critique** du panneau Propriétés lorsqu'une tâche est sélectionnée :
 
-![Le panneau affiche ES, EF, LS, LF, la marge et le coût de la tâche sélectionnée](images/manuel/ch4-panneau-calcul.png)
+![L'onglet Synthèse affiche ES, EF, LS, LF, la marge et le coût de la tâche sélectionnée](images/manuel/ch4-panneau-calcul.png)
 
 ### Le chemin critique
 
@@ -393,7 +393,20 @@ le lien fautif et le calcul reprend.
 
 ![Le panneau Propriétés d'une activité](images/manuel/panneau-proprietes.png)
 
-Le panneau (à droite) affiche les champs du nœud sélectionné. Pour une **Activité** :
+Le panneau (à droite) affiche le nœud sélectionné, réparti en **deux onglets** :
+
+| Onglet | Ce qu'on y trouve |
+|---|---|
+| **Propriétés** | Tout ce que vous **saisissez** : libellé, durée, responsable, couleur, notes… |
+| **Synthèse** | Tout ce que PertFlow **calcule ou déduit** : dates, marge, coût, et les **prédécesseurs / successeurs** du nœud. |
+
+Le bouton **Supprimer** est en pied de panneau : il reste accessible depuis les deux onglets.
+L'onglet consulté est **conservé quand vous changez de nœud** — vous pouvez donc cliquer de tâche
+en tâche en gardant la Synthèse sous les yeux.
+
+### Onglet Propriétés
+
+Pour une **Activité** :
 
 - **Libellé** — le nom de la tâche.
 - **Durée** — dans l'unité du projet.
@@ -406,12 +419,9 @@ Le panneau (à droite) affiche les champs du nœud sélectionné. Pour une **Act
   **« Appliquer ce groupe aux tâches de même couleur »**.
 - **Notes** — texte libre (hypothèses, contenu réel de la tâche). Les notes restent dans le
   panneau et ne sont **jamais** affichées sur le nœud.
-- **Section Chemin critique** — les repères calculés (ES / EF / LS / LF), la **marge** et le
-  **coût estimé** (lecture seule). Si la tâche démarre avant T0, deux lignes s'ajoutent :
-  **« Avant T0 »** (la part de sa durée située avant la référence) et **« Coût anticipé »**.
-- **Supprimer** — supprime le nœud.
+- **Supprimer** — supprime le nœud (en pied de panneau, visible depuis les deux onglets).
 
-![Le panneau d'une tâche anticipée](images/manuel/panneau-tache-anticipee.png)
+![Le panneau d'une tâche anticipée : la case cochée, onglet Propriétés](images/manuel/panneau-tache-anticipee.png)
 
 Pour un **Jalon**, le panneau propose le libellé, la **cible** — avec son **mode de saisie**
 (date calendaire ou « T0 + X », voir §4) —, le **type de jalon** (tag) et une zone de **Notes**
@@ -429,6 +439,29 @@ Pour un **Label**, le panneau réunit la zone de **texte** et tous ses réglages
 
 > Chaque modification recalcule immédiatement le planning (les réglages purement visuels d'un
 > Label, eux, n'ont aucun effet sur le calcul).
+
+### Onglet Synthèse
+
+![L'onglet Synthèse : valeurs calculées et enchaînements](images/manuel/panneau-synthese.png)
+
+Cet onglet ne se saisit pas : il **répond**. On y lit, pour le nœud sélectionné :
+
+- **Les valeurs calculées** — les repères ES / EF / LS / LF, la **marge** et le **coût estimé**.
+  Si la tâche démarre avant T0, deux lignes s'ajoutent : **« Avant T0 »** (la part de sa durée
+  située avant la référence) et **« Coût anticipé »**. Pour un Jalon : la date atteinte, la date
+  au plus tard, la marge et la **tenue de la cible**. Le titre de la section passe en
+  **⛔ Chemin critique** quand le nœud y figure.
+- **Les prédécesseurs** — ce qui doit être terminé avant lui, avec pour chacun sa **fin au plus
+  tôt** : c'est la date qui le libère.
+- **Les successeurs** — ce qu'il déclenche, avec pour chacun son **début au plus tôt**.
+
+Sur un planning dense, suivre les liens à l'œil est fastidieux : cette liste répond par écrit à
+« qu'est-ce qui vient avant, qu'est-ce qui vient après ». Chaque voisin est **cliquable** — le clic
+le sélectionne et **centre la vue dessus**, sans changer le zoom. On remonte ainsi une chaîne de
+dépendances de proche en proche. Les voisins situés sur le **chemin critique** sont bordés de rouge.
+
+> Un nœud sans prédécesseur (respectivement sans successeur) l'affiche explicitement : il démarre
+> (ou termine) une chaîne. Un **Label** n'ayant ni dépendances ni dates, son onglet Synthèse le dit.
 
 ---
 

@@ -238,11 +238,26 @@
     </div>
 
     <!-- ── Panneau propriétés ───────────────────────────────────────────── -->
+    <!-- Deux onglets : les champs SAISIS d'un côté, tout ce qui est CALCULÉ ou déduit
+         du graphe de l'autre (dates, marges, coût, prédécesseurs/successeurs). Le
+         bouton Supprimer vit dans un pied fixe, hors de la zone qui défile, pour
+         rester accessible depuis les deux onglets. -->
     <div id="properties-panel">
-      <div id="properties-header">
-        <h3>Propriétés</h3>
+      <div id="properties-tabs" role="tablist">
+        <button type="button" class="prop-tab active" data-tab="proprietes"
+                role="tab" aria-selected="true">Propriétés</button>
+        <button type="button" class="prop-tab" data-tab="synthese"
+                role="tab" aria-selected="false">Synthèse</button>
       </div>
-      <div id="properties-content"></div>
+      <div id="properties-body">
+        <div id="properties-content" class="prop-panel active" data-panel="proprietes"></div>
+        <!-- id préfixé « properties- » : « synthesis-content » est DÉJÀ pris par la
+             fenêtre de synthèse globale (§ modale plus haut). Deux éléments de même
+             id ne lèvent aucune erreur — getElementById rend le premier du document,
+             et le panneau écrivait silencieusement dans la modale. -->
+        <div id="properties-synthesis" class="prop-panel" data-panel="synthese"></div>
+      </div>
+      <div id="properties-footer"></div>
     </div>
   </div>
 
