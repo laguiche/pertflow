@@ -39,6 +39,24 @@
             <option value="mois" selected>Mois</option>
           </select>
         </label>
+        <!-- Couleur des nouvelles tâches : le bleu historique devenait trompeur dès
+             qu'un groupe se l'appropriait (une tâche neuve semblait déjà rattachée). -->
+        <label>Couleur des nouvelles tâches
+          <select id="settings-newtask-mode">
+            <option value="libre">Couleur libre (aucun groupe)</option>
+            <option value="groupe">Rattachée à un groupe existant</option>
+          </select>
+        </label>
+        <label id="settings-newtask-group-row">Groupe par défaut
+          <span class="settings-inline">
+            <select id="settings-newtask-group"></select>
+            <span id="settings-newtask-swatch" class="group-swatch" title="Couleur du groupe"></span>
+          </span>
+        </label>
+        <p class="settings-hint">« Couleur libre » donne aux tâches créées la première couleur de
+          la palette qu'aucun groupe n'utilise : elles restent visiblement non rattachées.
+          « Rattachée à un groupe » crée directement les tâches dans le groupe choisi, avec sa
+          couleur. Sans aucun groupe défini, seule la couleur libre est possible.</p>
         <label class="settings-check">
           <input type="checkbox" id="settings-autosave">
           Sauvegarde automatique (récupération après plantage)
@@ -220,11 +238,26 @@
     </div>
 
     <!-- ── Panneau propriétés ───────────────────────────────────────────── -->
+    <!-- Deux onglets : les champs SAISIS d'un côté, tout ce qui est CALCULÉ ou déduit
+         du graphe de l'autre (dates, marges, coût, prédécesseurs/successeurs). Le
+         bouton Supprimer vit dans un pied fixe, hors de la zone qui défile, pour
+         rester accessible depuis les deux onglets. -->
     <div id="properties-panel">
-      <div id="properties-header">
-        <h3>Propriétés</h3>
+      <div id="properties-tabs" role="tablist">
+        <button type="button" class="prop-tab active" data-tab="proprietes"
+                role="tab" aria-selected="true">Propriétés</button>
+        <button type="button" class="prop-tab" data-tab="synthese"
+                role="tab" aria-selected="false">Synthèse</button>
       </div>
-      <div id="properties-content"></div>
+      <div id="properties-body">
+        <div id="properties-content" class="prop-panel active" data-panel="proprietes"></div>
+        <!-- id préfixé « properties- » : « synthesis-content » est DÉJÀ pris par la
+             fenêtre de synthèse globale (§ modale plus haut). Deux éléments de même
+             id ne lèvent aucune erreur — getElementById rend le premier du document,
+             et le panneau écrivait silencieusement dans la modale. -->
+        <div id="properties-synthesis" class="prop-panel" data-panel="synthese"></div>
+      </div>
+      <div id="properties-footer"></div>
     </div>
   </div>
 

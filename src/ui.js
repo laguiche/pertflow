@@ -6,10 +6,17 @@
 // Optionnel — desactivable via le dialogue Parametres ; serialise dans le .pert.
 // hours_per_month / hours_per_day / hourly_rate (S8.5) : parametres d'estimation de
 // cout (cf. pertActivityCost) ; defauts entreprise, modifiables dans Parametres.
+// new_task_mode / new_task_group : couleur (et groupe) des taches NOUVELLEMENT creees.
+//   "libre"  (defaut) → premiere couleur de la palette qu'AUCUN groupe n'utilise, et
+//                       aucun groupe : la tache neuve se voit comme non rattachee.
+//   "groupe"          → rattachee d'emblee au groupe new_task_group, dont elle herite
+//                       la couleur (cf. pertApplyNewTaskDefaults).
+// Le bleu fixe d'origine devenait trompeur des qu'un groupe se l'appropriait.
 window.pertMeta = {
   title: "Nouveau projet", t0: "", unit: "mois", layout_gap: 30, prop_width: true,
   hours_per_month: 135, hours_per_day: 8, hourly_rate: 136,
   groups: {}, autosave: true,
+  new_task_mode: "libre", new_task_group: "",
   // Trame temporelle de fond : desactivee par defaut (aucun changement visuel pour
   // les plannings existants ; c'est une aide de lecture qu'on demande, cf. time_grid.js).
   time_grid: false,
@@ -91,6 +98,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Ajoute un nœud du type donné à la position graphe fournie (ou au centre).
   function addNodeAt(typeName, pos) {
     const n = LiteGraph.createNode(typeName);
+    // Couleur/groupe par defaut des taches CREEES a la main (toolbar, clic droit)
+    // uniquement : l'import et le chargement d'un .pert apportent leurs propres
+    // couleurs, il ne faut surtout pas les ecraser.
+    pertApplyNewTaskDefaults(n);
     if (n.updateSize) n.updateSize();
     if (pos) {
       // Position explicite (clic droit) : coin haut-gauche sous le curseur
@@ -227,6 +238,12 @@ document.addEventListener("DOMContentLoaded", () => {
   graph.start();
 
   // ── Sélection → panneau propriétés ──────────────────────────────────────────
+
+  // Onglets du panneau (Propriétés / Synthèse). Câblés AVANT le premier affichage :
+  // showProperties() applique l'onglet mémorisé à chaque rendu.
+  document.querySelectorAll("#properties-tabs .prop-tab").forEach(tab => {
+    tab.addEventListener("click", () => pertSelectPanelTab(tab.dataset.tab));
+  });
 
   // Panneau toujours visible, placeholder quand rien n'est sélectionné
   showProperties(null);
@@ -395,6 +412,15 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("#settings-tabs .settings-tab").forEach(tab => {
     tab.addEventListener("click", () => pertSelectSettingsTab(tab.dataset.tab));
   });
+
+  // ── Couleur / groupe des nouvelles tâches ───────────────────────────────────
+  // La ligne « Groupe par défaut » n'a de sens qu'en mode « groupe » : on la masque
+  // sinon (elle reste dans le DOM, comme les panneaux d'onglets, pour que
+  // saveSettings() puisse la lire par son id).
+  const ntMode = document.getElementById("settings-newtask-mode");
+  const ntGroup = document.getElementById("settings-newtask-group");
+  if (ntMode) ntMode.addEventListener("change", pertRefreshNewTaskRow);
+  if (ntGroup) ntGroup.addEventListener("change", pertRefreshNewTaskRow);
 
   // ── Curseur d'intensité de la trame ─────────────────────────────────────────
   // Le retour d'usage a été « pas assez visible », sans qu'aucune valeur ne fasse
@@ -567,9 +593,15 @@ function pertZoomToFit() {
 function showProperties(node) {
   const panel = document.getElementById("properties-panel");
   const content = document.getElementById("properties-content");
+  const synth = document.getElementById("properties-synthesis");
+  const footer = document.getElementById("properties-footer");
   // Le panneau est toujours affiché
   panel.style.display = "flex";
   content.innerHTML = "";
+  synth.innerHTML = "";
+  footer.innerHTML = "";
+  // L'onglet consulté est conservé d'une sélection a l'autre (cf. pertPanelTab).
+  pertSelectPanelTab(pertPanelTab);
 
   // #7 Tracé du chemin critique depuis le nœud sélectionné (sinon, par défaut,
   // depuis le nœud le plus éloigné de T0 quand rien n'est sélectionné).
@@ -579,6 +611,7 @@ function showProperties(node) {
 
   if (!node) {
     content.innerHTML = '<p class="prop-empty">Sélectionnez un nœud<br>pour éditer ses propriétés.</p>';
+    synth.innerHTML = '<p class="prop-empty">Sélectionnez un nœud<br>pour voir sa synthèse.</p>';
     return;
   }
 
@@ -593,7 +626,7 @@ function showProperties(node) {
       node.updateSize();
       node.setDirtyCanvas(true);
       pertRecalc();
-      fillCalcSection(node);
+      fillSynthesis(node);
     }, { min: 0, step: 0.5 });
     // Anticipation (24/07/2026) : la tache est engagee AVANT T0 pour degager de la
     // marge en aval. Cochee, elle est planifiee au plus tard (juste-a-temps) et recule
@@ -603,7 +636,7 @@ function showProperties(node) {
       v => {
         node.properties.anticipated = v;
         pertRecalc();
-        fillCalcSection(node);
+        fillSynthesis(node);
         node.setDirtyCanvas(true, true);
       },
       "Planifie la tâche au plus tard : elle finit pile quand l'aval en a besoin, "
@@ -614,7 +647,7 @@ function showProperties(node) {
     buildField(content, "ETP (équivalent temps plein)", "number", node.properties.etp, v => {
       node.properties.etp = parseFloat(v) || 0;
       node.setDirtyCanvas(true);
-      fillCalcSection(node);
+      fillSynthesis(node);
     }, { min: 0, step: 0.1 });
     // Responsable : combobox enrichissable (#13 amorce) — texte libre + reproposition
     // des responsables deja saisis (datalist) pour une orthographe coherente.
@@ -666,8 +699,6 @@ function showProperties(node) {
       node.properties.notes = v;
     });
 
-    buildCalcSection(content, node);
-
   } else if (node.type === "pert/milestone") {
     buildField(content, "Libellé", "text", node.properties.label, v => {
       node.properties.label = v;
@@ -691,8 +722,6 @@ function showProperties(node) {
     buildTextarea(content, "Notes (hypothèses, contexte)", node.properties.notes, v => {
       node.properties.notes = v;
     });
-
-    buildCalcSection(content, node);
 
   } else if (node.type === "pert/label") {
     buildTextarea(content, "Texte", node.properties.text, v => {
@@ -728,7 +757,12 @@ function showProperties(node) {
     });
   }
 
-  // Bouton supprimer
+  // Onglet SYNTHESE : tout ce qui n'est pas saisi mais deduit — valeurs calculees
+  // (dates, marges, cout) et voisinage dans le graphe.
+  buildSynthesisTab(synth, node);
+
+  // Bouton supprimer — dans le PIED du panneau, hors des onglets : il doit rester
+  // accessible depuis « Propriétés » comme depuis « Synthèse ».
   const delBtn = document.createElement("button");
   delBtn.id = "btn-delete-node";
   delBtn.textContent = "Supprimer";
@@ -736,7 +770,35 @@ function showProperties(node) {
     window.pertGraph.remove(node);
     hideProperties();
   });
-  content.appendChild(delBtn);
+  footer.appendChild(delBtn);
+}
+
+// ─── Onglets du panneau (Propriétés / Synthèse) ─────────────────────────────────
+
+// Onglet courant du panneau lateral. MEMORISE d'une selection a l'autre : sur un
+// planning dense on enchaine les clics de nœud en nœud pour lire les enchainements,
+// et revenir a « Propriétés » a chaque clic rendrait l'onglet Synthèse inutilisable.
+// Etat de VUE, comme le filtre : non serialise dans le .pert (il ne decrit pas le
+// planning mais la facon dont on le regarde a cet instant).
+let pertPanelTab = "proprietes";
+
+// Affiche un onglet et son panneau ; l'autre est masque, jamais retire du DOM —
+// fillCalcSection() et fillLinksSection() doivent pouvoir retrouver leurs conteneurs
+// par leur id meme quand l'onglet n'est pas a l'ecran.
+function pertSelectPanelTab(name) {
+  const tabs = document.querySelectorAll("#properties-tabs .prop-tab");
+  const panels = document.querySelectorAll("#properties-body .prop-panel");
+  if (!tabs.length) return;
+  let known = false;
+  tabs.forEach(t => { if (t.dataset.tab === name) known = true; });
+  if (!known) name = tabs[0].dataset.tab;
+  pertPanelTab = name;
+  tabs.forEach(t => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  panels.forEach(p => p.classList.toggle("active", p.dataset.panel === name));
 }
 
 function hideProperties() {
@@ -918,6 +980,45 @@ function pertApplyGroup(node) {
   const reg = pertGroups();
   if (reg[g]) { node.properties.color = reg[g]; node.color = reg[g]; }
   else { reg[g] = node.properties.color; }
+}
+
+// ─── Couleur / groupe des nouvelles tâches (meta.new_task_*) ────────────────────
+
+// Premiere couleur de la palette qu'AUCUN groupe ne s'est appropriee. On ne regarde
+// que le registre des groupes (et non les couleurs portees par les taches) : deux
+// taches sans groupe creees a la suite doivent garder la MEME teinte — c'est la
+// couleur « sans groupe » du projet, pas un code couleur par tache. Fallback : la
+// premiere couleur de la palette (tous les tons sont pris par des groupes).
+function pertPickFreeColor() {
+  const used = new Set();
+  const reg = pertGroups();
+  Object.keys(reg).forEach(k => {
+    if (reg[k]) used.add(String(reg[k]).toLowerCase());
+  });
+  const free = PERT_COLOR_PALETTE.find(c => !used.has(c.toLowerCase()));
+  return free || PERT_COLOR_PALETTE[0];
+}
+
+// Applique a une Activite neuve la couleur (et le groupe) choisis dans les Parametres.
+// Appelee par addNodeAt AVANT l'ajout au graphe — donc jamais sur les nœuds issus d'un
+// import, d'un chargement ou d'un collage, qui portent deja leurs propres couleurs.
+// Mode "groupe" dont le groupe a disparu (renomme, plus aucune tache) → repli sur la
+// couleur libre, plutot qu'un rattachement fantome.
+function pertApplyNewTaskDefaults(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return;
+  const meta = window.pertMeta || {};
+  const color = pertPickFreeColor();
+  node.properties.color = color;
+  node.color = color;
+
+  if (meta.new_task_mode !== "groupe") return;
+  const g = (meta.new_task_group || "").trim();
+  if (!g) return;
+  node.properties.group = g;
+  // pertApplyGroup tranche : couleur HERITEE si le groupe est au registre, sinon la
+  // couleur libre qu'on vient de poser DEVIENT celle du groupe ("premier venu", #14).
+  pertApplyGroup(node);
+  node.color = node.properties.color;
 }
 
 // Action explicite (bouton du panneau) : affecte le groupe courant a toutes les autres
@@ -1300,7 +1401,7 @@ function buildMilestoneDueField(parent, node) {
       node.updateSize();
       node.setDirtyCanvas(true, true);
       pertRecalc();
-      fillCalcSection(node);
+      fillSynthesis(node);
     };
 
     buildSelect(box, "Date-cible (à tenir)", mode, [
@@ -1366,6 +1467,16 @@ function buildCalcSection(parent, node) {
   fillCalcSection(node);
 }
 
+// Offset PERT → date calendaire lisible ; a defaut de T0, l'offset lui-meme (« +3 sem »).
+// Partage par la section calculs et par les listes de predecesseurs/successeurs, pour
+// que la meme grandeur ne s'ecrive pas de deux facons dans le meme onglet.
+function pertOffsetLabel(off) {
+  const unit = (window.pertMeta && window.pertMeta.unit) || "j";
+  const d = pertOffsetToDate(off);
+  return d ? pertFormatDate(d)
+           : (off !== null && off !== undefined ? "+" + off + " " + unit : "—");
+}
+
 // (Re)remplit la section calculs pour le nœud donné — sans toucher aux champs éditables
 function fillCalcSection(node) {
   const sec = document.getElementById("calc-section");
@@ -1373,10 +1484,7 @@ function fillCalcSection(node) {
   sec.innerHTML = "";
 
   const unit = (window.pertMeta && window.pertMeta.unit) || "j";
-  const asDate = off => {
-    const d = pertOffsetToDate(off);
-    return d ? pertFormatDate(d) : (off !== null && off !== undefined ? "+" + off + " " + unit : "—");
-  };
+  const asDate = pertOffsetLabel;
 
   if (node.type === "pert/activity") {
     if (node.es === null) {
@@ -1428,6 +1536,130 @@ function fillCalcSection(node) {
       buildReadonly(sec, "Cible", "✓ tenue (" + pertMilestoneDueLabel(node) + ")");
     }
   }
+}
+
+// ─── Prédécesseurs / successeurs (onglet Synthèse) ──────────────────────────────
+//
+// Sur un planning dense, retrouver « qui vient avant / après » a l'œil oblige a suivre
+// des liens qui se croisent. Le panneau repond a la question par ecrit, et chaque
+// voisin est CLIQUABLE : le clic le selectionne et centre la vue dessus, ce qui permet
+// de remonter ou de descendre une chaine de dependances de proche en proche.
+
+// Construit l'onglet Synthèse : valeurs calculees, puis voisinage dans le graphe.
+function buildSynthesisTab(parent, node) {
+  if (node.type === "pert/label") {
+    // Un Label ne porte ni dependances ni dates : le dire explicitement vaut mieux
+    // qu'un onglet vide, qui laisserait croire a un bug.
+    parent.innerHTML = '<p class="prop-empty">Un Label est une note libre :<br>'
+      + 'ni dépendances, ni dates calculées.</p>';
+    return;
+  }
+  buildCalcSection(parent, node);
+  const links = document.createElement("div");
+  links.id = "links-section";
+  parent.appendChild(links);
+  fillLinksSection(node);
+}
+
+// (Re)remplit les deux listes de voisins du nœud donné.
+function fillLinksSection(node) {
+  const sec = document.getElementById("links-section");
+  if (!sec || !node) return;
+  sec.innerHTML = "";
+  const graph = window.pertGraph;
+  if (!graph) return;
+
+  // On reutilise l'adjacence du moteur : meme source de verite que le calcul PERT
+  // (doublons de liens ecartes, Labels exclus), donc aucun risque de divergence entre
+  // ce que le panneau annonce et ce que le calcul a effectivement pris en compte.
+  const { preds, succs } = pertBuildAdjacency(graph);
+  const byId = {};
+  graph._nodes.forEach(n => { byId[n.id] = n; });
+
+  // Predecesseur : ce qui compte est QUAND il libere la suite → sa fin au plus tot.
+  // Successeur : quand il peut demarrer → son debut au plus tot (un Jalon n'a pas de
+  // debut propre, on montre alors la date a laquelle il est atteint).
+  const dateOf = (n, role) => role === "pred"
+    ? n.ef
+    : (n.type === "pert/activity" ? n.es : n.ef);
+
+  const buildList = (titleText, ids, role, emptyText) => {
+    const title = document.createElement("div");
+    title.className = "calc-title";
+    title.textContent = titleText;
+    sec.appendChild(title);
+
+    const list = (ids || []).map(id => byId[id]).filter(Boolean);
+    if (!list.length) {
+      const p = document.createElement("p");
+      p.className = "link-none";
+      p.textContent = emptyText;
+      sec.appendChild(p);
+      return;
+    }
+    // Tri chronologique : c'est l'ordre dans lequel l'utilisateur lit son planning.
+    list.sort((a, b) => {
+      const da = dateOf(a, role), db = dateOf(b, role);
+      if (da !== db) return (da === null ? Infinity : da) - (db === null ? Infinity : db);
+      return String(a.properties.label || "").localeCompare(String(b.properties.label || ""), "fr");
+    });
+
+    list.forEach(n => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "link-row" + (n.is_critical ? " lk-critical" : "");
+      row.title = "Aller à ce nœud";
+
+      const glyph = document.createElement("span");
+      glyph.className = "lk-glyph";
+      glyph.textContent = n.type === "pert/milestone" ? "◈" : "▭";
+      const name = document.createElement("span");
+      name.className = "lk-name";
+      name.textContent = n.properties.label || "(sans nom)";
+      const date = document.createElement("span");
+      date.className = "lk-date";
+      date.textContent = pertOffsetLabel(dateOf(n, role));
+
+      row.appendChild(glyph);
+      row.appendChild(name);
+      row.appendChild(date);
+      row.addEventListener("click", () => pertFocusNode(n));
+      sec.appendChild(row);
+    });
+  };
+
+  buildList("↢ Prédécesseurs", preds[node.id], "pred",
+    "Aucun — ce nœud démarre une chaîne.");
+  buildList("↣ Successeurs", succs[node.id], "succ",
+    "Aucun — ce nœud termine une chaîne.");
+}
+
+// Selectionne un nœud et centre la vue dessus, sans changer le zoom : on saute d'un
+// voisin a l'autre en gardant l'echelle de lecture choisie par l'utilisateur.
+function pertFocusNode(node) {
+  const canvas = window.pertCanvas;
+  if (!canvas || !node) return;
+  canvas.selectNode(node);          // selection unique (remplace la precedente)
+  const el = canvas.canvas;
+  const ds = canvas.ds;
+  if (el && ds) {
+    const cx = node.pos[0] + (node.size ? node.size[0] / 2 : 0);
+    const cy = node.pos[1] + (node.size ? node.size[1] / 2 : 0);
+    ds.offset[0] = (el.width / 2) / ds.scale - cx;
+    ds.offset[1] = (el.height / 2) / ds.scale - cy;
+    canvas.setDirty(true, true);
+  }
+  // selectNode() ne declenche pas onNodeSelected (reserve au clic) : on rafraichit
+  // le panneau nous-memes, sinon il resterait sur le nœud precedent.
+  showProperties(node);
+}
+
+// Rafraichit l'ONGLET Synthèse dans son ensemble. A appeler apres tout changement qui
+// deplace les dates : modifier une duree ne change pas que les valeurs du nœud courant,
+// cela decale aussi celles de ses successeurs, affichees dans la liste.
+function fillSynthesis(node) {
+  fillCalcSection(node);
+  fillLinksSection(node);
 }
 
 // ─── À propos (auteur, licence, version) ────────────────────────────────────────
@@ -1545,6 +1777,58 @@ function pertRefreshTimeGridPreview() {
   }
 }
 
+// Remplit le selecteur « Groupe par defaut » avec les groupes CONNUS a l'instant de
+// l'ouverture (registre + groupes portes par des taches), et selectionne celui de
+// meta. Aucun groupe defini → une seule option desactivee, et le mode « libre » est
+// impose : proposer un rattachement sans cible n'aurait aucun sens.
+function pertFillNewTaskGroupSelect() {
+  const sel = document.getElementById("settings-newtask-group");
+  const modeSel = document.getElementById("settings-newtask-mode");
+  if (!sel || !modeSel) return;
+  const names = collectGroupNames();
+  sel.innerHTML = "";
+  if (!names.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "(aucun groupe défini)";
+    sel.appendChild(opt);
+    sel.disabled = true;
+    modeSel.value = "libre";
+    // On desactive aussi l'option « groupe » : un choix impossible ne doit pas etre
+    // offert (il retomberait silencieusement sur « libre » a la validation).
+    Array.from(modeSel.options).forEach(o => { if (o.value === "groupe") o.disabled = true; });
+    return;
+  }
+  sel.disabled = false;
+  Array.from(modeSel.options).forEach(o => { o.disabled = false; });
+  names.forEach(n => {
+    const opt = document.createElement("option");
+    opt.value = n;
+    opt.textContent = n;
+    sel.appendChild(opt);
+  });
+  const wanted = (window.pertMeta.new_task_group || "").trim();
+  sel.value = names.indexOf(wanted) !== -1 ? wanted : names[0];
+}
+
+// Affiche/masque la ligne « Groupe par defaut » selon le mode, et met la pastille a
+// la couleur du groupe selectionne (pastille vide si le groupe n'est pas encore au
+// registre : sa teinte ne sera fixee qu'a la premiere tache creee).
+function pertRefreshNewTaskRow() {
+  const modeSel = document.getElementById("settings-newtask-mode");
+  const row = document.getElementById("settings-newtask-group-row");
+  const sel = document.getElementById("settings-newtask-group");
+  const swatch = document.getElementById("settings-newtask-swatch");
+  if (!modeSel || !row || !sel) return;
+  const isGroup = modeSel.value === "groupe";
+  row.style.display = isGroup ? "" : "none";
+  if (swatch) {
+    const c = isGroup ? (pertGroups()[sel.value] || "") : "";
+    swatch.style.background = c || "transparent";
+    swatch.title = c ? "Couleur du groupe " + sel.value : "Couleur non encore fixée";
+  }
+}
+
 function openSettings() {
   // Le curseur d'intensite est un reglage qu'on ajuste par essais successifs : on
   // revient donc sur l'onglet ouvert la fois precedente plutot que de repartir de
@@ -1563,6 +1847,12 @@ function openSettings() {
   // Sauvegarde automatique (activee par defaut : cochee sauf desactivation explicite)
   document.getElementById("settings-autosave").checked =
     window.pertMeta.autosave !== false;
+  // Couleur/groupe des nouvelles taches. La liste des groupes est reconstruite a
+  // CHAQUE ouverture : elle bouge au fil du projet (imports, saisies dans le panneau).
+  document.getElementById("settings-newtask-mode").value =
+    window.pertMeta.new_task_mode === "groupe" ? "groupe" : "libre";
+  pertFillNewTaskGroupSelect();
+  pertRefreshNewTaskRow();
   // Trame temporelle : decochee par defaut (aide de lecture optionnelle)
   document.getElementById("settings-timegrid").checked = !!window.pertMeta.time_grid;
   // Intensite : stockee en facteur (1 = reference), presentee en pourcentage.
@@ -1594,6 +1884,13 @@ function saveSettings() {
   // Sauvegarde automatique : bascule prise en compte immediatement par le module
   window.pertMeta.autosave = document.getElementById("settings-autosave").checked;
   if (window.pertAutosaveOnToggle) window.pertAutosaveOnToggle();
+  // Couleur/groupe des nouvelles taches. Le mode « groupe » n'est retenu que s'il
+  // designe reellement un groupe : sinon on retombe sur « libre » (le selecteur peut
+  // etre vide, ou le groupe avoir disparu depuis le dernier chargement).
+  const ntMode = document.getElementById("settings-newtask-mode").value;
+  const ntGroup = (document.getElementById("settings-newtask-group").value || "").trim();
+  window.pertMeta.new_task_mode = (ntMode === "groupe" && ntGroup) ? "groupe" : "libre";
+  window.pertMeta.new_task_group = ntGroup;
   // Trame temporelle : simple bascule d'affichage, prise en compte au prochain redessin
   // (declenche plus bas a la validation des parametres, comme les autres options).
   window.pertMeta.time_grid = document.getElementById("settings-timegrid").checked;
@@ -1616,7 +1913,7 @@ function saveSettings() {
   // T0 / unité affectent les dates calculées et les offsets des dates-cibles
   pertRecalc();
   const sel = Object.values(window.pertCanvas.selected_nodes || {});
-  if (sel.length === 1) fillCalcSection(sel[0]);
+  if (sel.length === 1) fillSynthesis(sel[0]);
   updateStatus();
 }
 
@@ -1734,9 +2031,11 @@ function handleExcelFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
-// Palette de couleurs distinctes proposees pour distinguer visuellement les lots
-// importes successivement (un import = une couleur appliquee a toutes ses Activites).
-const IMPORT_COLOR_PALETTE = [
+// Palette de couleurs distinctes du projet. Deux usages :
+//   - import : un lot importe = une couleur (cf. pickDefaultImportColor) ;
+//   - creation d'une tache : couleur « libre », non prise par un groupe
+//     (cf. pertPickFreeColor).
+const PERT_COLOR_PALETTE = [
   "#4A90D9", // bleu (defaut historique)
   "#7ED321", // vert
   "#F5A623", // orange
@@ -1759,8 +2058,8 @@ function pickDefaultImportColor() {
       }
     });
   }
-  const free = IMPORT_COLOR_PALETTE.find(c => !used.has(c.toLowerCase()));
-  return free || IMPORT_COLOR_PALETTE[0];
+  const free = PERT_COLOR_PALETTE.find(c => !used.has(c.toLowerCase()));
+  return free || PERT_COLOR_PALETTE[0];
 }
 
 // Demande le GROUPE (et la couleur qui en decoule) des taches importees, puis
@@ -1884,7 +2183,7 @@ function promptImportGroup(defaultColor, onChoose, opts) {
       e.classList.toggle("selected", e.title.toLowerCase() === current.toLowerCase()));
   };
 
-  IMPORT_COLOR_PALETTE.forEach(c => {
+  PERT_COLOR_PALETTE.forEach(c => {
     const sw = document.createElement("button");
     sw.className = "color-swatch";
     sw.style.background = c;

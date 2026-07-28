@@ -267,12 +267,36 @@ Barre d'état (`updateStatus`, rafraîchie toutes les 600 ms **et** par `pertHig
 - **Undo** (Ctrl+Z)
 - **Redo** (Ctrl+Y)
 
-### Panneau propriétés (droite)
-Affiché quand un nœud est sélectionné. Champs selon le type :
-- Activité : Libellé (text), Durée (number), Responsable (text), Couleur (color picker)
-- Jalon : Libellé (text), Date butée (date)
-- Label : Texte (textarea)
-Bouton **Supprimer** en bas du panneau (rouge).
+### Panneau propriétés (droite) — **deux onglets** depuis v0.19
+Découpage : **ce qui est saisi** d'un côté, **ce qui est calculé ou déduit** de l'autre.
+- **Propriétés** (`#properties-content`) — champs éditables selon le type : Activité (libellé,
+  durée, anticipée, ETP, responsable, couleur, groupe, notes), Jalon (libellé, cible, tag,
+  notes), Label (texte + mise en forme).
+- **Synthèse** (`#properties-synthesis`) — valeurs calculées (`#calc-section`, ES/EF/LS/LF,
+  marge, coût, « Avant T0 ») **et** voisinage (`#links-section`, prédécesseurs / successeurs).
+- Bouton **Supprimer** dans `#properties-footer`, **hors des onglets** : il doit rester
+  accessible depuis les deux. Seul `#properties-body` défile ; le panneau, lui, ne défile plus.
+- **Onglet mémorisé** entre deux sélections (`pertPanelTab`, même principe que
+  `pertSettingsTab`) : sur un planning dense on enchaîne les clics de nœud en nœud, revenir à
+  « Propriétés » à chaque clic rendrait la Synthèse inutilisable. **État de vue** — non sérialisé
+  dans le `.pert`, comme le filtre.
+- Voisins **cliquables** (`pertFocusNode`) : sélectionne le nœud et centre la vue dessus **sans
+  changer le zoom**. `selectNode()` ne déclenche PAS `onNodeSelected` (réservé au clic souris) →
+  appeler `showProperties()` soi-même.
+- Adjacence lue via **`pertBuildAdjacency`** (moteur), jamais recalculée à la main : même source
+  de vérité que le calcul PERT, donc pas de divergence entre ce que le panneau annonce et ce que
+  le moteur a pris en compte (doublons de liens écartés, Labels exclus).
+- **Rafraîchissement** : `fillSynthesis(node)` (= `fillCalcSection` + `fillLinksSection`) après
+  tout changement qui déplace les dates — modifier une durée décale aussi les successeurs, dont
+  les dates sont affichées dans la liste.
+
+> **PIÈGE — ids dupliqués dans `index.html`.** Un id en double ne lève **aucune** erreur :
+> `getElementById` rend le **premier du document**. Le panneau Synthèse, nommé d'abord
+> `synthesis-content`, écrivait donc silencieusement dans la **fenêtre de synthèse globale**
+> (`#synthesis-dialog`, v0.15.4) qui portait déjà cet id — tests au vert, onglet vide à l'écran.
+> D'où le préfixe `properties-` et le garde-fou d'unicité des ids dans le smoke correspondant.
+> Corollaire : **un test qui interroge le DOM par id ne prouve rien** si l'id n'est pas unique —
+> vérifier aussi la **surface occupée** (`getBoundingClientRect`) ou faire une capture.
 
 ### Raccourcis clavier
 - `Delete` / `Backspace` : supprimer nœud(s) sélectionné(s)
@@ -350,7 +374,7 @@ onDrawForeground(ctx) {
 
 ## ÉTAT D'AVANCEMENT
 
-> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.16** (24/07/2026).
+> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.19** (28/07/2026).
 > **Le récit détaillé de chaque session vit dans [`docs/historique-sessions.md`](docs/historique-sessions.md)** —
 > décisions d'implémentation, pièges rencontrés, validations. Ce tableau n'en est
 > que l'index. **À la clôture d'une session : détail dans l'archive, UNE ligne ici.**
@@ -388,6 +412,7 @@ onDrawForeground(ctx) {
 | Anticipation avant T0 + cible en « T0+X » | v0.16 | Offsets négatifs légaux (T0 = origine, plus un plancher) ; case « tâche anticipée » ; cible de jalon en date **ou** T0±X ; repère T0 + coût anticipé au prorata |
 | Date-cible des jalons prise en compte | v0.15.5 | `pertTimeAxisOffset` (cible → sinon ES) : réorg « axe temps seul » place le jalon sur sa cible ; listes de jalons de la synthèse triées chronologiquement |
 | Lisibilité de la trame + date « À propos » | v0.18.1 | Libellé d'année en filigrane (`PERT_TG_LABEL_PX`, suit le zoom) ; date de bundle sans heure, corrigée côté générateur ET côté affichage pour les bundles antérieurs ; fixture `pert_a_exporter.pert` restaurée → suite smoke complète (23/23), attendus MSPDI déduits de la fixture |
+| Panneau en 2 onglets + couleur des nouvelles tâches | v0.19 | Panneau scindé *Propriétés* (saisie) / *Synthèse* (calculs + prédécesseurs/successeurs cliquables, Supprimer en pied fixe, onglet mémorisé) ; réglage « Couleur des nouvelles tâches » (libre / groupe existant). Piège : id dupliqué `synthesis-content` — tests verts, écran vide |
 | Intensité réglable de la trame + Paramètres en onglets | v0.18 | Curseur d'intensité (goût/écran : aucune valeur ne fait consensus) avec vignette d'aperçu — le voile du dialogue rendrait un aperçu en direct trompeur ; dialogue réparti en 3 onglets, panneaux masqués et non retirés du DOM |
 | Synthèse entrants/sortants, aimantation Labels, trame temporelle | v0.17 | Jalons classés par topologie (intermédiaire = dans les 2 listes), tenue de cible passée en couleur de ligne (règle des nœuds réutilisée) ; Labels aimantés aux bords voisins au lâcher ; trame calendaire de fond optionnelle (`src/time_grid.js`) |
 

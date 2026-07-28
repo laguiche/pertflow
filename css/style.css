@@ -100,6 +100,9 @@ body {
 }
 
 /* ─── Properties panel ──────────────────────────────────────────────────────── */
+/* Le panneau ne défile plus en entier : seule sa zone centrale (#properties-body) le
+   fait, de sorte que les onglets restent en haut et le bouton Supprimer en bas,
+   toujours atteignables quel que soit l'onglet et la longueur du contenu. */
 #properties-panel {
   width: 250px;
   flex-shrink: 0;
@@ -109,22 +112,58 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow: hidden;
+}
+
+#properties-body {
+  flex: 1 1 auto;
+  min-height: 0;          /* sans quoi le flex refuse de rétrécir et rien ne défile */
   overflow-y: auto;
-}
-
-#properties-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
+  flex-direction: column;
+  gap: 6px;
 }
 
-#properties-header h3 {
+#properties-footer { flex: 0 0 auto; }
+
+/* ─── Onglets du panneau (Propriétés / Synthèse) ──────────────────────────────
+   Même principe que les onglets des Paramètres : le panneau inactif est MASQUÉ,
+   jamais retiré du DOM — fillCalcSection() et consorts continuent de retrouver
+   leurs conteneurs par leur id même quand l'onglet n'est pas affiché. */
+#properties-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid #2a2a5a;
+  flex: 0 0 auto;
+}
+
+#properties-tabs .prop-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #7788aa;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: #7eb8f7;
+  letter-spacing: 0.6px;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: 3px 3px 0 0;
+  font-family: inherit;
 }
+
+#properties-tabs .prop-tab:hover { background: #1a2240; color: #b9c6de; }
+
+#properties-tabs .prop-tab.active {
+  color: #7eb8f7;
+  border-bottom-color: #5a8fd8;
+  background: #1a2240;
+}
+
+/* Spécificité id+classe : doit l'emporter sur le `display: flex` de
+   #properties-content, qui est déclaré par id seul. */
+#properties-panel .prop-panel { display: none; }
+#properties-panel .prop-panel.active { display: flex; flex-direction: column; gap: 8px; }
 
 .prop-empty {
   color: #445;
@@ -223,6 +262,48 @@ body {
   border-bottom: 1px solid #1e2a40;
 }
 .readonly-row.ro-critical .ro-value { color: #ff7777; }
+
+/* ─── Prédécesseurs / successeurs (onglet Synthèse) ───────────────────────────
+   Chaque voisin est un bouton : sur un PERT dense, lire le nom ne suffit pas, on
+   veut pouvoir aller voir le nœud. Le clic le sélectionne et centre la vue dessus. */
+.link-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: #16203a;
+  border: 1px solid #24325a;
+  border-radius: 3px;
+  padding: 5px 7px;
+  color: #dde3ec;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.link-row:hover { background: #1e2c4e; border-color: #5a8fd8; }
+.link-row .lk-glyph { flex: 0 0 auto; color: #7eb8f7; }
+.link-row .lk-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-row .lk-date { flex: 0 0 auto; color: #8899bb; font-size: 10px; }
+/* Voisin sur le chemin critique : même code couleur que les nœuds et les liens. */
+.link-row.lk-critical { border-color: #8b2222; }
+.link-row.lk-critical .lk-glyph { color: #ff7777; }
+
+/* « Aucun » : information à part entière (tâche de début ou de fin de réseau) */
+.link-none {
+  font-size: 11px;
+  color: #667;
+  font-style: italic;
+  padding: 3px 0 5px;
+}
 
 #btn-delete-node {
   margin-top: 10px;
@@ -435,6 +516,25 @@ body {
   background: #1e1e3a;
   border: 1px solid #2a3a6a;
   border-radius: 4px;
+}
+
+/* Ligne « champ + pastille de couleur » (groupe par défaut des nouvelles tâches) :
+   le select prend toute la largeur restante, la pastille reste collée à sa droite. */
+#settings-box .settings-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#settings-box .settings-inline select { flex: 1 1 auto; min-width: 0; }
+
+/* Pastille montrant la couleur héritée du groupe choisi (lecture seule) */
+#settings-box .group-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.35);
+  flex: 0 0 auto;
+  background: transparent;
 }
 
 /* Note explicative sous une case a cocher (ex. sauvegarde auto) */

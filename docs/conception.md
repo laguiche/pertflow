@@ -163,7 +163,13 @@ LiteGraph fournit le canvas, le pan/zoom, la sélection, la sérialisation et le
   native neutralisée.
 - **Panneau Propriétés** : reconstruit à la sélection ; helpers `buildField`, `buildCombobox`
   (menu déroulant custom à pastilles, fiable multi-navigateurs — le `<datalist>` natif est
-  inadapté), `buildSelect`, `buildTextarea`, `buildReadonly`.
+  inadapté), `buildSelect`, `buildTextarea`, `buildReadonly`. Depuis v0.19, il est scindé en
+  **deux onglets** — *Propriétés* (saisie) et *Synthèse* (valeurs calculées + prédécesseurs /
+  successeurs) — sur la ligne de partage « saisi / déduit ». Le panneau inactif est **masqué,
+  jamais retiré du DOM** (les fonctions de rafraîchissement retrouvent leurs conteneurs par id),
+  le bouton **Supprimer** vit dans un pied fixe hors de la zone qui défile, et l'onglet consulté
+  est mémorisé entre deux sélections. Le voisinage est lu via `pertBuildAdjacency` (moteur) :
+  une seule source de vérité avec le calcul PERT.
 - **Undo/Redo** : historique par **snapshots** (`meta` + `graph.serialize()`), restaurés par
   `configure()` — même mécanisme que la persistance, donc exhaustif. Coalescence des frappes.
 - **Sauvegarde automatique** : en `file://`, impossible d'écrire un fichier silencieusement → un

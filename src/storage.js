@@ -35,6 +35,9 @@ function pertSerializeProject() {
       hourly_rate: meta.hourly_rate != null ? meta.hourly_rate : 136,
       // #14 registre des couleurs de groupes (WP/metier/service)
       groups: meta.groups || {},
+      // Couleur/groupe des taches nouvellement creees (defaut "libre" : anciens .pert)
+      new_task_mode: meta.new_task_mode === "groupe" ? "groupe" : "libre",
+      new_task_group: meta.new_task_group || "",
       // Sauvegarde automatique (recuperation apres plantage) : activee par defaut
       autosave: meta.autosave !== false
     },
@@ -117,6 +120,9 @@ function pertApplyProject(data) {
   window.pertMeta.hourly_rate = meta.hourly_rate != null ? meta.hourly_rate : 136;
   // #14 registre des couleurs de groupes (robuste aux fichiers anterieurs : {})
   window.pertMeta.groups = meta.groups || {};
+  // Couleur/groupe des nouvelles taches (defaut "libre" pour les fichiers anterieurs)
+  window.pertMeta.new_task_mode = meta.new_task_mode === "groupe" ? "groupe" : "libre";
+  window.pertMeta.new_task_group = meta.new_task_group || "";
   // Sauvegarde automatique (activee par defaut, y compris fichiers anterieurs sans la cle)
   window.pertMeta.autosave = meta.autosave !== false;
 
