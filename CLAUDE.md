@@ -500,6 +500,25 @@ seulement) — extension possible.
    développement (sources non bundlées), l'objet est absent → la popup affiche « développement
    (non bundlée) ». **Ne jamais coder en dur** date/tag dans les sources : seul le build les fixe.
 
+4. **Publier la release GitHub** — le tag une fois poussé, mettre l'application à disposition
+   en téléchargement, pour qu'un utilisateur n'ait pas à récupérer tout le dépôt :
+   ```bash
+   node scripts/make-release.js --tag vX.Y          # → dist/release/pertflow_vX_Y.zip
+   gh release create vX.Y dist/release/pertflow_vX_Y.zip \
+      --title "PertFlow vX.Y — <titre des notes de version>" \
+      --notes-file <(extrait de docs/release-notes.md pour cette version)
+   ```
+   - L'archive contient **l'application, le manuel PDF et un LISEZ-MOI** — rien d'autre :
+     c'est une livraison, pas un miroir du dépôt.
+   - `make-release.js` **refuse d'écrire** si le bundle ne porte pas le tag demandé. Livrer
+     une archive « vX.Y » contenant un bundle d'une autre version serait indétectable à
+     l'usage : le numéro affiché par « À propos » vient du bundle, pas du nom de l'archive.
+   - `dist/release/` est **gitignoré** : l'archive doublerait le bundle, déjà versionné, et
+     alourdirait le dépôt à chaque version. Son hébergement, c'est GitHub Releases.
+   - Le **corps de la release reprend les notes de version** de `docs/release-notes.md` :
+     une seule rédaction, orientée utilisateur, à un seul endroit.
+
 > Ordre type de clôture : finaliser le code/doc → **régénérer le bundle** (`--tag`) →
-> committer (source + bundle) → pousser → merger sur `main` → taguer `vX.Y` → pousser le tag.
+> committer (source + bundle) → pousser → merger sur `main` → taguer `vX.Y` → pousser le tag
+> → **fabriquer l'archive et publier la release**.
 
