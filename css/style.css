@@ -720,9 +720,17 @@ body {
 /* Avertissement de conflit de couleur de groupe (le projet courant gagne) */
 .dialog-warn { color: #e8b45a; }
 
-/* ─── Fenetre de synthese globale (imprimable en PDF) ─────────────────────────── */
+/* ─── Coquille commune aux fenetres de rapport (synthese, suivi) ──────────────── */
+/* Les deux fenetres partagent gabarit, onglets, tableaux et regles d'impression : ce
+   sont des CLASSES (.synth-content, .synth-tabs, .synth-printing) et non les ids de la
+   synthese, sans quoi la fenetre de suivi aurait exige la duplication de tout le bloc.
+   L'impression, elle, cible la fenetre PORTANT le marqueur .synth-printing (pose par
+   pertPrintDialog) : viser une fenetre par son id force-afficherait l'autre, pourtant
+   fermee, des lors qu'il y en a deux. */
 .synthesis-dialog-box { width: 680px; max-width: 92vw; }
-#synthesis-content {
+/* Le suivi affiche des tableaux plus larges (groupe + dates + amont en cause). */
+.suivi-dialog-box { width: 880px; max-width: 95vw; }
+.synth-content {
   max-height: 62vh;
   overflow-y: auto;
   display: flex;
@@ -733,14 +741,14 @@ body {
 }
 
 /* ─── Onglets de la synthèse (= chapitres à l'impression) ─────────────────────── */
-#synthesis-tabs {
+.synth-tabs {
   display: flex;
   gap: 2px;
   border-bottom: 1px solid #2a3a6a;
   flex-wrap: wrap;
 }
 
-#synthesis-tabs .synth-tab {
+.synth-tabs .synth-tab {
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -754,8 +762,8 @@ body {
   align-items: center;
   gap: 6px;
 }
-#synthesis-tabs .synth-tab:hover { background: #1a2240; color: #b9c6de; }
-#synthesis-tabs .synth-tab.active {
+.synth-tabs .synth-tab:hover { background: #1a2240; color: #b9c6de; }
+.synth-tabs .synth-tab.active {
   color: #7eb8f7;
   border-bottom-color: #5a8fd8;
   background: #1a2240;
@@ -774,8 +782,8 @@ body {
 }
 
 /* Un seul panneau visible à l'écran ; tous le sont à l'impression (cf. @media print). */
-#synthesis-content .synth-panel { display: none; flex-direction: column; gap: 18px; }
-#synthesis-content .synth-panel.active { display: flex; }
+.synth-content .synth-panel { display: none; flex-direction: column; gap: 18px; }
+.synth-content .synth-panel.active { display: flex; }
 
 /* Titre de chapitre : redondant à l'écran avec l'onglet actif, indispensable sur
    papier où les onglets n'existent plus. */
@@ -802,8 +810,8 @@ body {
    Sans cette règle, le bleu du lien effaçait le code couleur sur la cellule la plus
    regardée du tableau. Dans l'onglet Analyse, où la couleur ne signifie rien, les
    liens restent bleus. */
-#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link { color: inherit; }
-#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link:hover {
+.synth-content .synth-table tr[class*="synth-mile-"] .synth-link { color: inherit; }
+.synth-content .synth-table tr[class*="synth-mile-"] .synth-link:hover {
   text-decoration-style: solid;
 }
 
@@ -820,6 +828,28 @@ body {
 }
 .synth-goto:hover { background: #2a3d5e; border-color: #5a8fd8; }
 .synth-table th.synth-goto-col, .synth-table td.synth-goto-col { width: 1%; text-align: right; }
+
+/* ─── Fenêtre de suivi d'avancement ──────────────────────────────────────────── */
+/* Titre de section + action alignés sur une même ligne : le bouton « voir dans le
+   planning » appartient à la section, le coller au titre l'exprime mieux qu'une ligne
+   d'action de plus au-dessus du tableau. */
+.suivi-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.suivi-section-head h4 { flex: 1 1 auto; }
+.suivi-section-head .synth-goto { flex: 0 0 auto; }
+
+/* Dans une cellule « amont », les deux états ne demandent pas la même action : une
+   tâche PAS COMMENCÉE se lance ou se replanifie, une tâche EN COURS se surveille. La
+   couleur de la ligne ne dit que le niveau d'alerte du jalon — la distinction utile se
+   joue donc ici, et doit rester lisible y compris sur une ligne déjà rouge. */
+.suivi-amont-ko  { color: #ff9c9c !important; font-weight: 700; }
+.suivi-amont-wip { color: #e8b45a !important; font-weight: 400; }
+body.synthesis-printing .suivi-amont-ko  { color: #b00000 !important; font-weight: 700; }
+body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 
 /* Explication d'un contrôle d'analyse : ce que le point d'attention signifie et
    pourquoi il vaut la peine d'être regardé. */
@@ -875,25 +905,26 @@ body {
 }
 
 /* Impression : n'imprimer QUE la synthese, en noir sur blanc. La classe
-   body.synthesis-printing est posee par pertPrintSynthesis() avant window.print()
-   et retiree a l'evenement afterprint. */
+   body.synthesis-printing est posee par pertPrintDialog() avant window.print()
+   et retiree a l'evenement afterprint, en meme temps que le marqueur .synth-printing
+   pose sur la fenetre a imprimer. */
 @media print {
   @page { margin: 14mm; }
-  body.synthesis-printing > *:not(#synthesis-dialog) { display: none !important; }
-  body.synthesis-printing #synthesis-dialog {
+  body.synthesis-printing > *:not(.synth-printing) { display: none !important; }
+  body.synthesis-printing .synth-printing {
     display: block !important; position: static !important; inset: auto !important;
     background: #fff !important;
   }
-  body.synthesis-printing #synthesis-dialog .dialog {
+  body.synthesis-printing .synth-printing .dialog {
     position: static; box-shadow: none; border: none; width: auto;
     background: #fff; color: #000; padding: 0; gap: 12px;
   }
-  body.synthesis-printing #synthesis-dialog h3 { color: #000; }
+  body.synthesis-printing .synth-printing h3 { color: #000; }
   body.synthesis-printing .dialog-buttons { display: none !important; }
   /* display:block OBLIGATOIRE ici : Chrome ignore `break-before` sur un élément dont
      le parent est un conteneur flex — les chapitres se seraient enchaînés sans saut
      de page, silencieusement. */
-  body.synthesis-printing #synthesis-content {
+  body.synthesis-printing .synth-content {
     display: block !important;
     max-height: none; overflow: visible; color: #000;
   }
@@ -901,12 +932,12 @@ body {
   /* Les onglets n'ont pas de sens sur papier : la barre disparaît, et les quatre
      panneaux s'impriment à la suite, chacun ouvrant un CHAPITRE sur une page neuve
      (sauf le premier, qui suit le titre de la synthèse). */
-  body.synthesis-printing #synthesis-tabs { display: none !important; }
-  body.synthesis-printing #synthesis-content .synth-panel {
+  body.synthesis-printing .synth-tabs { display: none !important; }
+  body.synthesis-printing .synth-content .synth-panel {
     display: block !important;
     break-before: page;
   }
-  body.synthesis-printing #synthesis-content .synth-panel:first-of-type {
+  body.synthesis-printing .synth-content .synth-panel:first-of-type {
     break-before: auto;
   }
   body.synthesis-printing .synth-chapter {

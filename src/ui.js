@@ -464,13 +464,28 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("export-cancel").addEventListener("click", pertCloseExportDialog);
 
-  // ── Synthèse globale (fenetre recapitulative + impression PDF) ───────────────
-  document.getElementById("btn-synthesis").addEventListener("click", () => {
-    guardUI("Ouverture de la synthèse impossible", () => pertOpenSynthesisDialog());
+  // ── Synthèse : deux fenetres derriere un seul bouton ─────────────────────────
+  // « Planification » = la synthese historique (le PERT tel qu'il est prevu) ;
+  // « Avancement » = le suivi (le PERT confronte a la date du jour et a l'etat des
+  // taches). Sous-menu plutot que deux boutons : la toolbar est deja dense, et les
+  // deux fenetres repondent a la meme intention — « fais-moi le point ». Meme
+  // mecanique que « Réorganiser ▾ » (LiteGraph.ContextMenu).
+  document.getElementById("btn-synthesis").addEventListener("click", (e) => {
+    new LiteGraph.ContextMenu([
+      { content: "📊 Planification", callback: () =>
+          guardUI("Ouverture de la synthèse impossible", () => pertOpenSynthesisDialog()) },
+      { content: "📈 Avancement", callback: () =>
+          guardUI("Ouverture du suivi impossible", () => pertOpenSuiviDialog()) },
+    ], { event: e });
   });
   document.getElementById("synthesis-close").addEventListener("click", pertCloseSynthesisDialog);
   document.getElementById("synthesis-print").addEventListener("click", () => {
     guardUI("Impression impossible", () => pertPrintSynthesis());
+  });
+
+  document.getElementById("suivi-close").addEventListener("click", pertCloseSuiviDialog);
+  document.getElementById("suivi-print").addEventListener("click", () => {
+    guardUI("Impression impossible", () => pertPrintSuivi());
   });
 
   // ── Raccourcis clavier ──────────────────────────────────────────────────────

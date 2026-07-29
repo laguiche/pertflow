@@ -443,10 +443,21 @@ function synthTable(headers, rows) {
 // Dans les deux cas la fenetre se ferme : elle recouvre le planning, l'y laisser
 // ouverte rendrait le resultat invisible.
 
+// Ferme TOUTES les fenetres de rapport (synthese, suivi). Un lien vers un nœud est
+// rendu par les deux : plutot que de faire porter a chaque lien la connaissance de la
+// fenetre qui l'a construit, on ferme ce qui recouvre le planning, point.
+function pertCloseReportDialogs() {
+  ["synthesis-dialog", "suivi-dialog"].forEach(id => {
+    const d = document.getElementById(id);
+    if (d) d.style.display = "none";
+  });
+}
+window.pertCloseReportDialogs = pertCloseReportDialogs;
+
 function pertSynthGoToNode(id) {
   const g = window.pertGraph;
   const node = g && g._nodes ? g._nodes.find(n => n.id === id) : null;
-  pertCloseSynthesisDialog();
+  pertCloseReportDialogs();
   if (!node) return;
   if (typeof pertFocusNode === "function") pertFocusNode(node);
 }
@@ -456,7 +467,7 @@ window.pertSynthGoToNode = pertSynthGoToNode;
 // menu Filtre : tout ce qui en depend (compteur, libelle du declencheur, regles de
 // vidage) reste ainsi valable, sans dupliquer la moindre logique.
 function pertSynthFilterOn(text) {
-  pertCloseSynthesisDialog();
+  pertCloseReportDialogs();
   const input = document.getElementById("filter-search");
   if (!input) return;
   input.value = text || "";
@@ -753,13 +764,33 @@ window.pertCloseSynthesisDialog = pertCloseSynthesisDialog;
 // est retiree a l'evenement afterprint (bien supporte sur les navigateurs cibles).
 // ⚠️ Pas de setTimeout de nettoyage : sous Chrome window.print() ouvre un apercu NON
 // bloquant → un timer retirerait la classe pendant que l'apercu est encore ouvert.
-function pertPrintSynthesis() {
-  document.body.classList.add("synthesis-printing");
+// dialogId designe la fenetre a imprimer : elle recoit le marqueur .synth-printing,
+// sur lequel les regles @media print s'appuient. Cibler une fenetre par son ID ne
+// marche plus depuis qu'il y en a DEUX (synthese et suivi) : la regle
+// `display: block !important` aurait force-affiche la fenetre fermee sur le papier.
+// Pose (ou retire) les deux marqueurs dont depend @media print. Fonction a part, et
+// exposee : c'est le SEUL endroit qui sait quelles classes portent l'impression, et
+// les tests l'appellent au lieu de reposer les classes a la main — sans quoi ils
+// derivent silencieusement le jour ou le marquage change (ce qui vient d'arriver).
+function pertPrintMark(dialogId, on) {
+  const d = document.getElementById(dialogId);
+  if (!d) return null;
+  document.body.classList.toggle("synthesis-printing", !!on);
+  d.classList.toggle("synth-printing", !!on);
+  return d;
+}
+window.pertPrintMark = pertPrintMark;
+
+function pertPrintDialog(dialogId) {
+  if (!pertPrintMark(dialogId, true)) return;
   const cleanup = () => {
-    document.body.classList.remove("synthesis-printing");
+    pertPrintMark(dialogId, false);
     window.removeEventListener("afterprint", cleanup);
   };
   window.addEventListener("afterprint", cleanup);
   window.print();
 }
+window.pertPrintDialog = pertPrintDialog;
+
+function pertPrintSynthesis() { pertPrintDialog("synthesis-dialog"); }
 window.pertPrintSynthesis = pertPrintSynthesis;
