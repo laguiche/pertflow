@@ -226,11 +226,16 @@ function pertSynthLevenshtein(a, b) {
 const PERT_SYNTH_SIMILARITY = 0.85;
 const PERT_SYNTH_MIN_LABEL = 5;   // en deca, la distance d'edition ne veut plus rien dire
 
-// Recouvrement minimal (en pixels du repere graphe, DANS LES DEUX dimensions) a partir
-// duquel deux nœuds sont declares superposes. Deux boites qui se touchent, ou que la
-// grille aimantee a calees bord a bord, ne masquent rien : les signaler noierait le
-// vrai probleme. 8 px = a peu pres une demi-ligne de texte, en deca rien n'est cache.
-const PERT_SYNTH_MIN_OVERLAP = 8;
+// Part d'un nœud qui doit etre RECOUVERTE pour qu'on le declare masque.
+//
+// Le critere n'est pas « ces deux nœuds se touchent » mais « celui-ci perd une part
+// significative de son information ». Un recouvrement partiel ou leger n'est pas un
+// probleme : sur un planning un peu dense il y en a partout, et les signaler
+// produirait une liste interminable ou l'on ne verrait plus le seul cas qui compte —
+// typiquement un jalon integralement disparu sous une activite. A 50 %, c'est la
+// moitie du contenu du nœud (ses dates, sa marge, son avancement) qui n'est plus
+// lisible : le seuil est deja genereux.
+const PERT_SYNTH_MASK_RATIO = 0.5;
 
 function pertSynthSimilarity(a, b) {
   if (!a || !b) return 0;
@@ -361,58 +366,67 @@ function pertBuildAnalyses(g, adj) {
     })),
   });
 
-  // 5) Nœuds qui se SUPERPOSENT a l'ecran. Defaut purement graphique, mais il fait
-  // disparaitre de l'information sans rien signaler : le nœud dessous est recouvert,
-  // et avec lui sa marge, ses dates, son marqueur d'avancement. Pire, la zone
-  // recouverte intercepte les clics — on croit cliquer un nœud et on en attrape un
-  // autre. Un planning importe ou reorganise a la main en produit tres facilement.
-  // Le remede tient en un geste (deplacer l'un des deux, ou « Réorganiser »), encore
-  // faut-il savoir qu'il y a quelque chose a deplacer.
+  // 5) Nœuds MASQUES a l'ecran. On ne signale pas « deux nœuds qui se touchent » —
+  // un recouvrement partiel n'est pas un probleme, il y en a partout sur un planning
+  // dense, et en faire la liste noierait le seul cas qui compte. On signale la PERTE
+  // D'INFORMATION : un nœud dont une part significative disparait sous un autre.
+  // L'exemple type est le jalon integralement recouvert par une activite — il n'est
+  // plus lisible, plus cliquable, et l'utilisateur peut le croire supprime.
   //
-  // TOUS les types sont compares, Labels compris : un Label pose sur une tache la
-  // masque tout autant. Le seuil PERT_SYNTH_MIN_OVERLAP evite le bruit — deux nœuds
-  // qui se jouxtent au pixel pres, ou que la grille aimantee a colles, ne sont pas un
-  // probleme ; on ne signale qu'un recouvrement franc, DANS LES DEUX dimensions.
+  // Le sens du recouvrement compte, et il est donne par l'ORDRE DE DESSIN : LiteGraph
+  // parcourt _nodes dans l'ordre, le dernier passe donc par-dessus. C'est le nœud du
+  // DESSOUS qui perd de l'information — le rapport se calcule sur SA surface a lui,
+  // et non sur celle de l'intersection dans l'absolu : une grosse tache a moitie
+  // couverte perd autant qu'un petit jalon a moitie couvert.
+  //
+  // TOUS les types comptent : Activites, Jalons et Labels dessinent tous un fond
+  // OPAQUE (un Label a une couleur de fond, defaut #fffedc) — un Label pose sur une
+  // tache la masque donc tout autant.
   const boite = (n) => {
-    if (!n.pos || !n.size) return null;
+    if (!n.pos || !n.size || !(n.size[0] > 0) || !(n.size[1] > 0)) return null;
     return { x: n.pos[0], y: n.pos[1], w: n.size[0], h: n.size[1] };
   };
-  const chevauchements = [];
+  const masques = [];
   const boites = nodes.map(n => ({ n, b: boite(n) })).filter(x => x.b);
   for (let i = 0; i < boites.length; i++) {
     for (let j = i + 1; j < boites.length; j++) {
-      const a = boites[i].b, b = boites[j].b;
+      // i est dessine AVANT j → i est dessous, c'est lui qui peut etre masque.
+      const dessous = boites[i], dessus = boites[j];
+      const a = dessous.b, b = dessus.b;
       const dx = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
       const dy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
-      if (dx < PERT_SYNTH_MIN_OVERLAP || dy < PERT_SYNTH_MIN_OVERLAP) continue;
-      chevauchements.push({ a: boites[i].n, b: boites[j].n, dx, dy,
-                            aire: Math.round(dx * dy) });
+      if (dx <= 0 || dy <= 0) continue;
+      const part = (dx * dy) / (a.w * a.h);
+      if (part < PERT_SYNTH_MASK_RATIO) continue;
+      masques.push({ masque: dessous.n, par: dessus.n, part });
     }
   }
-  // Du plus grave au plus anodin : c'est le recouvrement le plus large qui cache le
-  // plus d'information, et c'est par lui qu'on veut commencer.
-  chevauchements.sort((p, q) => q.aire - p.aire);
+  // Du plus grave au plus anodin : le nœud le plus recouvert est celui dont on a
+  // perdu le plus, et c'est par lui qu'on veut commencer.
+  masques.sort((p, q) => q.part - p.part);
   const typeOf = (n) => n.type === "pert/activity" ? "Tâche"
                       : (n.type === "pert/milestone" ? "Jalon" : "Label");
   push({
-    id: "noeuds-superposes",
-    title: "Nœuds superposés",
-    hint: "Ces nœuds se recouvrent à l'écran : le contenu du nœud dessous est masqué "
-        + "(dates, marge, avancement) et la zone recouverte intercepte les clics. "
-        + "Déplacer l'un des deux, ou relancer « Réorganiser », suffit.",
-    columns: [{ text: "Nœud" }, { text: "Type" }, { text: "Nœud" }, { text: "Type" },
-              { text: "Recouvrement", cls: "num" }],
-    rows: chevauchements.map(c => ({
+    id: "noeuds-masques",
+    title: "Nœuds masqués",
+    hint: "Ces nœuds disparaissent sous un autre : leur contenu (dates, marge, "
+        + "avancement) n'est plus lisible et la zone recouverte intercepte les clics — "
+        + "au point qu'on peut croire le nœud supprimé. Déplacer celui du dessus, ou "
+        + "relancer « Réorganiser », suffit. Les recouvrements partiels, eux, ne sont "
+        + "pas signalés : ils ne font perdre aucune information.",
+    columns: [{ text: "Nœud masqué" }, { text: "Type" }, { text: "Masqué à", cls: "num" },
+              { text: "Par" }, { text: "Type" }],
+    rows: masques.map(c => ({
       // Une ligne met en jeu DEUX nœuds sans rien de commun dans leur nom : aucun
-      // terme ne les surlignerait tous les deux. On retient le premier, celui par
-      // lequel on ira regarder ; les deux noms, eux, mènent chacun a leur nœud.
-      filterText: labelOf(c.a),
+      // terme ne les surlignerait tous les deux. On retient le nœud MASQUE, celui
+      // qu'on cherche a retrouver ; les deux noms, eux, menent chacun a leur nœud.
+      filterText: labelOf(c.masque),
       cells: [
-        { text: labelOf(c.a), nodeId: c.a.id },
-        { text: typeOf(c.a) },
-        { text: labelOf(c.b), nodeId: c.b.id },
-        { text: typeOf(c.b) },
-        { text: Math.round(c.dx) + " × " + Math.round(c.dy) + " px", cls: "num" },
+        { text: labelOf(c.masque), nodeId: c.masque.id },
+        { text: typeOf(c.masque) },
+        { text: Math.round(c.part * 100) + " %", cls: "num" },
+        { text: labelOf(c.par), nodeId: c.par.id },
+        { text: typeOf(c.par) },
       ],
     })),
   });
