@@ -654,6 +654,19 @@ function showProperties(node) {
       },
       "Planifie la tâche au plus tard : elle finit pile quand l'aval en a besoin, "
       + "quitte à démarrer avant T0. Sans successeur, la case reste sans effet.");
+    // Avancement (29/07/2026) : suivi leger, une fois le PERT realise et acte.
+    // PAS de pertRecalc — et c'est volontaire : l'avancement n'entre dans aucun
+    // calcul (dates, marges, chemin critique, cout). Seul updateSize est necessaire,
+    // car le marqueur reserve de la place au libelle dans l'en-tete du nœud.
+    buildSelect(content, "Avancement", pertActivityProgress(node),
+      PERT_PROGRESS_STATES.map(s => ({ value: s.value, label: s.label })),
+      v => {
+        node.properties.progress = v;
+        node.updateSize();
+        node.setDirtyCanvas(true, true);
+      },
+      { title: "Suivi d'avancement (pilotage léger). Sans aucun effet sur le calcul "
+        + "PERT : dates, marges et chemin critique restent inchangés." });
     // Estimation de cout (S8.5) : ETP modifiable. Le cout en decoule (affiche en lecture
     // seule dans la section calculs via fillCalcSection). Pas de pertRecalc : l'ETP
     // n'affecte pas l'ordonnancement, seulement le cout → on rafraichit juste le cout.
@@ -1084,6 +1097,9 @@ function pertRecolorGroup(groupName, color) {
 //   { type:"group", value:"WP1" }      → seules les Activites du groupe restent vives
 //   { type:"color", value:"#.." }      → seules les Activites de cette couleur restent vives
 //   { type:"responsible", value:"..." }→ seules les Activites de ce responsable restent vives
+//   { type:"progress", value:"EN_COURS" } → seules les Activites dans cet etat d'avancement
+//                                        restent vives (29/07/2026). Le filtre est l'outil
+//                                        naturel du suivi : « montre-moi ce qui est en cours ».
 //   { type:"text", value:"..." }       → seuls les nœuds dont le NOM ou les NOTES contiennent
 //                                        la chaine restent vifs (recherche, v0.20). Seul filtre
 //                                        a concerner les trois types de nœuds : on cherche « ou
@@ -1139,6 +1155,13 @@ function pertFilterStillValid() {
     return collectActivityColors().some(c => c.toLowerCase() === lc);
   }
   if (f.type === "responsible") return collectResponsibles().indexOf(f.value) !== -1;
+  // Avancement : le vocabulaire est FIXE (trois etats), il ne depend pas du contenu
+  // du graphe — un code connu reste donc toujours valide. En particulier, on
+  // n'invalide PAS le filtre quand plus aucune tache n'est dans l'etat demande : en
+  // suivi, « plus rien en cours » est une reponse, pas une anomalie, et voir son
+  // filtre sauter tout seul en cochant la derniere tache serait deroutant. Meme
+  // raisonnement que la recherche ci-dessus.
+  if (f.type === "progress") return PERT_PROGRESS_STATES.some(s => s.value === f.value);
   return false;
 }
 
@@ -1289,6 +1312,21 @@ function refreshFilterOptions() {
 
   menu.appendChild(buildFilterRow(null, "Aucun filtre", null));
 
+  // Avancement (29/07/2026) : place EN TETE, juste apres « Aucun filtre ». Le menu
+  // est plafonne a 340 px et defile ; les sections Groupes / Responsables / Couleurs
+  // grandissent avec le projet, si bien qu'une section posee en fin de liste tombe
+  // sous la ligne de flottaison des qu'un planning est un peu fourni — invisible en
+  // pratique. Cette section-ci, elle, est BORNEE (trois etats, toujours les memes) :
+  // c'est celle qui coute le moins cher a laisser en haut.
+  // Les trois etats sont toujours proposes des lors qu'il y a au moins une Activite —
+  // le vocabulaire est fixe, et demander « ce qui n'est pas commencé » quand tout
+  // l'est fait partie de la reponse.
+  if (pertCountActivities()) {
+    menu.appendChild(buildFilterHeader("Avancement"));
+    PERT_PROGRESS_STATES.forEach(s => menu.appendChild(
+      buildFilterRow({ type: "progress", value: s.value }, s.label, s.color)));
+  }
+
   const reg = pertGroups();
   const groups = collectGroupNames();
   if (groups.length) {
@@ -1308,6 +1346,15 @@ function refreshFilterOptions() {
     menu.appendChild(buildFilterHeader("Couleurs"));
     colors.forEach(c => menu.appendChild(buildFilterRow({ type: "color", value: c }, pertColorGroupLabel(c), c)));
   }
+
+}
+
+// Nombre d'Activites dans le graphe (le filtre par avancement n'a de sens que s'il y
+// en a au moins une).
+function pertCountActivities() {
+  const g = window.pertGraph;
+  if (!g || !g._nodes) return 0;
+  return g._nodes.filter(n => n.type === "pert/activity").length;
 }
 
 // Met à jour l'affichage du déclencheur (pastille + libellé du filtre courant).
@@ -1321,6 +1368,10 @@ function updateFilterTrigger() {
   if (f.type === "group") { color = pertGroups()[f.value] || null; label = f.value; }
   else if (f.type === "responsible") { label = f.value; icon = "👤"; }
   else if (f.type === "text") { label = "« " + f.value + " »"; icon = "🔎"; }
+  else if (f.type === "progress") {
+    const s = pertProgressDef(f.value);
+    color = s.color; label = s.label;
+  }
   else { color = f.value; label = pertColorGroupLabel(f.value); }
   cur.appendChild(buildFilterSwatch(color, icon));
   const txt = document.createElement("span");
@@ -1341,6 +1392,7 @@ function applyFilter(filter, silent) {
   if (filter.type === "group") label = "groupe « " + filter.value + " »";
   else if (filter.type === "responsible") label = "responsable « " + filter.value + " »";
   else if (filter.type === "text") label = "recherche « " + filter.value + " »";
+  else if (filter.type === "progress") label = "avancement « " + pertProgressDef(filter.value).label + " »";
   else label = "couleur de « " + pertColorGroupLabel(filter.value) + " »";
   showToast("Filtre actif : " + label + " mis en évidence");
 }
@@ -1459,9 +1511,12 @@ function buildCheckbox(parent, labelText, checked, onChange, title) {
   return cb;
 }
 
-function buildSelect(parent, labelText, value, options, onChange) {
+// opts.title (optionnel) : infobulle posee sur le libelle du champ, pour expliquer
+// ce que le reglage fait — et, le cas echeant, ce qu'il ne fait PAS.
+function buildSelect(parent, labelText, value, options, onChange, opts) {
   const label = document.createElement("label");
   label.textContent = labelText;
+  if (opts && opts.title) label.title = opts.title;
   const sel = document.createElement("select");
   options.forEach(o => {
     const opt = document.createElement("option");

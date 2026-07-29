@@ -17,6 +17,10 @@ const ACT_MAX_W = 3000;        // garde-fou de securite uniquement (taille de ca
                                // la barre sur son empan temporel (es × PERT_PX_PER_UNIT)
                                // → coherence avec le layout facon Gantt.
 const ACT_LABEL_LH = 18;       // hauteur de ligne du libelle (police bold 13px)
+const ACT_PROGRESS_BADGE_W = 22; // place reservee au marqueur d'avancement dans
+                               // l'en-tete (pastille + respiration). Retranchee de la
+                               // largeur utile du libelle UNIQUEMENT quand un marqueur
+                               // est effectivement dessine (cf. updateSize).
 
 // #20 Seuil de marge (en unites de temps) au-dela duquel une date-cible de Jalon
 // est consideree "tenue confortablement" → coin vert (sinon orange si juste tenue,
@@ -39,6 +43,52 @@ const PERT_MILESTONE_TAGS = [
 function pertMilestoneTag(value) {
   if (!value) return null;
   return PERT_MILESTONE_TAGS.find(t => t.value === value) || null;
+}
+
+// ─── Avancement d'une Activite (suivi leger, 29/07/2026) ──────────────────────
+//
+// TROIS etats, et seulement trois : le besoin est le pilotage « ordre de grandeur »
+// du working level, une fois le PERT realise et acte. Ce n'est deliberement NI un
+// pourcentage d'avancement, NI de la valeur acquise, NI un ordonnancement re-planifie
+// facon MS Project / Primavera — PertFlow reste un PERT.
+//
+// REGLE ABSOLUE : l'avancement n'entre dans AUCUN calcul. Ni es/ef/ls/lf, ni marge,
+// ni chemin critique, ni cout, ni layout, ni tenue de cible des jalons. Le PERT est
+// et reste l'objectif prioritaire : cet etat ne fait que se SAISIR, se RENDRE et se
+// FILTRER. Aucun appel a pertRecalc() ne doit etre declenche par sa modification.
+//
+// La valeur stockee (properties.progress) est un code ASCII sans accent (regle du
+// depot) ; le libelle accentue n'est que de l'affichage. Ordre = ordre du menu.
+//
+// `mark` designe la marque DESSINEE dans la pastille du nœud (cf. drawProgressBadge).
+// Elle est tracee geometriquement, et non ecrite avec un caractere « ◐ » / « ✔ » :
+// l'app tourne sur un PC d'entreprise verrouille dont on ne maitrise pas les polices,
+// et un glyphe absent s'afficherait en carre « tofu » — un marqueur casse a l'ecran,
+// sans la moindre erreur. Un trace Canvas2D ne depend d'aucune police et reste net a
+// tous les zooms.
+const PERT_PROGRESS_STATES = [
+  // NON_COMMENCE = defaut. Pas de marque : un planning que personne ne suit ne doit
+  // porter AUCUNE decoration.
+  { value: "NON_COMMENCE", label: "Non commencé", mark: null,      color: "#8a94a6" },
+  { value: "EN_COURS",     label: "En cours",     mark: "half",    color: "#d68910" },
+  { value: "TERMINE",      label: "Terminé",      mark: "check",   color: "#1a7a1a" }
+];
+const PERT_PROGRESS_DEFAULT = PERT_PROGRESS_STATES[0].value;
+
+// Definition (libelle + glyphe + couleur) d'un code d'avancement. Toute valeur
+// absente, vide ou inconnue retombe sur l'etat par defaut : les .pert anterieurs a
+// cette evolution n'ont pas la propriete, et ils doivent s'ouvrir en « non commence »
+// sans migration ni message.
+function pertProgressDef(value) {
+  return PERT_PROGRESS_STATES.find(s => s.value === value) || PERT_PROGRESS_STATES[0];
+}
+
+// Code d'avancement NORMALISE d'un nœud : "" pour tout ce qui n'est pas une Activite
+// (les Jalons sont des echeances, les Labels de la documentation — ni l'un ni l'autre
+// ne « s'avance »), sinon toujours un des trois codes du vocabulaire.
+function pertActivityProgress(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return "";
+  return pertProgressDef(node.properties.progress).value;
 }
 
 // ─── Mesure de texte (canvas offscreen partage) ───────────────────────────────
@@ -133,6 +183,11 @@ function pertNodeDimmed(node) {
   if (f.type === "responsible") {
     return !(isAct && (node.properties.responsible || "").trim() === f.value);
   }
+  // Avancement : comme groupe/couleur/responsable, ne « matche » que des Activites —
+  // ni les Jalons ni les Labels n'ont d'avancement (cf. pertActivityProgress).
+  if (f.type === "progress") {
+    return !(isAct && pertActivityProgress(node) === f.value);
+  }
   return false;
 }
 
@@ -177,6 +232,10 @@ function ActivityNode() {
     // dans les offsets negatifs jusqu'a finir pile quand son successeur en a besoin,
     // sans decaler celui-ci. Cf. le bloc « Anticipation » de pert_engine.js.
     anticipated: false,
+    // Avancement (29/07/2026) : suivi leger post-PERT, trois etats (cf.
+    // PERT_PROGRESS_STATES). SANS AUCUN effet sur l'ordonnancement — la propriete
+    // n'est lue que par le rendu du marqueur, le filtre et les exports.
+    progress: PERT_PROGRESS_DEFAULT,
     color: "#4A90D9"
   };
 
@@ -221,8 +280,11 @@ ActivityNode.prototype.updateSize = function() {
     ? Math.max(ACT_MIN_W, Math.min(ACT_MAX_W, dur * PERT_PX_PER_UNIT))
     : ACT_MIN_W;
 
-  // #4 libelle multi-lignes si trop long pour la largeur
-  this._labelLines = wrapText(this.properties.label, "bold 13px sans-serif", width - 20);
+  // #4 libelle multi-lignes si trop long pour la largeur. Quand un marqueur
+  // d'avancement est dessine, il occupe le coin haut-droit de l'en-tete : on lui
+  // reserve sa place AVANT le decoupage en lignes, sinon le libelle passe dessous.
+  const badgeW = pertProgressDef(this.properties.progress).mark ? ACT_PROGRESS_BADGE_W : 0;
+  this._labelLines = wrapText(this.properties.label, "bold 13px sans-serif", width - 20 - badgeW);
   // #8 En-tete = libelle + (si renseigne) ligne responsable, dans le bandeau colore.
   // Le responsable est ainsi nettement separe des lignes de dates calculees (avant,
   // meme police/taille et colle a "Fin t.tot" → les deux infos se confondaient).
@@ -281,6 +343,9 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
   this._labelLines.forEach((ln, i) => {
     ctx.fillText(ln, 10, 16 + i * ACT_LABEL_LH);
   });
+
+  // Marqueur d'avancement en haut a droite de l'en-tete (29/07/2026).
+  this.drawProgressBadge(ctx);
 
   // #8 Responsable dans l'en-tete (texte blanc + icone 👤), tronque si trop long.
   // Place sous le libelle, dans le bandeau colore → distinct des dates calculees.
@@ -341,6 +406,63 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
     const slackTxt = pertFormatSlack(this.slack);
     ctx.fillText("Marge : " + slackTxt + " " + unit, 10, calcTop + 36);
   }
+};
+
+// Marqueur d'avancement (29/07/2026) : pastille ronde dans le coin haut-droit de
+// l'en-tete, dessinee UNIQUEMENT pour « En cours » et « Terminé ».
+//
+// Rien n'est dessine pour « Non commencé » (l'etat par defaut), et c'est la regle
+// centrale de ce rendu : tant que personne ne saisit d'avancement, un planning est
+// rendu EXACTEMENT comme avant cette evolution. Marquer les trois etats aurait
+// couvert de pastilles tous les PERT existants — du bruit pur pour les utilisateurs
+// qui ne font pas de suivi, alors que le PERT reste l'objectif prioritaire.
+//
+// La pastille est cerclee de blanc : l'en-tete porte la couleur libre de la tache
+// (ou de son groupe), le marqueur doit rester lisible sur n'importe quelle teinte.
+ActivityNode.prototype.drawProgressBadge = function(ctx) {
+  const state = pertProgressDef(this.properties.progress);
+  if (!state.mark) return;
+
+  const r = 8;
+  const cx = this.size[0] - r - 5;
+  const cy = r + 4;
+
+  ctx.save();
+
+  // Disque de fond a la couleur de l'etat, cercle de blanc.
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = state.color;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.fillStyle = "#ffffff";
+  if (state.mark === "half") {
+    // « En cours » : demi-disque blanc (moitie gauche remplie) — la metaphore du
+    // travail entame, lisible meme a tres petit zoom ou aucun symbole ne tiendrait.
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 3, Math.PI / 2, -Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // « Terminé » : coche en trois points (descente courte, remontee longue).
+    ctx.beginPath();
+    ctx.moveTo(cx - 3.6, cy);
+    ctx.lineTo(cx - 1.2, cy + 2.8);
+    ctx.lineTo(cx + 3.8, cy - 3);
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+  }
+
+  ctx.restore();
+  // save/restore obligatoire : fillStyle, lineWidth et lineCap sont des etats du
+  // contexte partages par tout le rendu qui suit (libelle, duree, dates, bordures) —
+  // les laisser modifies alterait silencieusement les traces suivants du nœud.
 };
 
 // #16 Voile d'estompage si un filtre est actif et que cette Activite n'y correspond

@@ -8,7 +8,11 @@
 //
 // Colonnes (schema figé — detail S9 dans docs/historique-sessions.md) :
 //   Type ; UID ; Libellé ; Groupe ; Responsable ; Durée ; Unité ; ETP ; Coût(k€) ;
-//   DébutTôt ; FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon
+//   DébutTôt ; FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon ;
+//   Avancement
+// « Avancement » (29/07/2026) est ajoutee EN FIN de schema, jamais intercalee : les
+// depouillements existants (tableaux croises, formules) reperent leurs colonnes par
+// position — une insertion au milieu les casserait tous en silence.
 //
 // Les valeurs calculees (es/ef/ls/lf/slack/is_critical) sont lues sur l'objet nœud
 // (posees par pertRecalc) ; les proprietes saisies sont dans node.properties.
@@ -79,13 +83,18 @@ function pertCsvRowForNode(node) {
     if (t) tag = t.label;
   }
 
+  // Avancement : libelle lisible de l'etat (« Non commencé » compris — une colonne de
+  // suivi a moitie vide se lit mal en tableur), vide pour un Jalon qui n'en a pas.
+  const progress = isAct && window.pertProgressDef
+    ? pertProgressDef(p.progress).label : "";
+
   return [type, uid, label, group, resp, duration, unit, etp, cost,
-          es, ef, ls, lf, slack, critical, dueDate, tag];
+          es, ef, ls, lf, slack, critical, dueDate, tag, progress];
 }
 
 const PERT_CSV_HEADER = ["Type", "UID", "Libellé", "Groupe", "Responsable", "Durée",
   "Unité", "ETP", "Coût(k€)", "DébutTôt", "FinTôt", "DébutTard", "FinTard", "Marge",
-  "Critique", "DateCible", "TagJalon"];
+  "Critique", "DateCible", "TagJalon", "Avancement"];
 
 // Serialise l'ensemble du planning en texte CSV (avec BOM UTF-8).
 function pertBuildCSV() {

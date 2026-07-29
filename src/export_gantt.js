@@ -6,8 +6,8 @@
 // Excel en fait un diagramme de charge colore ; le MSPDI en fait un projet importable.
 //
 // Gantt chargé (cf. gantt_charge.xlsx) :
-//   - Colonnes A/B/C = Tache / Groupe / Responsable, puis 1 colonne PAR PERIODE
-//     (unite du projet) de T0 a la fin de projet (en-tete = date, gras).
+//   - Colonnes A/B/C/D = Tache / Groupe / Responsable / Avancement, puis 1 colonne
+//     PAR PERIODE (unite du projet) de T0 a la fin de projet (en-tete = date, gras).
 //   - Sections en colonne A : « Jalons d'entree », « Taches », « Jalons de sortie »,
 //     « total charge » (SUM par colonne).
 //   - Cellule periode d'une Activite = son ETP, sur chaque periode active [es, ef),
@@ -17,6 +17,14 @@
 // Contrainte file:// : mini-writer XLSX maison (export_xlsx.js, fflate), pas de fetch.
 
 const PERT_GANTT_MAX_COLS = 400;  // garde-fou : au-dela, on tronque + avertit
+
+// Index (0-based) de la PREMIERE colonne de periode, c'est-a-dire le nombre de
+// colonnes d'en-tete a gauche : Tache / Groupe / Responsable / Avancement. Constante
+// plutot que litteral, parce qu'elle est lue a quatre endroits (lignes de jalon,
+// lignes d'activite, formules de total, largeurs de colonnes) : ajouter une colonne
+// d'en-tete en oubliant l'un d'eux decalerait les barres de Gantt sans rien casser
+// de visible a la generation.
+const PERT_GANTT_FIRST_PERIOD_COL = 4;
 
 // Couleur de remplissage d'une Activite : couleur memorisee du groupe, sinon couleur
 // individuelle du nœud, sinon bleu par defaut.
@@ -136,32 +144,38 @@ function pertBuildGanttXlsx(model) {
   // Origine de la grille : 0 (= T0) en l'absence d'anticipation, negative sinon.
   const first = model.firstCol || 0;
 
-  // En-tete : Tache / Groupe / Responsable + une date par periode.
-  const header = [pertXlsxText("Tâche", HEAD), pertXlsxText("Groupe", HEAD), pertXlsxText("Responsable", HEAD)];
+  const P0 = PERT_GANTT_FIRST_PERIOD_COL;
+
+  // En-tete : Tache / Groupe / Responsable / Avancement + une date par periode.
+  const header = [pertXlsxText("Tâche", HEAD), pertXlsxText("Groupe", HEAD),
+                  pertXlsxText("Responsable", HEAD), pertXlsxText("Avancement", HEAD)];
   for (let i = 0; i < nCols; i++) header.push(pertXlsxDate(pertOffsetToDate(first + i), HEAD_DATE));
 
   const rows = [header];
   const sectionRow = (label) => { rows.push([pertXlsxText(label, HEAD)]); };
 
-  // Ligne d'un jalon : libelle + un 0 dans la colonne de sa date.
+  // Ligne d'un jalon : libelle + un 0 dans la colonne de sa date. Pas d'avancement :
+  // un jalon est une echeance, il est atteint ou non — il ne « s'avance » pas.
   const milestoneRow = (m) => {
     const row = [pertXlsxText(m.properties.label || "")];
     const c = model.msCol(m);
-    row[3 + c] = pertXlsxNum(0, { fmt: "num2" });
+    row[P0 + c] = pertXlsxNum(0, { fmt: "num2" });
     rows.push(row);
   };
 
-  // Ligne d'une activite : libelle/groupe/resp + ETP colore sur ses periodes actives.
+  // Ligne d'une activite : libelle/groupe/resp/avancement + ETP colore sur ses
+  // periodes actives.
   const activityRow = (a) => {
     const row = [
       pertXlsxText(a.properties.label || ""),
       pertXlsxText(a.properties.group || ""),
       pertXlsxText(a.properties.responsible || ""),
+      pertXlsxText(window.pertProgressDef ? pertProgressDef(a.properties.progress).label : ""),
     ];
     const etp = pertGanttEtp(a);
     const fill = pertGanttColor(a);
     for (let i = 0; i < nCols; i++) {
-      if (model.activeAt(a, first + i)) row[3 + i] = pertXlsxNum(etp, { fmt: "num2", fill });
+      if (model.activeAt(a, first + i)) row[P0 + i] = pertXlsxNum(etp, { fmt: "num2", fill });
     }
     rows.push(row);
   };
@@ -179,13 +193,13 @@ function pertBuildGanttXlsx(model) {
   const lastDataRow = rows.length; // rows.length lignes deja posees (header=row1)
   const totalRow = [pertXlsxText("total charge", HEAD)];
   for (let i = 0; i < nCols; i++) {
-    const col = pertXlsxColLetter(3 + i);
-    totalRow[3 + i] = pertXlsxFormula(`SUM(${col}${firstDataRow}:${col}${lastDataRow})`, { fmt: "num2", bold: true });
+    const col = pertXlsxColLetter(P0 + i);
+    totalRow[P0 + i] = pertXlsxFormula(`SUM(${col}${firstDataRow}:${col}${lastDataRow})`, { fmt: "num2", bold: true });
   }
   rows.push(totalRow);
 
   // Largeurs de colonnes : libelles larges, periodes etroites.
-  const cols = [{ width: 22 }, { width: 12 }, { width: 14 }];
+  const cols = [{ width: 22 }, { width: 12 }, { width: 14 }, { width: 14 }];
   for (let i = 0; i < nCols; i++) cols.push({ width: 8 });
 
   return pertXlsxBuild([{ name: "Gantt chargé", cols, rows }]);
