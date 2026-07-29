@@ -226,6 +226,12 @@ function pertSynthLevenshtein(a, b) {
 const PERT_SYNTH_SIMILARITY = 0.85;
 const PERT_SYNTH_MIN_LABEL = 5;   // en deca, la distance d'edition ne veut plus rien dire
 
+// Recouvrement minimal (en pixels du repere graphe, DANS LES DEUX dimensions) a partir
+// duquel deux nœuds sont declares superposes. Deux boites qui se touchent, ou que la
+// grille aimantee a calees bord a bord, ne masquent rien : les signaler noierait le
+// vrai probleme. 8 px = a peu pres une demi-ligne de texte, en deca rien n'est cache.
+const PERT_SYNTH_MIN_OVERLAP = 8;
+
 function pertSynthSimilarity(a, b) {
   if (!a || !b) return 0;
   const max = Math.max(a.length, b.length);
@@ -355,7 +361,63 @@ function pertBuildAnalyses(g, adj) {
     })),
   });
 
-  // 5) Taches de duree nulle — une Activite de duree 0 est un JALON deguise : elle
+  // 5) Nœuds qui se SUPERPOSENT a l'ecran. Defaut purement graphique, mais il fait
+  // disparaitre de l'information sans rien signaler : le nœud dessous est recouvert,
+  // et avec lui sa marge, ses dates, son marqueur d'avancement. Pire, la zone
+  // recouverte intercepte les clics — on croit cliquer un nœud et on en attrape un
+  // autre. Un planning importe ou reorganise a la main en produit tres facilement.
+  // Le remede tient en un geste (deplacer l'un des deux, ou « Réorganiser »), encore
+  // faut-il savoir qu'il y a quelque chose a deplacer.
+  //
+  // TOUS les types sont compares, Labels compris : un Label pose sur une tache la
+  // masque tout autant. Le seuil PERT_SYNTH_MIN_OVERLAP evite le bruit — deux nœuds
+  // qui se jouxtent au pixel pres, ou que la grille aimantee a colles, ne sont pas un
+  // probleme ; on ne signale qu'un recouvrement franc, DANS LES DEUX dimensions.
+  const boite = (n) => {
+    if (!n.pos || !n.size) return null;
+    return { x: n.pos[0], y: n.pos[1], w: n.size[0], h: n.size[1] };
+  };
+  const chevauchements = [];
+  const boites = nodes.map(n => ({ n, b: boite(n) })).filter(x => x.b);
+  for (let i = 0; i < boites.length; i++) {
+    for (let j = i + 1; j < boites.length; j++) {
+      const a = boites[i].b, b = boites[j].b;
+      const dx = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const dy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      if (dx < PERT_SYNTH_MIN_OVERLAP || dy < PERT_SYNTH_MIN_OVERLAP) continue;
+      chevauchements.push({ a: boites[i].n, b: boites[j].n, dx, dy,
+                            aire: Math.round(dx * dy) });
+    }
+  }
+  // Du plus grave au plus anodin : c'est le recouvrement le plus large qui cache le
+  // plus d'information, et c'est par lui qu'on veut commencer.
+  chevauchements.sort((p, q) => q.aire - p.aire);
+  const typeOf = (n) => n.type === "pert/activity" ? "Tâche"
+                      : (n.type === "pert/milestone" ? "Jalon" : "Label");
+  push({
+    id: "noeuds-superposes",
+    title: "Nœuds superposés",
+    hint: "Ces nœuds se recouvrent à l'écran : le contenu du nœud dessous est masqué "
+        + "(dates, marge, avancement) et la zone recouverte intercepte les clics. "
+        + "Déplacer l'un des deux, ou relancer « Réorganiser », suffit.",
+    columns: [{ text: "Nœud" }, { text: "Type" }, { text: "Nœud" }, { text: "Type" },
+              { text: "Recouvrement", cls: "num" }],
+    rows: chevauchements.map(c => ({
+      // Une ligne met en jeu DEUX nœuds sans rien de commun dans leur nom : aucun
+      // terme ne les surlignerait tous les deux. On retient le premier, celui par
+      // lequel on ira regarder ; les deux noms, eux, mènent chacun a leur nœud.
+      filterText: labelOf(c.a),
+      cells: [
+        { text: labelOf(c.a), nodeId: c.a.id },
+        { text: typeOf(c.a) },
+        { text: labelOf(c.b), nodeId: c.b.id },
+        { text: typeOf(c.b) },
+        { text: Math.round(c.dx) + " × " + Math.round(c.dy) + " px", cls: "num" },
+      ],
+    })),
+  });
+
+  // 6) Taches de duree nulle — une Activite de duree 0 est un JALON deguise : elle
   // n'occupe personne et brouille la lecture des enchainements.
   push({
     id: "duree-nulle",

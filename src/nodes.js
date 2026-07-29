@@ -91,6 +91,53 @@ function pertActivityProgress(node) {
   return pertProgressDef(node.properties.progress).value;
 }
 
+// REGROUPEMENTS proposes au FILTRE seulement. Ce ne sont PAS des etats : ils ne sont ni
+// stockes dans properties, ni saisissables dans le panneau, ni exportes — les melanger
+// au vocabulaire des etats ferait apparaitre « En cours ou non commencé » comme une
+// valeur possible d'une tache, ce qu'elle n'est pas. « Reste a faire » repond a la
+// question la plus frequente d'une revue : que reste-t-il, tout confondu ?
+const PERT_PROGRESS_FILTER_GROUPS = [
+  { value: "RESTE_A_FAIRE", label: "En cours ou non commencé",
+    hint: "Le reste à faire, tout confondu",
+    states: ["EN_COURS", "NON_COMMENCE"] }
+];
+
+function pertProgressFilterGroup(value) {
+  return PERT_PROGRESS_FILTER_GROUPS.find(gp => gp.value === value) || null;
+}
+
+// Pastille d'un regroupement : les couleurs des etats qu'il couvre, en bandes. Un
+// regroupement n'a pas de teinte propre, et en emprunter UNE laisserait croire a un
+// filtre plus etroit qu'il ne l'est. Un degrade CSS plutot qu'un glyphe (◑, ◐…) :
+// meme raison que les marqueurs des nœuds — on ne maitrise pas les polices du poste.
+function pertProgressGroupSwatch(gp) {
+  const cols = gp.states.map(v => pertProgressDef(v).color);
+  const pas = Math.round(100 / cols.length);
+  const bandes = cols.map((c, i) => c + " " + (i * pas) + "% " + ((i + 1) * pas) + "%");
+  return "linear-gradient(135deg, " + bandes.join(", ") + ")";
+}
+
+// Une valeur de filtre d'avancement est-elle connue ? (un des trois etats, ou un
+// regroupement). Sert a valider un filtre courant.
+function pertProgressFilterKnown(value) {
+  return PERT_PROGRESS_STATES.some(s => s.value === value) || !!pertProgressFilterGroup(value);
+}
+
+// Libelle affichable d'une valeur de filtre d'avancement (etat ou regroupement).
+function pertProgressFilterLabel(value) {
+  const gp = pertProgressFilterGroup(value);
+  return gp ? gp.label : pertProgressDef(value).label;
+}
+
+// Le nœud correspond-il a cette valeur de filtre d'avancement ? Seules les Activites
+// peuvent correspondre (cf. pertActivityProgress).
+function pertProgressFilterMatch(value, node) {
+  const st = pertActivityProgress(node);
+  if (!st) return false;
+  const gp = pertProgressFilterGroup(value);
+  return gp ? gp.states.indexOf(st) !== -1 : st === value;
+}
+
 // ─── Mesure de texte (canvas offscreen partage) ───────────────────────────────
 
 let _offscreenCtx = null;
@@ -184,9 +231,10 @@ function pertNodeDimmed(node) {
     return !(isAct && (node.properties.responsible || "").trim() === f.value);
   }
   // Avancement : comme groupe/couleur/responsable, ne « matche » que des Activites —
-  // ni les Jalons ni les Labels n'ont d'avancement (cf. pertActivityProgress).
+  // ni les Jalons ni les Labels n'ont d'avancement (cf. pertActivityProgress). La
+  // valeur peut etre un etat OU un regroupement (« reste a faire »).
   if (f.type === "progress") {
-    return !(isAct && pertActivityProgress(node) === f.value);
+    return !(isAct && pertProgressFilterMatch(f.value, node));
   }
   return false;
 }

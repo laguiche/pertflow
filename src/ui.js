@@ -1170,13 +1170,13 @@ function pertFilterStillValid() {
     return collectActivityColors().some(c => c.toLowerCase() === lc);
   }
   if (f.type === "responsible") return collectResponsibles().indexOf(f.value) !== -1;
-  // Avancement : le vocabulaire est FIXE (trois etats), il ne depend pas du contenu
-  // du graphe — un code connu reste donc toujours valide. En particulier, on
-  // n'invalide PAS le filtre quand plus aucune tache n'est dans l'etat demande : en
-  // suivi, « plus rien en cours » est une reponse, pas une anomalie, et voir son
-  // filtre sauter tout seul en cochant la derniere tache serait deroutant. Meme
-  // raisonnement que la recherche ci-dessus.
-  if (f.type === "progress") return PERT_PROGRESS_STATES.some(s => s.value === f.value);
+  // Avancement : le vocabulaire est FIXE (trois etats + les regroupements), il ne
+  // depend pas du contenu du graphe — un code connu reste donc toujours valide. En
+  // particulier, on n'invalide PAS le filtre quand plus aucune tache n'est dans l'etat
+  // demande : en suivi, « plus rien en cours » est une reponse, pas une anomalie, et
+  // voir son filtre sauter tout seul en cochant la derniere tache serait deroutant.
+  // Meme raisonnement que la recherche ci-dessus.
+  if (f.type === "progress") return pertProgressFilterKnown(f.value);
   return false;
 }
 
@@ -1380,12 +1380,19 @@ function buildProgressFilterSelect() {
   row.className = "filter-select-row";
   const sel = document.createElement("select");
   sel.id = "filter-progress";
+  // « Tous » (= pas de filtre), puis les trois etats, puis les REGROUPEMENTS en
+  // queue de liste. L'ordre n'est pas anodin : les etats sont le vocabulaire de
+  // reference, un regroupement n'est qu'un raccourci de lecture — le placer avant
+  // laisserait croire a un quatrieme etat.
   [{ value: "", label: "Tous" }]
     .concat(PERT_PROGRESS_STATES.map(s => ({ value: s.value, label: s.label })))
+    .concat(PERT_PROGRESS_FILTER_GROUPS.map(gp => ({
+      value: gp.value, label: gp.label, hint: gp.hint })))
     .forEach(o => {
       const opt = document.createElement("option");
       opt.value = o.value;
       opt.textContent = o.label;
+      if (o.hint) opt.title = o.hint;
       sel.appendChild(opt);
     });
   // Reflete le filtre courant : rouvrir le menu doit montrer ce qui est actif.
@@ -1424,8 +1431,11 @@ function updateFilterTrigger() {
   else if (f.type === "responsible") { label = f.value; icon = "👤"; }
   else if (f.type === "text") { label = "« " + f.value + " »"; icon = "🔎"; }
   else if (f.type === "progress") {
-    const s = pertProgressDef(f.value);
-    color = s.color; label = s.label;
+    label = pertProgressFilterLabel(f.value);
+    // Un REGROUPEMENT n'a pas de couleur propre : sa pastille porte les teintes des
+    // etats couverts, en bandes (cf. pertProgressGroupSwatch).
+    const gp = pertProgressFilterGroup(f.value);
+    color = gp ? pertProgressGroupSwatch(gp) : pertProgressDef(f.value).color;
   }
   else { color = f.value; label = pertColorGroupLabel(f.value); }
   cur.appendChild(buildFilterSwatch(color, icon));
@@ -1447,7 +1457,7 @@ function applyFilter(filter, silent) {
   if (filter.type === "group") label = "groupe « " + filter.value + " »";
   else if (filter.type === "responsible") label = "responsable « " + filter.value + " »";
   else if (filter.type === "text") label = "recherche « " + filter.value + " »";
-  else if (filter.type === "progress") label = "avancement « " + pertProgressDef(filter.value).label + " »";
+  else if (filter.type === "progress") label = "avancement « " + pertProgressFilterLabel(filter.value) + " »";
   else label = "couleur de « " + pertColorGroupLabel(filter.value) + " »";
   showToast("Filtre actif : " + label + " mis en évidence");
 }
@@ -1846,6 +1856,23 @@ function fillLinksSection(node) {
 function pertFocusNode(node) {
   const canvas = window.pertCanvas;
   if (!canvas || !node) return;
+  // Correctif (bug v0.20) : ALLER a un nœud RETIRE le filtre en cours. Sans cela, on
+  // demandait a l'outil de montrer un nœud precis et il le centrait... sous le voile
+  // d'estompage, ou carrement invisible parmi des nœuds tous estompes. Le cas le plus
+  // deroutant venait de la synthese : filtrer, ouvrir la fenetre, cliquer un lien —
+  // et se retrouver devant un planning eteint. Poser un filtre et demander un nœud
+  // sont deux intentions contraires ; la derniere exprimee gagne.
+  //   ⚠️ Ne PAS toucher aux chemins qui posent DELIBEREMENT un filtre (bouton 🔎 de
+  //   l'analyse, « Voir dans le planning » du suivi) : eux ne mènent pas a un nœud.
+  if (window.pertFilter) {
+    const nom = (node.properties && (node.properties.label || node.properties.text)) || "ce nœud";
+    if (typeof pertClearFilterSearch === "function") pertClearFilterSearch();
+    applyFilter(null, true);        // silencieux : le toast ci-dessous dit la CAUSE
+    updateFilterTrigger();
+    if (typeof showToast === "function") {
+      showToast("Filtre désactivé pour vous mener à « " + nom + " »");
+    }
+  }
   canvas.selectNode(node);          // selection unique (remplace la precedente)
   const el = canvas.canvas;
   const ds = canvas.ds;
