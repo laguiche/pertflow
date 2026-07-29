@@ -1283,6 +1283,12 @@ function pertRefreshFilterActiveRows() {
     // desactivent, y compris « Aucun filtre » (un filtre est bien actif).
     if (actif) row.classList.remove("active");
   });
+  // Meme raison pour la liste d'avancement : la recherche a REMPLACE le filtre, la
+  // liste doit revenir a « Tous ». Sans cela elle continuerait d'afficher « En cours »
+  // alors que ce n'est plus ce qui filtre — exactement le piege deja corrige sur la
+  // ligne « Aucun filtre ».
+  const prog = document.getElementById("filter-progress");
+  if (actif && prog) prog.value = "";
   if (!actif) refreshFilterOptions();
 }
 
@@ -1316,15 +1322,11 @@ function refreshFilterOptions() {
   // est plafonne a 340 px et defile ; les sections Groupes / Responsables / Couleurs
   // grandissent avec le projet, si bien qu'une section posee en fin de liste tombe
   // sous la ligne de flottaison des qu'un planning est un peu fourni — invisible en
-  // pratique. Cette section-ci, elle, est BORNEE (trois etats, toujours les memes) :
-  // c'est celle qui coute le moins cher a laisser en haut.
-  // Les trois etats sont toujours proposes des lors qu'il y a au moins une Activite —
-  // le vocabulaire est fixe, et demander « ce qui n'est pas commencé » quand tout
-  // l'est fait partie de la reponse.
+  // pratique. Cette section-ci, elle, est BORNEE : c'est celle qui coute le moins
+  // cher a laisser en haut, d'autant qu'elle ne pese qu'une seule ligne.
   if (pertCountActivities()) {
     menu.appendChild(buildFilterHeader("Avancement"));
-    PERT_PROGRESS_STATES.forEach(s => menu.appendChild(
-      buildFilterRow({ type: "progress", value: s.value }, s.label, s.color)));
+    menu.appendChild(buildProgressFilterSelect());
   }
 
   const reg = pertGroups();
@@ -1347,6 +1349,44 @@ function refreshFilterOptions() {
     colors.forEach(c => menu.appendChild(buildFilterRow({ type: "color", value: c }, pertColorGroupLabel(c), c)));
   }
 
+}
+
+// Le filtre d'avancement se pilote par une LISTE DEROULANTE, et non par des lignes a
+// pastille comme les groupes / responsables / couleurs (decision utilisateur du
+// 29/07/2026). Ces trois dimensions-la sont des vocabulaires OUVERTS : leurs valeurs
+// naissent du projet, on ne sait pas d'avance ce qu'on va y trouver, et la pastille
+// sert justement a reconnaitre un groupe ou un lot importe d'un coup d'œil.
+// L'avancement, lui, est un vocabulaire FERME de trois etats connus d'avance, sans
+// code couleur a memoriser : la liste deroulante le dit mieux, et elle tient sur UNE
+// ligne au lieu de quatre dans un menu qui defile deja.
+// L'entree « Tous » n'est pas un etat : c'est l'absence de filtre d'avancement.
+function buildProgressFilterSelect() {
+  const row = document.createElement("div");
+  row.className = "filter-select-row";
+  const sel = document.createElement("select");
+  sel.id = "filter-progress";
+  [{ value: "", label: "Tous" }]
+    .concat(PERT_PROGRESS_STATES.map(s => ({ value: s.value, label: s.label })))
+    .forEach(o => {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.label;
+      sel.appendChild(opt);
+    });
+  // Reflete le filtre courant : rouvrir le menu doit montrer ce qui est actif.
+  sel.value = (window.pertFilter && window.pertFilter.type === "progress")
+    ? window.pertFilter.value : "";
+  sel.addEventListener("change", (e) => {
+    const v = e.target.value;
+    // Meme regle que les lignes du menu : poser un filtre d'une autre nature VIDE la
+    // recherche, sinon une chaine reste affichee alors qu'elle ne filtre plus rien.
+    pertClearFilterSearch();
+    applyFilter(v ? { type: "progress", value: v } : null);
+    updateFilterTrigger();
+    closeFilterMenu();
+  });
+  row.appendChild(sel);
+  return row;
 }
 
 // Nombre d'Activites dans le graphe (le filtre par avancement n'a de sens que s'il y
