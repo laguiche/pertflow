@@ -163,7 +163,7 @@
     <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
     <button id="btn-export" title="Exporter le planning (PNG, PDF, CSV, Excel, MS Project)">⬇ Exporter</button>
-    <button id="btn-synthesis" title="Synthèse globale du planning (jalons, groupes, coûts) — imprimable en PDF">📊 Synthèse</button>
+    <button id="btn-synthesis" title="Synthèse du planning : « Planification » (jalons, groupes, coûts) ou « Avancement » (suivi des tâches et des jalons) — imprimables en PDF">📊 Synthèse ▾</button>
     <div class="tb-sep"></div>
     <button id="btn-undo" title="Annuler (Ctrl+Z)" disabled>↶ Annuler</button>
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
@@ -217,15 +217,32 @@
   <!-- ── Dialogue de synthèse globale (imprimable en PDF) ──────────────────── -->
   <div id="synthesis-dialog" class="dialog-overlay" style="display:none">
     <div class="dialog synthesis-dialog-box">
-      <h3>Synthèse du planning</h3>
+      <h3>Synthèse du planning — planification</h3>
       <!-- Onglets + panneaux construits dynamiquement (src/synthesis.js). À l'écran un
            seul panneau est visible ; à l'IMPRESSION ils le sont tous, chacun ouvrant un
-           chapitre sur une nouvelle page (cf. @media print dans css/style.css). -->
-      <div id="synthesis-tabs" role="tablist"></div>
-      <div id="synthesis-content"></div>
+           chapitre sur une nouvelle page (cf. @media print dans css/style.css).
+           Les CLASSES synth-tabs / synth-content portent le gabarit partagé avec la
+           fenêtre de suivi ; les ids ne servent plus qu'au JS. -->
+      <div id="synthesis-tabs" class="synth-tabs" role="tablist"></div>
+      <div id="synthesis-content" class="synth-content"></div>
       <div class="dialog-buttons">
         <button id="synthesis-close">Fermer</button>
         <button id="synthesis-print" class="primary">🖨 Imprimer / PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Fenêtre de suivi d'avancement (src/suivi.js) ───────────────────────────
+       Même coquille que la synthèse (classes partagées) : deux onglets, Tâches et
+       Jalons, tous deux datés par rapport au jour du point d'avancement. -->
+  <div id="suivi-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog suivi-dialog-box">
+      <h3>Suivi d'avancement</h3>
+      <div id="suivi-tabs" class="synth-tabs" role="tablist"></div>
+      <div id="suivi-content" class="synth-content"></div>
+      <div class="dialog-buttons">
+        <button id="suivi-close">Fermer</button>
+        <button id="suivi-print" class="primary">🖨 Imprimer / PDF</button>
       </div>
     </div>
   </div>
@@ -318,6 +335,9 @@
   <script src="src/time_grid.js"></script>
   <script src="src/align.js"></script>
   <script src="src/synthesis.js"></script>
+  <!-- Chargé APRÈS synthesis.js : le suivi réutilise ses helpers de rendu
+       (synthEl / synthTable / synthSection / synthNodeLink / pertSynthGoToNode). -->
+  <script src="src/suivi.js"></script>
   <script src="src/ui.js"></script>
 </body>
 </html>

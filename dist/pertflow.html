@@ -1412,9 +1412,17 @@ body {
 /* Avertissement de conflit de couleur de groupe (le projet courant gagne) */
 .dialog-warn { color: #e8b45a; }
 
-/* ─── Fenetre de synthese globale (imprimable en PDF) ─────────────────────────── */
+/* ─── Coquille commune aux fenetres de rapport (synthese, suivi) ──────────────── */
+/* Les deux fenetres partagent gabarit, onglets, tableaux et regles d'impression : ce
+   sont des CLASSES (.synth-content, .synth-tabs, .synth-printing) et non les ids de la
+   synthese, sans quoi la fenetre de suivi aurait exige la duplication de tout le bloc.
+   L'impression, elle, cible la fenetre PORTANT le marqueur .synth-printing (pose par
+   pertPrintDialog) : viser une fenetre par son id force-afficherait l'autre, pourtant
+   fermee, des lors qu'il y en a deux. */
 .synthesis-dialog-box { width: 680px; max-width: 92vw; }
-#synthesis-content {
+/* Le suivi affiche des tableaux plus larges (groupe + dates + amont en cause). */
+.suivi-dialog-box { width: 880px; max-width: 95vw; }
+.synth-content {
   max-height: 62vh;
   overflow-y: auto;
   display: flex;
@@ -1425,14 +1433,14 @@ body {
 }
 
 /* ─── Onglets de la synthèse (= chapitres à l'impression) ─────────────────────── */
-#synthesis-tabs {
+.synth-tabs {
   display: flex;
   gap: 2px;
   border-bottom: 1px solid #2a3a6a;
   flex-wrap: wrap;
 }
 
-#synthesis-tabs .synth-tab {
+.synth-tabs .synth-tab {
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -1446,8 +1454,8 @@ body {
   align-items: center;
   gap: 6px;
 }
-#synthesis-tabs .synth-tab:hover { background: #1a2240; color: #b9c6de; }
-#synthesis-tabs .synth-tab.active {
+.synth-tabs .synth-tab:hover { background: #1a2240; color: #b9c6de; }
+.synth-tabs .synth-tab.active {
   color: #7eb8f7;
   border-bottom-color: #5a8fd8;
   background: #1a2240;
@@ -1466,8 +1474,8 @@ body {
 }
 
 /* Un seul panneau visible à l'écran ; tous le sont à l'impression (cf. @media print). */
-#synthesis-content .synth-panel { display: none; flex-direction: column; gap: 18px; }
-#synthesis-content .synth-panel.active { display: flex; }
+.synth-content .synth-panel { display: none; flex-direction: column; gap: 18px; }
+.synth-content .synth-panel.active { display: flex; }
 
 /* Titre de chapitre : redondant à l'écran avec l'onglet actif, indispensable sur
    papier où les onglets n'existent plus. */
@@ -1494,8 +1502,8 @@ body {
    Sans cette règle, le bleu du lien effaçait le code couleur sur la cellule la plus
    regardée du tableau. Dans l'onglet Analyse, où la couleur ne signifie rien, les
    liens restent bleus. */
-#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link { color: inherit; }
-#synthesis-content .synth-table tr[class*="synth-mile-"] .synth-link:hover {
+.synth-content .synth-table tr[class*="synth-mile-"] .synth-link { color: inherit; }
+.synth-content .synth-table tr[class*="synth-mile-"] .synth-link:hover {
   text-decoration-style: solid;
 }
 
@@ -1512,6 +1520,28 @@ body {
 }
 .synth-goto:hover { background: #2a3d5e; border-color: #5a8fd8; }
 .synth-table th.synth-goto-col, .synth-table td.synth-goto-col { width: 1%; text-align: right; }
+
+/* ─── Fenêtre de suivi d'avancement ──────────────────────────────────────────── */
+/* Titre de section + action alignés sur une même ligne : le bouton « voir dans le
+   planning » appartient à la section, le coller au titre l'exprime mieux qu'une ligne
+   d'action de plus au-dessus du tableau. */
+.suivi-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.suivi-section-head h4 { flex: 1 1 auto; }
+.suivi-section-head .synth-goto { flex: 0 0 auto; }
+
+/* Dans une cellule « amont », les deux états ne demandent pas la même action : une
+   tâche PAS COMMENCÉE se lance ou se replanifie, une tâche EN COURS se surveille. La
+   couleur de la ligne ne dit que le niveau d'alerte du jalon — la distinction utile se
+   joue donc ici, et doit rester lisible y compris sur une ligne déjà rouge. */
+.suivi-amont-ko  { color: #ff9c9c !important; font-weight: 700; }
+.suivi-amont-wip { color: #e8b45a !important; font-weight: 400; }
+body.synthesis-printing .suivi-amont-ko  { color: #b00000 !important; font-weight: 700; }
+body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 
 /* Explication d'un contrôle d'analyse : ce que le point d'attention signifie et
    pourquoi il vaut la peine d'être regardé. */
@@ -1567,25 +1597,26 @@ body {
 }
 
 /* Impression : n'imprimer QUE la synthese, en noir sur blanc. La classe
-   body.synthesis-printing est posee par pertPrintSynthesis() avant window.print()
-   et retiree a l'evenement afterprint. */
+   body.synthesis-printing est posee par pertPrintDialog() avant window.print()
+   et retiree a l'evenement afterprint, en meme temps que le marqueur .synth-printing
+   pose sur la fenetre a imprimer. */
 @media print {
   @page { margin: 14mm; }
-  body.synthesis-printing > *:not(#synthesis-dialog) { display: none !important; }
-  body.synthesis-printing #synthesis-dialog {
+  body.synthesis-printing > *:not(.synth-printing) { display: none !important; }
+  body.synthesis-printing .synth-printing {
     display: block !important; position: static !important; inset: auto !important;
     background: #fff !important;
   }
-  body.synthesis-printing #synthesis-dialog .dialog {
+  body.synthesis-printing .synth-printing .dialog {
     position: static; box-shadow: none; border: none; width: auto;
     background: #fff; color: #000; padding: 0; gap: 12px;
   }
-  body.synthesis-printing #synthesis-dialog h3 { color: #000; }
+  body.synthesis-printing .synth-printing h3 { color: #000; }
   body.synthesis-printing .dialog-buttons { display: none !important; }
   /* display:block OBLIGATOIRE ici : Chrome ignore `break-before` sur un élément dont
      le parent est un conteneur flex — les chapitres se seraient enchaînés sans saut
      de page, silencieusement. */
-  body.synthesis-printing #synthesis-content {
+  body.synthesis-printing .synth-content {
     display: block !important;
     max-height: none; overflow: visible; color: #000;
   }
@@ -1593,12 +1624,12 @@ body {
   /* Les onglets n'ont pas de sens sur papier : la barre disparaît, et les quatre
      panneaux s'impriment à la suite, chacun ouvrant un CHAPITRE sur une page neuve
      (sauf le premier, qui suit le titre de la synthèse). */
-  body.synthesis-printing #synthesis-tabs { display: none !important; }
-  body.synthesis-printing #synthesis-content .synth-panel {
+  body.synthesis-printing .synth-tabs { display: none !important; }
+  body.synthesis-printing .synth-content .synth-panel {
     display: block !important;
     break-before: page;
   }
-  body.synthesis-printing #synthesis-content .synth-panel:first-of-type {
+  body.synthesis-printing .synth-content .synth-panel:first-of-type {
     break-before: auto;
   }
   body.synthesis-printing .synth-chapter {
@@ -1755,6 +1786,25 @@ body {
   cursor: pointer;
   text-align: left;
 }
+/* Ligne « liste déroulante » du menu de filtre (avancement) : même gabarit qu'une
+   ligne d'option, mais le contrôle est un <select> — le vocabulaire est fermé.
+   Style aligné sur #filter-search, la seule autre saisie du menu. */
+.filter-select-row {
+  padding: 2px 8px 4px;
+}
+.filter-select-row select {
+  width: 100%;
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  color: #dde3ec;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.filter-select-row select:focus { outline: none; border-color: #5a8fd8; }
+
 .filter-menu-row:hover { background: #243a6a; }
 .filter-menu-row.active { background: #1a4a9a; }
 .filter-row-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1861,7 +1911,7 @@ body {
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"28/07/2026","tag":"v0.20"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"29/07/2026","tag":"v0.21"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -2017,7 +2067,7 @@ body {
     <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
     <button id="btn-export" title="Exporter le planning (PNG, PDF, CSV, Excel, MS Project)">⬇ Exporter</button>
-    <button id="btn-synthesis" title="Synthèse globale du planning (jalons, groupes, coûts) — imprimable en PDF">📊 Synthèse</button>
+    <button id="btn-synthesis" title="Synthèse du planning : « Planification » (jalons, groupes, coûts) ou « Avancement » (suivi des tâches et des jalons) — imprimables en PDF">📊 Synthèse ▾</button>
     <div class="tb-sep"></div>
     <button id="btn-undo" title="Annuler (Ctrl+Z)" disabled>↶ Annuler</button>
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
@@ -2071,15 +2121,32 @@ body {
   <!-- ── Dialogue de synthèse globale (imprimable en PDF) ──────────────────── -->
   <div id="synthesis-dialog" class="dialog-overlay" style="display:none">
     <div class="dialog synthesis-dialog-box">
-      <h3>Synthèse du planning</h3>
+      <h3>Synthèse du planning — planification</h3>
       <!-- Onglets + panneaux construits dynamiquement (src/synthesis.js). À l'écran un
            seul panneau est visible ; à l'IMPRESSION ils le sont tous, chacun ouvrant un
-           chapitre sur une nouvelle page (cf. @media print dans css/style.css). -->
-      <div id="synthesis-tabs" role="tablist"></div>
-      <div id="synthesis-content"></div>
+           chapitre sur une nouvelle page (cf. @media print dans css/style.css).
+           Les CLASSES synth-tabs / synth-content portent le gabarit partagé avec la
+           fenêtre de suivi ; les ids ne servent plus qu'au JS. -->
+      <div id="synthesis-tabs" class="synth-tabs" role="tablist"></div>
+      <div id="synthesis-content" class="synth-content"></div>
       <div class="dialog-buttons">
         <button id="synthesis-close">Fermer</button>
         <button id="synthesis-print" class="primary">🖨 Imprimer / PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Fenêtre de suivi d'avancement (src/suivi.js) ───────────────────────────
+       Même coquille que la synthèse (classes partagées) : deux onglets, Tâches et
+       Jalons, tous deux datés par rapport au jour du point d'avancement. -->
+  <div id="suivi-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog suivi-dialog-box">
+      <h3>Suivi d'avancement</h3>
+      <div id="suivi-tabs" class="synth-tabs" role="tablist"></div>
+      <div id="suivi-content" class="synth-content"></div>
+      <div class="dialog-buttons">
+        <button id="suivi-close">Fermer</button>
+        <button id="suivi-print" class="primary">🖨 Imprimer / PDF</button>
       </div>
     </div>
   </div>
@@ -37130,6 +37197,10 @@ const ACT_MAX_W = 3000;        // garde-fou de securite uniquement (taille de ca
                                // la barre sur son empan temporel (es × PERT_PX_PER_UNIT)
                                // → coherence avec le layout facon Gantt.
 const ACT_LABEL_LH = 18;       // hauteur de ligne du libelle (police bold 13px)
+const ACT_PROGRESS_BADGE_W = 22; // place reservee au marqueur d'avancement dans
+                               // l'en-tete (pastille + respiration). Retranchee de la
+                               // largeur utile du libelle UNIQUEMENT quand un marqueur
+                               // est effectivement dessine (cf. updateSize).
 
 // #20 Seuil de marge (en unites de temps) au-dela duquel une date-cible de Jalon
 // est consideree "tenue confortablement" → coin vert (sinon orange si juste tenue,
@@ -37152,6 +37223,99 @@ const PERT_MILESTONE_TAGS = [
 function pertMilestoneTag(value) {
   if (!value) return null;
   return PERT_MILESTONE_TAGS.find(t => t.value === value) || null;
+}
+
+// ─── Avancement d'une Activite (suivi leger, 29/07/2026) ──────────────────────
+//
+// TROIS etats, et seulement trois : le besoin est le pilotage « ordre de grandeur »
+// du working level, une fois le PERT realise et acte. Ce n'est deliberement NI un
+// pourcentage d'avancement, NI de la valeur acquise, NI un ordonnancement re-planifie
+// facon MS Project / Primavera — PertFlow reste un PERT.
+//
+// REGLE ABSOLUE : l'avancement n'entre dans AUCUN calcul. Ni es/ef/ls/lf, ni marge,
+// ni chemin critique, ni cout, ni layout, ni tenue de cible des jalons. Le PERT est
+// et reste l'objectif prioritaire : cet etat ne fait que se SAISIR, se RENDRE et se
+// FILTRER. Aucun appel a pertRecalc() ne doit etre declenche par sa modification.
+//
+// La valeur stockee (properties.progress) est un code ASCII sans accent (regle du
+// depot) ; le libelle accentue n'est que de l'affichage. Ordre = ordre du menu.
+//
+// `mark` designe la marque DESSINEE dans la pastille du nœud (cf. drawProgressBadge).
+// Elle est tracee geometriquement, et non ecrite avec un caractere « ◐ » / « ✔ » :
+// l'app tourne sur un PC d'entreprise verrouille dont on ne maitrise pas les polices,
+// et un glyphe absent s'afficherait en carre « tofu » — un marqueur casse a l'ecran,
+// sans la moindre erreur. Un trace Canvas2D ne depend d'aucune police et reste net a
+// tous les zooms.
+const PERT_PROGRESS_STATES = [
+  // NON_COMMENCE = defaut. Pas de marque : un planning que personne ne suit ne doit
+  // porter AUCUNE decoration.
+  { value: "NON_COMMENCE", label: "Non commencé", mark: null,      color: "#8a94a6" },
+  { value: "EN_COURS",     label: "En cours",     mark: "half",    color: "#d68910" },
+  { value: "TERMINE",      label: "Terminé",      mark: "check",   color: "#1a7a1a" }
+];
+const PERT_PROGRESS_DEFAULT = PERT_PROGRESS_STATES[0].value;
+
+// Definition (libelle + glyphe + couleur) d'un code d'avancement. Toute valeur
+// absente, vide ou inconnue retombe sur l'etat par defaut : les .pert anterieurs a
+// cette evolution n'ont pas la propriete, et ils doivent s'ouvrir en « non commence »
+// sans migration ni message.
+function pertProgressDef(value) {
+  return PERT_PROGRESS_STATES.find(s => s.value === value) || PERT_PROGRESS_STATES[0];
+}
+
+// Code d'avancement NORMALISE d'un nœud : "" pour tout ce qui n'est pas une Activite
+// (les Jalons sont des echeances, les Labels de la documentation — ni l'un ni l'autre
+// ne « s'avance »), sinon toujours un des trois codes du vocabulaire.
+function pertActivityProgress(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return "";
+  return pertProgressDef(node.properties.progress).value;
+}
+
+// REGROUPEMENTS proposes au FILTRE seulement. Ce ne sont PAS des etats : ils ne sont ni
+// stockes dans properties, ni saisissables dans le panneau, ni exportes — les melanger
+// au vocabulaire des etats ferait apparaitre « En cours ou non commencé » comme une
+// valeur possible d'une tache, ce qu'elle n'est pas. « Reste a faire » repond a la
+// question la plus frequente d'une revue : que reste-t-il, tout confondu ?
+const PERT_PROGRESS_FILTER_GROUPS = [
+  { value: "RESTE_A_FAIRE", label: "En cours ou non commencé",
+    hint: "Le reste à faire, tout confondu",
+    states: ["EN_COURS", "NON_COMMENCE"] }
+];
+
+function pertProgressFilterGroup(value) {
+  return PERT_PROGRESS_FILTER_GROUPS.find(gp => gp.value === value) || null;
+}
+
+// Pastille d'un regroupement : les couleurs des etats qu'il couvre, en bandes. Un
+// regroupement n'a pas de teinte propre, et en emprunter UNE laisserait croire a un
+// filtre plus etroit qu'il ne l'est. Un degrade CSS plutot qu'un glyphe (◑, ◐…) :
+// meme raison que les marqueurs des nœuds — on ne maitrise pas les polices du poste.
+function pertProgressGroupSwatch(gp) {
+  const cols = gp.states.map(v => pertProgressDef(v).color);
+  const pas = Math.round(100 / cols.length);
+  const bandes = cols.map((c, i) => c + " " + (i * pas) + "% " + ((i + 1) * pas) + "%");
+  return "linear-gradient(135deg, " + bandes.join(", ") + ")";
+}
+
+// Une valeur de filtre d'avancement est-elle connue ? (un des trois etats, ou un
+// regroupement). Sert a valider un filtre courant.
+function pertProgressFilterKnown(value) {
+  return PERT_PROGRESS_STATES.some(s => s.value === value) || !!pertProgressFilterGroup(value);
+}
+
+// Libelle affichable d'une valeur de filtre d'avancement (etat ou regroupement).
+function pertProgressFilterLabel(value) {
+  const gp = pertProgressFilterGroup(value);
+  return gp ? gp.label : pertProgressDef(value).label;
+}
+
+// Le nœud correspond-il a cette valeur de filtre d'avancement ? Seules les Activites
+// peuvent correspondre (cf. pertActivityProgress).
+function pertProgressFilterMatch(value, node) {
+  const st = pertActivityProgress(node);
+  if (!st) return false;
+  const gp = pertProgressFilterGroup(value);
+  return gp ? gp.states.indexOf(st) !== -1 : st === value;
 }
 
 // ─── Mesure de texte (canvas offscreen partage) ───────────────────────────────
@@ -37246,6 +37410,12 @@ function pertNodeDimmed(node) {
   if (f.type === "responsible") {
     return !(isAct && (node.properties.responsible || "").trim() === f.value);
   }
+  // Avancement : comme groupe/couleur/responsable, ne « matche » que des Activites —
+  // ni les Jalons ni les Labels n'ont d'avancement (cf. pertActivityProgress). La
+  // valeur peut etre un etat OU un regroupement (« reste a faire »).
+  if (f.type === "progress") {
+    return !(isAct && pertProgressFilterMatch(f.value, node));
+  }
   return false;
 }
 
@@ -37290,6 +37460,10 @@ function ActivityNode() {
     // dans les offsets negatifs jusqu'a finir pile quand son successeur en a besoin,
     // sans decaler celui-ci. Cf. le bloc « Anticipation » de pert_engine.js.
     anticipated: false,
+    // Avancement (29/07/2026) : suivi leger post-PERT, trois etats (cf.
+    // PERT_PROGRESS_STATES). SANS AUCUN effet sur l'ordonnancement — la propriete
+    // n'est lue que par le rendu du marqueur, le filtre et les exports.
+    progress: PERT_PROGRESS_DEFAULT,
     color: "#4A90D9"
   };
 
@@ -37334,8 +37508,11 @@ ActivityNode.prototype.updateSize = function() {
     ? Math.max(ACT_MIN_W, Math.min(ACT_MAX_W, dur * PERT_PX_PER_UNIT))
     : ACT_MIN_W;
 
-  // #4 libelle multi-lignes si trop long pour la largeur
-  this._labelLines = wrapText(this.properties.label, "bold 13px sans-serif", width - 20);
+  // #4 libelle multi-lignes si trop long pour la largeur. Quand un marqueur
+  // d'avancement est dessine, il occupe le coin haut-droit de l'en-tete : on lui
+  // reserve sa place AVANT le decoupage en lignes, sinon le libelle passe dessous.
+  const badgeW = pertProgressDef(this.properties.progress).mark ? ACT_PROGRESS_BADGE_W : 0;
+  this._labelLines = wrapText(this.properties.label, "bold 13px sans-serif", width - 20 - badgeW);
   // #8 En-tete = libelle + (si renseigne) ligne responsable, dans le bandeau colore.
   // Le responsable est ainsi nettement separe des lignes de dates calculees (avant,
   // meme police/taille et colle a "Fin t.tot" → les deux infos se confondaient).
@@ -37394,6 +37571,9 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
   this._labelLines.forEach((ln, i) => {
     ctx.fillText(ln, 10, 16 + i * ACT_LABEL_LH);
   });
+
+  // Marqueur d'avancement en haut a droite de l'en-tete (29/07/2026).
+  this.drawProgressBadge(ctx);
 
   // #8 Responsable dans l'en-tete (texte blanc + icone 👤), tronque si trop long.
   // Place sous le libelle, dans le bandeau colore → distinct des dates calculees.
@@ -37454,6 +37634,63 @@ ActivityNode.prototype.onDrawBackground = function(ctx) {
     const slackTxt = pertFormatSlack(this.slack);
     ctx.fillText("Marge : " + slackTxt + " " + unit, 10, calcTop + 36);
   }
+};
+
+// Marqueur d'avancement (29/07/2026) : pastille ronde dans le coin haut-droit de
+// l'en-tete, dessinee UNIQUEMENT pour « En cours » et « Terminé ».
+//
+// Rien n'est dessine pour « Non commencé » (l'etat par defaut), et c'est la regle
+// centrale de ce rendu : tant que personne ne saisit d'avancement, un planning est
+// rendu EXACTEMENT comme avant cette evolution. Marquer les trois etats aurait
+// couvert de pastilles tous les PERT existants — du bruit pur pour les utilisateurs
+// qui ne font pas de suivi, alors que le PERT reste l'objectif prioritaire.
+//
+// La pastille est cerclee de blanc : l'en-tete porte la couleur libre de la tache
+// (ou de son groupe), le marqueur doit rester lisible sur n'importe quelle teinte.
+ActivityNode.prototype.drawProgressBadge = function(ctx) {
+  const state = pertProgressDef(this.properties.progress);
+  if (!state.mark) return;
+
+  const r = 8;
+  const cx = this.size[0] - r - 5;
+  const cy = r + 4;
+
+  ctx.save();
+
+  // Disque de fond a la couleur de l'etat, cercle de blanc.
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = state.color;
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.fillStyle = "#ffffff";
+  if (state.mark === "half") {
+    // « En cours » : demi-disque blanc (moitie gauche remplie) — la metaphore du
+    // travail entame, lisible meme a tres petit zoom ou aucun symbole ne tiendrait.
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 3, Math.PI / 2, -Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // « Terminé » : coche en trois points (descente courte, remontee longue).
+    ctx.beginPath();
+    ctx.moveTo(cx - 3.6, cy);
+    ctx.lineTo(cx - 1.2, cy + 2.8);
+    ctx.lineTo(cx + 3.8, cy - 3);
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+  }
+
+  ctx.restore();
+  // save/restore obligatoire : fillStyle, lineWidth et lineCap sont des etats du
+  // contexte partages par tout le rendu qui suit (libelle, duree, dates, bordures) —
+  // les laisser modifies alterait silencieusement les traces suivants du nœud.
 };
 
 // #16 Voile d'estompage si un filtre est actif et que cette Activite n'y correspond
@@ -40660,7 +40897,11 @@ window.pertCloseExportDialog = pertCloseExportDialog;
 //
 // Colonnes (schema figé — detail S9 dans docs/historique-sessions.md) :
 //   Type ; UID ; Libellé ; Groupe ; Responsable ; Durée ; Unité ; ETP ; Coût(k€) ;
-//   DébutTôt ; FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon
+//   DébutTôt ; FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon ;
+//   Avancement
+// « Avancement » (29/07/2026) est ajoutee EN FIN de schema, jamais intercalee : les
+// depouillements existants (tableaux croises, formules) reperent leurs colonnes par
+// position — une insertion au milieu les casserait tous en silence.
 //
 // Les valeurs calculees (es/ef/ls/lf/slack/is_critical) sont lues sur l'objet nœud
 // (posees par pertRecalc) ; les proprietes saisies sont dans node.properties.
@@ -40731,13 +40972,18 @@ function pertCsvRowForNode(node) {
     if (t) tag = t.label;
   }
 
+  // Avancement : libelle lisible de l'etat (« Non commencé » compris — une colonne de
+  // suivi a moitie vide se lit mal en tableur), vide pour un Jalon qui n'en a pas.
+  const progress = isAct && window.pertProgressDef
+    ? pertProgressDef(p.progress).label : "";
+
   return [type, uid, label, group, resp, duration, unit, etp, cost,
-          es, ef, ls, lf, slack, critical, dueDate, tag];
+          es, ef, ls, lf, slack, critical, dueDate, tag, progress];
 }
 
 const PERT_CSV_HEADER = ["Type", "UID", "Libellé", "Groupe", "Responsable", "Durée",
   "Unité", "ETP", "Coût(k€)", "DébutTôt", "FinTôt", "DébutTard", "FinTard", "Marge",
-  "Critique", "DateCible", "TagJalon"];
+  "Critique", "DateCible", "TagJalon", "Avancement"];
 
 // Serialise l'ensemble du planning en texte CSV (avec BOM UTF-8).
 function pertBuildCSV() {
@@ -41037,8 +41283,8 @@ window.pertXlsxBuild = pertXlsxBuild;
 // Excel en fait un diagramme de charge colore ; le MSPDI en fait un projet importable.
 //
 // Gantt chargé (cf. gantt_charge.xlsx) :
-//   - Colonnes A/B/C = Tache / Groupe / Responsable, puis 1 colonne PAR PERIODE
-//     (unite du projet) de T0 a la fin de projet (en-tete = date, gras).
+//   - Colonnes A/B/C/D = Tache / Groupe / Responsable / Avancement, puis 1 colonne
+//     PAR PERIODE (unite du projet) de T0 a la fin de projet (en-tete = date, gras).
 //   - Sections en colonne A : « Jalons d'entree », « Taches », « Jalons de sortie »,
 //     « total charge » (SUM par colonne).
 //   - Cellule periode d'une Activite = son ETP, sur chaque periode active [es, ef),
@@ -41048,6 +41294,14 @@ window.pertXlsxBuild = pertXlsxBuild;
 // Contrainte file:// : mini-writer XLSX maison (export_xlsx.js, fflate), pas de fetch.
 
 const PERT_GANTT_MAX_COLS = 400;  // garde-fou : au-dela, on tronque + avertit
+
+// Index (0-based) de la PREMIERE colonne de periode, c'est-a-dire le nombre de
+// colonnes d'en-tete a gauche : Tache / Groupe / Responsable / Avancement. Constante
+// plutot que litteral, parce qu'elle est lue a quatre endroits (lignes de jalon,
+// lignes d'activite, formules de total, largeurs de colonnes) : ajouter une colonne
+// d'en-tete en oubliant l'un d'eux decalerait les barres de Gantt sans rien casser
+// de visible a la generation.
+const PERT_GANTT_FIRST_PERIOD_COL = 4;
 
 // Couleur de remplissage d'une Activite : couleur memorisee du groupe, sinon couleur
 // individuelle du nœud, sinon bleu par defaut.
@@ -41167,32 +41421,38 @@ function pertBuildGanttXlsx(model) {
   // Origine de la grille : 0 (= T0) en l'absence d'anticipation, negative sinon.
   const first = model.firstCol || 0;
 
-  // En-tete : Tache / Groupe / Responsable + une date par periode.
-  const header = [pertXlsxText("Tâche", HEAD), pertXlsxText("Groupe", HEAD), pertXlsxText("Responsable", HEAD)];
+  const P0 = PERT_GANTT_FIRST_PERIOD_COL;
+
+  // En-tete : Tache / Groupe / Responsable / Avancement + une date par periode.
+  const header = [pertXlsxText("Tâche", HEAD), pertXlsxText("Groupe", HEAD),
+                  pertXlsxText("Responsable", HEAD), pertXlsxText("Avancement", HEAD)];
   for (let i = 0; i < nCols; i++) header.push(pertXlsxDate(pertOffsetToDate(first + i), HEAD_DATE));
 
   const rows = [header];
   const sectionRow = (label) => { rows.push([pertXlsxText(label, HEAD)]); };
 
-  // Ligne d'un jalon : libelle + un 0 dans la colonne de sa date.
+  // Ligne d'un jalon : libelle + un 0 dans la colonne de sa date. Pas d'avancement :
+  // un jalon est une echeance, il est atteint ou non — il ne « s'avance » pas.
   const milestoneRow = (m) => {
     const row = [pertXlsxText(m.properties.label || "")];
     const c = model.msCol(m);
-    row[3 + c] = pertXlsxNum(0, { fmt: "num2" });
+    row[P0 + c] = pertXlsxNum(0, { fmt: "num2" });
     rows.push(row);
   };
 
-  // Ligne d'une activite : libelle/groupe/resp + ETP colore sur ses periodes actives.
+  // Ligne d'une activite : libelle/groupe/resp/avancement + ETP colore sur ses
+  // periodes actives.
   const activityRow = (a) => {
     const row = [
       pertXlsxText(a.properties.label || ""),
       pertXlsxText(a.properties.group || ""),
       pertXlsxText(a.properties.responsible || ""),
+      pertXlsxText(window.pertProgressDef ? pertProgressDef(a.properties.progress).label : ""),
     ];
     const etp = pertGanttEtp(a);
     const fill = pertGanttColor(a);
     for (let i = 0; i < nCols; i++) {
-      if (model.activeAt(a, first + i)) row[3 + i] = pertXlsxNum(etp, { fmt: "num2", fill });
+      if (model.activeAt(a, first + i)) row[P0 + i] = pertXlsxNum(etp, { fmt: "num2", fill });
     }
     rows.push(row);
   };
@@ -41210,13 +41470,13 @@ function pertBuildGanttXlsx(model) {
   const lastDataRow = rows.length; // rows.length lignes deja posees (header=row1)
   const totalRow = [pertXlsxText("total charge", HEAD)];
   for (let i = 0; i < nCols; i++) {
-    const col = pertXlsxColLetter(3 + i);
-    totalRow[3 + i] = pertXlsxFormula(`SUM(${col}${firstDataRow}:${col}${lastDataRow})`, { fmt: "num2", bold: true });
+    const col = pertXlsxColLetter(P0 + i);
+    totalRow[P0 + i] = pertXlsxFormula(`SUM(${col}${firstDataRow}:${col}${lastDataRow})`, { fmt: "num2", bold: true });
   }
   rows.push(totalRow);
 
   // Largeurs de colonnes : libelles larges, periodes etroites.
-  const cols = [{ width: 22 }, { width: 12 }, { width: 14 }];
+  const cols = [{ width: 22 }, { width: 12 }, { width: 14 }, { width: 14 }];
   for (let i = 0; i < nCols; i++) cols.push({ width: 8 });
 
   return pertXlsxBuild([{ name: "Gantt chargé", cols, rows }]);
@@ -42563,6 +42823,17 @@ function pertSynthLevenshtein(a, b) {
 const PERT_SYNTH_SIMILARITY = 0.85;
 const PERT_SYNTH_MIN_LABEL = 5;   // en deca, la distance d'edition ne veut plus rien dire
 
+// Part d'un nœud qui doit etre RECOUVERTE pour qu'on le declare masque.
+//
+// Le critere n'est pas « ces deux nœuds se touchent » mais « celui-ci perd une part
+// significative de son information ». Un recouvrement partiel ou leger n'est pas un
+// probleme : sur un planning un peu dense il y en a partout, et les signaler
+// produirait une liste interminable ou l'on ne verrait plus le seul cas qui compte —
+// typiquement un jalon integralement disparu sous une activite. A 50 %, c'est la
+// moitie du contenu du nœud (ses dates, sa marge, son avancement) qui n'est plus
+// lisible : le seuil est deja genereux.
+const PERT_SYNTH_MASK_RATIO = 0.5;
+
 function pertSynthSimilarity(a, b) {
   if (!a || !b) return 0;
   const max = Math.max(a.length, b.length);
@@ -42692,7 +42963,72 @@ function pertBuildAnalyses(g, adj) {
     })),
   });
 
-  // 5) Taches de duree nulle — une Activite de duree 0 est un JALON deguise : elle
+  // 5) Nœuds MASQUES a l'ecran. On ne signale pas « deux nœuds qui se touchent » —
+  // un recouvrement partiel n'est pas un probleme, il y en a partout sur un planning
+  // dense, et en faire la liste noierait le seul cas qui compte. On signale la PERTE
+  // D'INFORMATION : un nœud dont une part significative disparait sous un autre.
+  // L'exemple type est le jalon integralement recouvert par une activite — il n'est
+  // plus lisible, plus cliquable, et l'utilisateur peut le croire supprime.
+  //
+  // Le sens du recouvrement compte, et il est donne par l'ORDRE DE DESSIN : LiteGraph
+  // parcourt _nodes dans l'ordre, le dernier passe donc par-dessus. C'est le nœud du
+  // DESSOUS qui perd de l'information — le rapport se calcule sur SA surface a lui,
+  // et non sur celle de l'intersection dans l'absolu : une grosse tache a moitie
+  // couverte perd autant qu'un petit jalon a moitie couvert.
+  //
+  // TOUS les types comptent : Activites, Jalons et Labels dessinent tous un fond
+  // OPAQUE (un Label a une couleur de fond, defaut #fffedc) — un Label pose sur une
+  // tache la masque donc tout autant.
+  const boite = (n) => {
+    if (!n.pos || !n.size || !(n.size[0] > 0) || !(n.size[1] > 0)) return null;
+    return { x: n.pos[0], y: n.pos[1], w: n.size[0], h: n.size[1] };
+  };
+  const masques = [];
+  const boites = nodes.map(n => ({ n, b: boite(n) })).filter(x => x.b);
+  for (let i = 0; i < boites.length; i++) {
+    for (let j = i + 1; j < boites.length; j++) {
+      // i est dessine AVANT j → i est dessous, c'est lui qui peut etre masque.
+      const dessous = boites[i], dessus = boites[j];
+      const a = dessous.b, b = dessus.b;
+      const dx = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const dy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      if (dx <= 0 || dy <= 0) continue;
+      const part = (dx * dy) / (a.w * a.h);
+      if (part < PERT_SYNTH_MASK_RATIO) continue;
+      masques.push({ masque: dessous.n, par: dessus.n, part });
+    }
+  }
+  // Du plus grave au plus anodin : le nœud le plus recouvert est celui dont on a
+  // perdu le plus, et c'est par lui qu'on veut commencer.
+  masques.sort((p, q) => q.part - p.part);
+  const typeOf = (n) => n.type === "pert/activity" ? "Tâche"
+                      : (n.type === "pert/milestone" ? "Jalon" : "Label");
+  push({
+    id: "noeuds-masques",
+    title: "Nœuds masqués",
+    hint: "Ces nœuds disparaissent sous un autre : leur contenu (dates, marge, "
+        + "avancement) n'est plus lisible et la zone recouverte intercepte les clics — "
+        + "au point qu'on peut croire le nœud supprimé. Déplacer celui du dessus, ou "
+        + "relancer « Réorganiser », suffit. Les recouvrements partiels, eux, ne sont "
+        + "pas signalés : ils ne font perdre aucune information.",
+    columns: [{ text: "Nœud masqué" }, { text: "Type" }, { text: "Masqué à", cls: "num" },
+              { text: "Par" }, { text: "Type" }],
+    rows: masques.map(c => ({
+      // Une ligne met en jeu DEUX nœuds sans rien de commun dans leur nom : aucun
+      // terme ne les surlignerait tous les deux. On retient le nœud MASQUE, celui
+      // qu'on cherche a retrouver ; les deux noms, eux, menent chacun a leur nœud.
+      filterText: labelOf(c.masque),
+      cells: [
+        { text: labelOf(c.masque), nodeId: c.masque.id },
+        { text: typeOf(c.masque) },
+        { text: Math.round(c.part * 100) + " %", cls: "num" },
+        { text: labelOf(c.par), nodeId: c.par.id },
+        { text: typeOf(c.par) },
+      ],
+    })),
+  });
+
+  // 6) Taches de duree nulle — une Activite de duree 0 est un JALON deguise : elle
   // n'occupe personne et brouille la lecture des enchainements.
   push({
     id: "duree-nulle",
@@ -42780,10 +43116,21 @@ function synthTable(headers, rows) {
 // Dans les deux cas la fenetre se ferme : elle recouvre le planning, l'y laisser
 // ouverte rendrait le resultat invisible.
 
+// Ferme TOUTES les fenetres de rapport (synthese, suivi). Un lien vers un nœud est
+// rendu par les deux : plutot que de faire porter a chaque lien la connaissance de la
+// fenetre qui l'a construit, on ferme ce qui recouvre le planning, point.
+function pertCloseReportDialogs() {
+  ["synthesis-dialog", "suivi-dialog"].forEach(id => {
+    const d = document.getElementById(id);
+    if (d) d.style.display = "none";
+  });
+}
+window.pertCloseReportDialogs = pertCloseReportDialogs;
+
 function pertSynthGoToNode(id) {
   const g = window.pertGraph;
   const node = g && g._nodes ? g._nodes.find(n => n.id === id) : null;
-  pertCloseSynthesisDialog();
+  pertCloseReportDialogs();
   if (!node) return;
   if (typeof pertFocusNode === "function") pertFocusNode(node);
 }
@@ -42793,7 +43140,7 @@ window.pertSynthGoToNode = pertSynthGoToNode;
 // menu Filtre : tout ce qui en depend (compteur, libelle du declencheur, regles de
 // vidage) reste ainsi valable, sans dupliquer la moindre logique.
 function pertSynthFilterOn(text) {
-  pertCloseSynthesisDialog();
+  pertCloseReportDialogs();
   const input = document.getElementById("filter-search");
   if (!input) return;
   input.value = text || "";
@@ -43090,16 +43437,566 @@ window.pertCloseSynthesisDialog = pertCloseSynthesisDialog;
 // est retiree a l'evenement afterprint (bien supporte sur les navigateurs cibles).
 // ⚠️ Pas de setTimeout de nettoyage : sous Chrome window.print() ouvre un apercu NON
 // bloquant → un timer retirerait la classe pendant que l'apercu est encore ouvert.
-function pertPrintSynthesis() {
-  document.body.classList.add("synthesis-printing");
+// dialogId designe la fenetre a imprimer : elle recoit le marqueur .synth-printing,
+// sur lequel les regles @media print s'appuient. Cibler une fenetre par son ID ne
+// marche plus depuis qu'il y en a DEUX (synthese et suivi) : la regle
+// `display: block !important` aurait force-affiche la fenetre fermee sur le papier.
+// Pose (ou retire) les deux marqueurs dont depend @media print. Fonction a part, et
+// exposee : c'est le SEUL endroit qui sait quelles classes portent l'impression, et
+// les tests l'appellent au lieu de reposer les classes a la main — sans quoi ils
+// derivent silencieusement le jour ou le marquage change (ce qui vient d'arriver).
+function pertPrintMark(dialogId, on) {
+  const d = document.getElementById(dialogId);
+  if (!d) return null;
+  document.body.classList.toggle("synthesis-printing", !!on);
+  d.classList.toggle("synth-printing", !!on);
+  return d;
+}
+window.pertPrintMark = pertPrintMark;
+
+function pertPrintDialog(dialogId) {
+  if (!pertPrintMark(dialogId, true)) return;
   const cleanup = () => {
-    document.body.classList.remove("synthesis-printing");
+    pertPrintMark(dialogId, false);
     window.removeEventListener("afterprint", cleanup);
   };
   window.addEventListener("afterprint", cleanup);
   window.print();
 }
+window.pertPrintDialog = pertPrintDialog;
+
+function pertPrintSynthesis() { pertPrintDialog("synthesis-dialog"); }
 window.pertPrintSynthesis = pertPrintSynthesis;
+
+</script>
+  <!-- Chargé APRÈS synthesis.js : le suivi réutilise ses helpers de rendu
+       (synthEl / synthTable / synthSection / synthNodeLink / pertSynthGoToNode). -->
+  <script>
+/* src/suivi.js */
+// ─── Fenetre de suivi d'avancement (29/07/2026) ─────────────────────────────────
+//
+// Bouton toolbar « Synthese ▾ » → « Avancement ». Repond a une seule question, celle
+// du pilote une fois le PERT realise et acte : OU EN EST-ON AUJOURD'HUI, et qu'est-ce
+// qui doit m'inquieter ? Deux onglets, Taches et Jalons.
+//
+// PERIMETRE — c'est du pilotage leger « ordre de grandeur » du working level. Aucune
+// replanification, aucun recalcul de dates a partir du reel, aucune valeur acquise :
+// les dates restent celles du PERT, le suivi ne fait que les CONFRONTER a la date du
+// jour et a l'etat d'avancement saisi. Quand l'ecart devient gros, la fenetre le dit
+// (« nécessite sûrement une replanification ») — mais c'est a l'utilisateur de
+// retoucher son PERT, pas a l'outil.
+//
+// Le modele est entierement DERIVE : rien n'est stocke, chaque ouverture le
+// reconstruit depuis le graphe. Le rendu reutilise les helpers de synthesis.js
+// (synthEl / synthTable / synthSection / synthNodeLink) et la meme coquille de
+// fenetre — d'ou l'impression PDF acquise sans une ligne de CSS de plus.
+
+// ─── Date du point d'avancement ─────────────────────────────────────────────────
+//
+// C'est la date du JOUR. window.pertSuiviToday ("YYYY-MM-DD") permet de la forcer :
+// indispensable pour que les tests et les captures soient reproductibles, un suivi
+// etant par construction relatif au calendrier. Aucune UI ne l'expose — la faire
+// saisir donnerait l'illusion de pouvoir « se placer » a une autre date, alors que
+// seules les listes bougeraient, pas le planning.
+function pertSuiviTodayISO() {
+  if (window.pertSuiviToday) return window.pertSuiviToday;
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+
+// Horizon « proche de l'echeance », exprime dans l'unite du projet — un jalon a 15
+// jours et un jalon a 15 mois n'appellent pas la meme vigilance. Ces valeurs couvrent
+// toutes trois environ trois semaines a deux mois de visibilite, la profondeur utile
+// d'une revue d'avancement.
+const PERT_SUIVI_HORIZON = { j: 15, sem: 4, mois: 2 };
+
+function pertSuiviHorizon(unit) {
+  return PERT_SUIVI_HORIZON[unit] != null ? PERT_SUIVI_HORIZON[unit] : PERT_SUIVI_HORIZON.j;
+}
+
+// ─── Amont d'un nœud ────────────────────────────────────────────────────────────
+//
+// Activites situees en amont, TRANSITIVEMENT. Pour un jalon, ce qui met son echeance
+// en peril n'est pas seulement son predecesseur direct : c'est toute la chaine qui
+// l'alimente. Une tache non commencee trois crans en amont est exactement le genre de
+// chose qu'une revue doit attraper. Memoisation + ensemble de visites : le graphe est
+// acyclique (pertRecalc refuse de calculer sinon), mais on ne s'y fie pas.
+function pertSuiviUpstreamActivities(id, preds, byId, memo, seen) {
+  if (memo[id]) return memo[id];
+  seen = seen || new Set();
+  if (seen.has(id)) return [];
+  seen.add(id);
+  const out = [];
+  const vus = new Set();
+  (preds[id] || []).forEach(pid => {
+    const p = byId[pid];
+    if (!p) return;
+    if (p.type === "pert/activity" && !vus.has(pid)) { vus.add(pid); out.push(p); }
+    pertSuiviUpstreamActivities(pid, preds, byId, memo, seen).forEach(a => {
+      if (!vus.has(a.id)) { vus.add(a.id); out.push(a); }
+    });
+  });
+  seen.delete(id);
+  memo[id] = out;
+  return out;
+}
+
+// ─── Modele ─────────────────────────────────────────────────────────────────────
+
+function pertBuildSuiviModel() {
+  const g = window.pertGraph;
+  const meta = window.pertMeta || {};
+  const unit = meta.unit || "j";
+  const todayISO = pertSuiviTodayISO();
+  const model = {
+    todayISO,
+    todayDate: new Date(todayISO + "T00:00:00"),
+    // Offset de la date du jour dans le repere du projet. null si T0 n'est pas defini :
+    // sans origine, aucune date calculee n'existe et le suivi n'a rien a comparer.
+    todayOff: (typeof pertDateToOffset === "function") ? pertDateToOffset(todayISO) : null,
+    unit,
+    unitLabel: unit === "sem" ? "sem" : (unit === "mois" ? "mois" : "j"),
+    horizon: pertSuiviHorizon(unit),
+    noT0: !meta.t0,
+    nbTasks: 0,
+    counts: { NON_COMMENCE: 0, EN_COURS: 0, TERMINE: 0 },
+    enCours: [],
+    aEngager: [],
+    enRetard: [],
+    prochainsJalons: [],
+    jalonsAlerte: [],
+  };
+  if (!g || !g._nodes) return model;
+
+  const adj = pertBuildAdjacency(g);
+  const byId = {};
+  g._nodes.forEach(n => { byId[n.id] = n; });
+
+  const activities = g._nodes.filter(n => n.type === "pert/activity");
+  const groups = (typeof pertGroups === "function") ? pertGroups() : {};
+  model.nbTasks = activities.length;
+  activities.forEach(n => {
+    const st = pertActivityProgress(n);
+    if (model.counts[st] != null) model.counts[st]++;
+  });
+
+  const today = model.todayOff;
+
+  // Ligne de tache. « retard » = de combien d'unites l'ES est depasse (positif
+  // seulement) — c'est le chiffre qui dit l'urgence, pas la date brute.
+  const taskRow = (n) => {
+    const grp = ((n.properties && n.properties.group) || "").trim();
+    return {
+      id: n.id,
+      label: (n.properties && n.properties.label) || "(tâche)",
+      group: grp,
+      groupColor: grp ? (groups[grp] || null) : null,
+      es: n.es,
+      ef: n.ef,
+      esDate: (n.es != null) ? pertOffsetToDate(n.es) : null,
+      efDate: (n.ef != null) ? pertOffsetToDate(n.ef) : null,
+      slack: n.slack,
+      retard: (today != null && n.es != null && n.es < today) ? (today - n.es) : 0,
+    };
+  };
+
+  // Tri « par groupe, puis chronologique sur l'ES » (demande utilisateur) : on lit le
+  // suivi lot par lot, et dans chaque lot dans l'ordre ou les choses arrivent. Les
+  // taches sans groupe ferment la marche plutot que d'ouvrir sous une colonne vide.
+  const byGroupThenEs = (a, b) => {
+    const ga = a.group || "￿", gb = b.group || "￿";
+    if (ga !== gb) return ga.localeCompare(gb, "fr");
+    const ea = a.es != null ? a.es : Infinity, eb = b.es != null ? b.es : Infinity;
+    return ea - eb;
+  };
+
+  activities.forEach(n => {
+    const st = pertActivityProgress(n);
+    if (st === "EN_COURS") { model.enCours.push(taskRow(n)); return; }
+    if (st !== "NON_COMMENCE") return;   // TERMINE : plus rien a piloter
+
+    // Une tache non commencee dont l'ES est DEPASSE aurait du etre engagee : c'est
+    // l'alerte, elle prime sur toute autre consideration.
+    if (today != null && n.es != null && n.es < today) {
+      const row = taskRow(n);
+      // Ce qui bloque : les predecesseurs directs pas encore termines. Sans cette
+      // colonne, « aurait du commencer » n'indique pas s'il faut relancer la tache
+      // elle-meme ou celle d'avant.
+      row.bloquants = (adj.preds[n.id] || [])
+        .map(pid => byId[pid])
+        .filter(p => p && p.type === "pert/activity" && pertActivityProgress(p) !== "TERMINE");
+      model.enRetard.push(row);
+      return;
+    }
+
+    // « A engager » : la tache est mure, sans etre en retard. Deux facons de l'etre —
+    //   (a) un predecesseur direct est EN COURS : la main va lui etre passee ;
+    //   (b) son ES tombe aujourd'hui (le cas « ES depasse » est parti en alerte).
+    const predEnCours = (adj.preds[n.id] || []).some(pid => {
+      const p = byId[pid];
+      return p && p.type === "pert/activity" && pertActivityProgress(p) === "EN_COURS";
+    });
+    const esAtteint = (today != null && n.es != null && n.es <= today);
+    if (predEnCours || esAtteint) {
+      const row = taskRow(n);
+      row.motif = predEnCours ? "Amont en cours" : "Date atteinte";
+      model.aEngager.push(row);
+    }
+  });
+
+  model.enCours.sort(byGroupThenEs);
+  model.aEngager.sort(byGroupThenEs);
+  // Les retards, eux, se lisent du plus ancien au plus recent : le plus vieux retard
+  // est le plus preoccupant, il n'a pas a etre range derriere un nom de groupe.
+  model.enRetard.sort((a, b) => b.retard - a.retard);
+
+  // ── Jalons ────────────────────────────────────────────────────────────────────
+  const memo = {};
+  const milestones = g._nodes.filter(n => n.type === "pert/milestone");
+  milestones.forEach(n => {
+    // Echeance = cible si elle est renseignee, sinon fin au plus tot. Meme regle que
+    // le placement sur l'axe du temps (pertTimeAxisOffset) : le jalon se juge la ou
+    // on l'attend, pas la ou le calcul le pose quand une cible existe.
+    const off = (typeof pertTimeAxisOffset === "function") ? pertTimeAxisOffset(n) : n.ef;
+    const amont = pertSuiviUpstreamActivities(n.id, adj.preds, byId, memo);
+    const restants = amont.filter(a => pertActivityProgress(a) !== "TERMINE");
+    const nonCommencees = restants.filter(a => pertActivityProgress(a) === "NON_COMMENCE");
+    const row = {
+      id: n.id,
+      label: (n.properties && n.properties.label) || "(jalon)",
+      tag: (n.properties && typeof pertMilestoneTag === "function")
+        ? pertMilestoneTag(n.properties.tag) : null,
+      off,
+      date: (off != null) ? pertOffsetToDate(off) : null,
+      dueLabel: pertMilestoneHasDue(n) ? pertMilestoneDueLabel(n) : null,
+      dans: (today != null && off != null) ? (off - today) : null,
+      nbAmont: amont.length,
+      restants,
+      nonCommencees,
+    };
+
+    if (today != null && off != null && off >= today) model.prochainsJalons.push(row);
+
+    // ALERTE : l'echeance est dans l'horizon (ou deja passee) ET l'amont n'est pas
+    // fait. Deux niveaux, parce que les deux situations n'appellent pas la meme
+    // reaction — une tache amont NON COMMENCEE a si peu de temps de l'echeance
+    // demande une replanification ; un amont seulement EN COURS demande de la
+    // vigilance. Un jalon dont tout l'amont est termine n'est pas une alerte, et un
+    // jalon sans amont du tout n'a rien a signaler (contrainte externe).
+    if (today != null && off != null && amont.length && restants.length
+        && (off - today) <= model.horizon) {
+      row.niveau = nonCommencees.length ? "alert" : "neutral";
+      row.depassee = (off < today);
+      model.jalonsAlerte.push(row);
+    }
+  });
+
+  const parDate = (a, b) => (a.off != null ? a.off : Infinity) - (b.off != null ? b.off : Infinity);
+  model.prochainsJalons.sort(parDate);
+  model.jalonsAlerte.sort(parDate);
+
+  return model;
+}
+window.pertBuildSuiviModel = pertBuildSuiviModel;
+
+// ─── Rendu ──────────────────────────────────────────────────────────────────────
+
+// Section du suivi. Deux ecarts avec synthSection (synthesis.js) :
+//   - une ACTION facultative a droite du titre (mise en evidence dans le planning) ;
+//   - une section vide reste AFFICHEE, avec son message. C'est l'inverse de la regle
+//     de l'onglet Analyse, ou un controle sans anomalie est masque — et c'est voulu :
+//     « aucune tâche en retard » est une reponse qu'un pilote vient chercher, alors
+//     qu'un controle sans anomalie n'est qu'une case verte de plus a faire defiler.
+function suiviSection(parent, title, actionNode, contentNode, emptyMsg, hint) {
+  const sec = synthEl("div", "synth-section");
+  const head = synthEl("div", "suivi-section-head");
+  head.appendChild(synthEl("h4", null, title));
+  if (actionNode) head.appendChild(actionNode);
+  sec.appendChild(head);
+  if (hint) sec.appendChild(synthEl("p", "synth-hint", hint));
+  sec.appendChild(contentNode || synthEl("div", "synth-empty", emptyMsg || "—"));
+  parent.appendChild(sec);
+  return sec;
+}
+
+// Bouton « mettre en evidence dans le planning » d'une section : pose le filtre
+// d'avancement correspondant. Le filtre gere deja nativement cette mise en evidence
+// (cf. ui.js) — on ne fait que l'actionner d'ici, sans dupliquer sa logique.
+function suiviFilterButton(progressValue, labelEtat) {
+  const b = synthEl("button", "synth-goto", "🔎 Voir dans le planning");
+  b.type = "button";
+  b.title = "Estompe tout sauf les tâches « " + labelEtat + " »";
+  b.addEventListener("click", () => {
+    pertCloseReportDialogs();
+    if (typeof pertClearFilterSearch === "function") pertClearFilterSearch();
+    applyFilter({ type: "progress", value: progressValue });
+    if (typeof updateFilterTrigger === "function") updateFilterTrigger();
+  });
+  return b;
+}
+
+// Pastille de couleur de groupe + nom, comme dans la synthese par groupe.
+function suiviGroupCell(row) {
+  const span = synthEl("span");
+  if (row.groupColor) {
+    const chip = synthEl("span", "synth-chip");
+    chip.style.background = row.groupColor;
+    span.appendChild(chip);
+  }
+  span.appendChild(document.createTextNode(row.group || "—"));
+  return span;
+}
+
+// Delai signe, en unites du projet : « dans 4 j », « il y a 3 j ». Un nombre nu
+// obligerait le lecteur a se rappeler le sens du signe a chaque ligne.
+function suiviDelai(n, unitLabel) {
+  if (n == null) return "—";
+  const v = Math.round(n * 10) / 10;
+  if (v === 0) return "aujourd'hui";
+  return v > 0 ? ("dans " + v + " " + unitLabel) : ("il y a " + (-v) + " " + unitLabel);
+}
+
+// Liste de taches amont rendue dans UNE cellule, chaque nom menant a son nœud. Le
+// nombre est plafonne : au-dela, la cellule cesse d'etre lisible et le total suffit.
+const PERT_SUIVI_MAX_AMONT = 3;
+function suiviUpstreamCell(nodes) {
+  const span = synthEl("span");
+  if (!nodes.length) { span.textContent = "—"; return span; }
+  nodes.slice(0, PERT_SUIVI_MAX_AMONT).forEach((n, i) => {
+    if (i) span.appendChild(document.createTextNode(", "));
+    const label = (n.properties && n.properties.label) || "(tâche)";
+    const lien = synthNodeLink(label, n.id);
+    // L'etat de la tache amont est CE QUI motive l'alerte, et il commande l'action :
+    // une tache PAS COMMENCEE se lance (ou se replanifie), une tache EN COURS se
+    // surveille. Les deux doivent donc se distinguer DANS la cellule — la couleur de
+    // la ligne, elle, ne dit que le niveau d'alerte du jalon, pas ce qu'il faut faire.
+    lien.classList.add(pertActivityProgress(n) === "NON_COMMENCE"
+      ? "suivi-amont-ko" : "suivi-amont-wip");
+    span.appendChild(lien);
+  });
+  if (nodes.length > PERT_SUIVI_MAX_AMONT) {
+    span.appendChild(document.createTextNode(" … (+" + (nodes.length - PERT_SUIVI_MAX_AMONT) + ")"));
+  }
+  return span;
+}
+
+const PERT_SUIVI_TABS = [
+  { id: "taches", label: "Tâches", chapter: "Suivi des tâches" },
+  { id: "jalons", label: "Jalons", chapter: "Suivi des jalons" },
+];
+
+let pertSuiviTab = "taches";
+
+function pertSelectSuiviTab(name) {
+  const tabs = document.querySelectorAll("#suivi-tabs .synth-tab");
+  const panels = document.querySelectorAll("#suivi-content .synth-panel");
+  if (!tabs.length) return;
+  let known = false;
+  tabs.forEach(t => { if (t.dataset.tab === name) known = true; });
+  if (!known) name = tabs[0].dataset.tab;
+  pertSuiviTab = name;
+  tabs.forEach(t => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  panels.forEach(p => p.classList.toggle("active", p.dataset.panel === name));
+  const c = document.getElementById("suivi-content");
+  if (c) c.scrollTop = 0;
+}
+window.pertSelectSuiviTab = pertSelectSuiviTab;
+
+// Barre d'onglets + panneaux vides. Le badge porte le nombre d'ALERTES de l'onglet :
+// on doit savoir qu'il y a quelque chose a y voir sans avoir a l'ouvrir.
+function pertBuildSuiviTabs(model) {
+  const bar = document.getElementById("suivi-tabs");
+  const c = document.getElementById("suivi-content");
+  const panels = {};
+  if (!bar || !c) return panels;
+  bar.innerHTML = "";
+  c.innerHTML = "";
+  const alertes = { taches: model.enRetard.length, jalons: model.jalonsAlerte.length };
+  PERT_SUIVI_TABS.forEach(t => {
+    const b = synthEl("button", "synth-tab", t.label);
+    b.type = "button";
+    b.dataset.tab = t.id;
+    b.setAttribute("role", "tab");
+    if (alertes[t.id]) {
+      const badge = synthEl("span", "synth-tab-badge", String(alertes[t.id]));
+      b.appendChild(badge);
+    }
+    b.addEventListener("click", () => pertSelectSuiviTab(t.id));
+    bar.appendChild(b);
+
+    const p = synthEl("div", "synth-panel");
+    p.dataset.panel = t.id;
+    p.appendChild(synthEl("h3", "synth-chapter", t.chapter));
+    c.appendChild(p);
+    panels[t.id] = p;
+  });
+  return panels;
+}
+
+function pertRenderSuivi() {
+  const c = document.getElementById("suivi-content");
+  if (!c) return;
+  const m = pertBuildSuiviModel();
+  const panels = pertBuildSuiviTabs(m);
+  const tachesPanel = panels.taches || c;
+  const jalonsPanel = panels.jalons || c;
+  const u = m.unitLabel;
+
+  // Sans T0, aucune date calendaire n'existe : tout le suivi est relatif au jour, il
+  // n'y a rien a afficher. On le dit franchement plutot que de rendre des tableaux
+  // vides que l'utilisateur croirait justes.
+  if (m.noT0 || m.todayOff == null) {
+    suiviSection(tachesPanel, "Suivi indisponible", null, null,
+      "Définissez d'abord la date T0 du projet (Paramètres) : sans origine des temps, "
+      + "aucune date ne peut être confrontée au jour du point d'avancement.");
+    suiviSection(jalonsPanel, "Suivi indisponible", null, null,
+      "Définissez d'abord la date T0 du projet (Paramètres).");
+    pertSelectSuiviTab(pertSuiviTab);
+    return;
+  }
+
+  // ── Onglet Taches ─────────────────────────────────────────────────────────────
+  const ov = synthEl("div", "synth-overview");
+  synthKV(ov, "Point d'avancement au", pertFormatDate(m.todayDate));
+  synthKV(ov, "Tâches", String(m.nbTasks));
+  synthKV(ov, "Terminées", String(m.counts.TERMINE));
+  synthKV(ov, "En cours", String(m.counts.EN_COURS));
+  synthKV(ov, "Non commencées", String(m.counts.NON_COMMENCE));
+  suiviSection(tachesPanel, "Où en est-on ?", null, ov);
+
+  const tacheHeaders = [
+    { text: "Tâche" }, { text: "Groupe" }, { text: "Début t.tôt" },
+    { text: "Fin t.tôt" }, { text: "Marge", cls: "num" },
+  ];
+  const tacheRow = (r) => ({
+    cells: [
+      { text: r.label, nodeId: r.id },
+      { node: suiviGroupCell(r) },
+      { text: pertFormatDate(r.esDate) },
+      { text: pertFormatDate(r.efDate) },
+      synthMarginCell(r.slack, u),
+    ],
+  });
+
+  suiviSection(tachesPanel, "En cours (" + m.enCours.length + ")",
+    m.enCours.length ? suiviFilterButton("EN_COURS", "En cours") : null,
+    m.enCours.length ? synthTable(tacheHeaders, m.enCours.map(tacheRow)) : null,
+    "Aucune tâche déclarée en cours.");
+
+  suiviSection(tachesPanel, "À engager (" + m.aEngager.length + ")",
+    null,
+    m.aEngager.length
+      ? synthTable(tacheHeaders.slice(0, 2).concat([{ text: "Motif" }])
+          .concat(tacheHeaders.slice(2)),
+          m.aEngager.map(r => ({
+            cells: [
+              { text: r.label, nodeId: r.id },
+              { node: suiviGroupCell(r) },
+              { text: r.motif },
+              { text: pertFormatDate(r.esDate) },
+              { text: pertFormatDate(r.efDate) },
+              synthMarginCell(r.slack, u),
+            ],
+          })))
+      : null,
+    "Rien à engager dans l'immédiat.",
+    "Tâches non commencées dont l'amont est en cours, ou dont la date de début au plus "
+    + "tôt tombe aujourd'hui. Ce sont les prochaines à lancer.");
+
+  suiviSection(tachesPanel, "Auraient dû commencer (" + m.enRetard.length + ")",
+    null,
+    m.enRetard.length
+      ? synthTable(
+          [{ text: "Tâche" }, { text: "Groupe" }, { text: "Début t.tôt" },
+           { text: "Retard", cls: "num" }, { text: "Amont pas terminé" }],
+          m.enRetard.map(r => ({
+            cls: "synth-mile-alert",
+            cells: [
+              { text: r.label, nodeId: r.id },
+              { node: suiviGroupCell(r) },
+              { text: pertFormatDate(r.esDate) },
+              { text: "+" + Math.round(r.retard * 10) / 10 + " " + u, cls: "num" },
+              { node: suiviUpstreamCell(r.bloquants) },
+            ],
+          })))
+      : null,
+    "Aucune tâche en retard d'engagement.",
+    "Ces tâches sont non commencées alors que leur date de début au plus tôt est "
+    + "passée. La colonne « Amont pas terminé » dit s'il faut relancer la tâche "
+    + "elle-même ou celle qui la précède.");
+
+  // ── Onglet Jalons ─────────────────────────────────────────────────────────────
+  suiviSection(jalonsPanel, "Prochains jalons (" + m.prochainsJalons.length + ")",
+    null,
+    m.prochainsJalons.length
+      ? synthTable(
+          [{ text: "Jalon" }, { text: "Type" }, { text: "Échéance" },
+           { text: "Délai", cls: "num" }, { text: "Amont restant", cls: "num" }],
+          m.prochainsJalons.map(r => ({
+            cells: [
+              { text: r.label, nodeId: r.id },
+              { node: synthTagNode(r.tag), text: r.tag ? "" : "—" },
+              { text: pertFormatDate(r.date) },
+              { text: suiviDelai(r.dans, u), cls: "num" },
+              { text: r.nbAmont ? (r.restants.length + " / " + r.nbAmont) : "—", cls: "num" },
+            ],
+          })))
+      : null,
+    "Aucun jalon à venir.",
+    "Jalons dont l'échéance est à venir, du plus proche au plus lointain. « Amont "
+    + "restant » compte les tâches amont non terminées sur le total de l'amont.");
+
+  suiviSection(jalonsPanel, "Jalons en alerte (" + m.jalonsAlerte.length + ")",
+    null,
+    m.jalonsAlerte.length
+      ? synthTable(
+          [{ text: "Jalon" }, { text: "Échéance" }, { text: "Délai", cls: "num" },
+           { text: "Amont non terminé" }],
+          m.jalonsAlerte.map(r => ({
+            cls: "synth-mile-" + r.niveau,
+            cells: [
+              { text: r.label, nodeId: r.id },
+              { text: pertFormatDate(r.date) + (r.depassee ? " (dépassée)" : "") },
+              { text: suiviDelai(r.dans, u), cls: "num" },
+              { node: suiviUpstreamCell(r.restants) },
+            ],
+          })))
+      : null,
+    "Aucun jalon menacé à l'horizon de " + m.horizon + " " + u + ".",
+    "Jalons dont l'échéance tombe dans les " + m.horizon + " " + u + " (ou est déjà "
+    + "passée) alors que des tâches amont ne sont pas terminées. En ROUGE, une tâche "
+    + "amont n'est même pas commencée : l'échéance ne tiendra probablement pas sans "
+    + "replanification. En ORANGE, l'amont est engagé mais pas fini : à surveiller.");
+
+  pertSelectSuiviTab(pertSuiviTab);
+}
+window.pertRenderSuivi = pertRenderSuivi;
+
+// ─── Ouverture / fermeture / impression ─────────────────────────────────────────
+
+function pertOpenSuiviDialog() {
+  // Recalcul defensif, comme la synthese : le suivi lit es/ef/slack, ils doivent etre
+  // a jour — le suivi ne les calcule PAS lui-meme (il ne touche pas au PERT).
+  if (window.pertRecalc) pertRecalc();
+  pertRenderSuivi();
+  const d = document.getElementById("suivi-dialog");
+  if (d) d.style.display = "flex";
+}
+window.pertOpenSuiviDialog = pertOpenSuiviDialog;
+
+function pertCloseSuiviDialog() {
+  const d = document.getElementById("suivi-dialog");
+  if (d) d.style.display = "none";
+}
+window.pertCloseSuiviDialog = pertCloseSuiviDialog;
+
+function pertPrintSuivi() { pertPrintDialog("suivi-dialog"); }
+window.pertPrintSuivi = pertPrintSuivi;
 
 </script>
   <script>
@@ -43570,13 +44467,28 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("export-cancel").addEventListener("click", pertCloseExportDialog);
 
-  // ── Synthèse globale (fenetre recapitulative + impression PDF) ───────────────
-  document.getElementById("btn-synthesis").addEventListener("click", () => {
-    guardUI("Ouverture de la synthèse impossible", () => pertOpenSynthesisDialog());
+  // ── Synthèse : deux fenetres derriere un seul bouton ─────────────────────────
+  // « Planification » = la synthese historique (le PERT tel qu'il est prevu) ;
+  // « Avancement » = le suivi (le PERT confronte a la date du jour et a l'etat des
+  // taches). Sous-menu plutot que deux boutons : la toolbar est deja dense, et les
+  // deux fenetres repondent a la meme intention — « fais-moi le point ». Meme
+  // mecanique que « Réorganiser ▾ » (LiteGraph.ContextMenu).
+  document.getElementById("btn-synthesis").addEventListener("click", (e) => {
+    new LiteGraph.ContextMenu([
+      { content: "📊 Planification", callback: () =>
+          guardUI("Ouverture de la synthèse impossible", () => pertOpenSynthesisDialog()) },
+      { content: "📈 Avancement", callback: () =>
+          guardUI("Ouverture du suivi impossible", () => pertOpenSuiviDialog()) },
+    ], { event: e });
   });
   document.getElementById("synthesis-close").addEventListener("click", pertCloseSynthesisDialog);
   document.getElementById("synthesis-print").addEventListener("click", () => {
     guardUI("Impression impossible", () => pertPrintSynthesis());
+  });
+
+  document.getElementById("suivi-close").addEventListener("click", pertCloseSuiviDialog);
+  document.getElementById("suivi-print").addEventListener("click", () => {
+    guardUI("Impression impossible", () => pertPrintSuivi());
   });
 
   // ── Raccourcis clavier ──────────────────────────────────────────────────────
@@ -43760,6 +44672,19 @@ function showProperties(node) {
       },
       "Planifie la tâche au plus tard : elle finit pile quand l'aval en a besoin, "
       + "quitte à démarrer avant T0. Sans successeur, la case reste sans effet.");
+    // Avancement (29/07/2026) : suivi leger, une fois le PERT realise et acte.
+    // PAS de pertRecalc — et c'est volontaire : l'avancement n'entre dans aucun
+    // calcul (dates, marges, chemin critique, cout). Seul updateSize est necessaire,
+    // car le marqueur reserve de la place au libelle dans l'en-tete du nœud.
+    buildSelect(content, "Avancement", pertActivityProgress(node),
+      PERT_PROGRESS_STATES.map(s => ({ value: s.value, label: s.label })),
+      v => {
+        node.properties.progress = v;
+        node.updateSize();
+        node.setDirtyCanvas(true, true);
+      },
+      { title: "Suivi d'avancement (pilotage léger). Sans aucun effet sur le calcul "
+        + "PERT : dates, marges et chemin critique restent inchangés." });
     // Estimation de cout (S8.5) : ETP modifiable. Le cout en decoule (affiche en lecture
     // seule dans la section calculs via fillCalcSection). Pas de pertRecalc : l'ETP
     // n'affecte pas l'ordonnancement, seulement le cout → on rafraichit juste le cout.
@@ -44190,6 +45115,9 @@ function pertRecolorGroup(groupName, color) {
 //   { type:"group", value:"WP1" }      → seules les Activites du groupe restent vives
 //   { type:"color", value:"#.." }      → seules les Activites de cette couleur restent vives
 //   { type:"responsible", value:"..." }→ seules les Activites de ce responsable restent vives
+//   { type:"progress", value:"EN_COURS" } → seules les Activites dans cet etat d'avancement
+//                                        restent vives (29/07/2026). Le filtre est l'outil
+//                                        naturel du suivi : « montre-moi ce qui est en cours ».
 //   { type:"text", value:"..." }       → seuls les nœuds dont le NOM ou les NOTES contiennent
 //                                        la chaine restent vifs (recherche, v0.20). Seul filtre
 //                                        a concerner les trois types de nœuds : on cherche « ou
@@ -44245,6 +45173,13 @@ function pertFilterStillValid() {
     return collectActivityColors().some(c => c.toLowerCase() === lc);
   }
   if (f.type === "responsible") return collectResponsibles().indexOf(f.value) !== -1;
+  // Avancement : le vocabulaire est FIXE (trois etats + les regroupements), il ne
+  // depend pas du contenu du graphe — un code connu reste donc toujours valide. En
+  // particulier, on n'invalide PAS le filtre quand plus aucune tache n'est dans l'etat
+  // demande : en suivi, « plus rien en cours » est une reponse, pas une anomalie, et
+  // voir son filtre sauter tout seul en cochant la derniere tache serait deroutant.
+  // Meme raisonnement que la recherche ci-dessus.
+  if (f.type === "progress") return pertProgressFilterKnown(f.value);
   return false;
 }
 
@@ -44366,6 +45301,12 @@ function pertRefreshFilterActiveRows() {
     // desactivent, y compris « Aucun filtre » (un filtre est bien actif).
     if (actif) row.classList.remove("active");
   });
+  // Meme raison pour la liste d'avancement : la recherche a REMPLACE le filtre, la
+  // liste doit revenir a « Tous ». Sans cela elle continuerait d'afficher « En cours »
+  // alors que ce n'est plus ce qui filtre — exactement le piege deja corrige sur la
+  // ligne « Aucun filtre ».
+  const prog = document.getElementById("filter-progress");
+  if (actif && prog) prog.value = "";
   if (!actif) refreshFilterOptions();
 }
 
@@ -44395,6 +45336,17 @@ function refreshFilterOptions() {
 
   menu.appendChild(buildFilterRow(null, "Aucun filtre", null));
 
+  // Avancement (29/07/2026) : place EN TETE, juste apres « Aucun filtre ». Le menu
+  // est plafonne a 340 px et defile ; les sections Groupes / Responsables / Couleurs
+  // grandissent avec le projet, si bien qu'une section posee en fin de liste tombe
+  // sous la ligne de flottaison des qu'un planning est un peu fourni — invisible en
+  // pratique. Cette section-ci, elle, est BORNEE : c'est celle qui coute le moins
+  // cher a laisser en haut, d'autant qu'elle ne pese qu'une seule ligne.
+  if (pertCountActivities()) {
+    menu.appendChild(buildFilterHeader("Avancement"));
+    menu.appendChild(buildProgressFilterSelect());
+  }
+
   const reg = pertGroups();
   const groups = collectGroupNames();
   if (groups.length) {
@@ -44414,6 +45366,60 @@ function refreshFilterOptions() {
     menu.appendChild(buildFilterHeader("Couleurs"));
     colors.forEach(c => menu.appendChild(buildFilterRow({ type: "color", value: c }, pertColorGroupLabel(c), c)));
   }
+
+}
+
+// Le filtre d'avancement se pilote par une LISTE DEROULANTE, et non par des lignes a
+// pastille comme les groupes / responsables / couleurs (decision utilisateur du
+// 29/07/2026). Ces trois dimensions-la sont des vocabulaires OUVERTS : leurs valeurs
+// naissent du projet, on ne sait pas d'avance ce qu'on va y trouver, et la pastille
+// sert justement a reconnaitre un groupe ou un lot importe d'un coup d'œil.
+// L'avancement, lui, est un vocabulaire FERME de trois etats connus d'avance, sans
+// code couleur a memoriser : la liste deroulante le dit mieux, et elle tient sur UNE
+// ligne au lieu de quatre dans un menu qui defile deja.
+// L'entree « Tous » n'est pas un etat : c'est l'absence de filtre d'avancement.
+function buildProgressFilterSelect() {
+  const row = document.createElement("div");
+  row.className = "filter-select-row";
+  const sel = document.createElement("select");
+  sel.id = "filter-progress";
+  // « Tous » (= pas de filtre), puis les trois etats, puis les REGROUPEMENTS en
+  // queue de liste. L'ordre n'est pas anodin : les etats sont le vocabulaire de
+  // reference, un regroupement n'est qu'un raccourci de lecture — le placer avant
+  // laisserait croire a un quatrieme etat.
+  [{ value: "", label: "Tous" }]
+    .concat(PERT_PROGRESS_STATES.map(s => ({ value: s.value, label: s.label })))
+    .concat(PERT_PROGRESS_FILTER_GROUPS.map(gp => ({
+      value: gp.value, label: gp.label, hint: gp.hint })))
+    .forEach(o => {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.label;
+      if (o.hint) opt.title = o.hint;
+      sel.appendChild(opt);
+    });
+  // Reflete le filtre courant : rouvrir le menu doit montrer ce qui est actif.
+  sel.value = (window.pertFilter && window.pertFilter.type === "progress")
+    ? window.pertFilter.value : "";
+  sel.addEventListener("change", (e) => {
+    const v = e.target.value;
+    // Meme regle que les lignes du menu : poser un filtre d'une autre nature VIDE la
+    // recherche, sinon une chaine reste affichee alors qu'elle ne filtre plus rien.
+    pertClearFilterSearch();
+    applyFilter(v ? { type: "progress", value: v } : null);
+    updateFilterTrigger();
+    closeFilterMenu();
+  });
+  row.appendChild(sel);
+  return row;
+}
+
+// Nombre d'Activites dans le graphe (le filtre par avancement n'a de sens que s'il y
+// en a au moins une).
+function pertCountActivities() {
+  const g = window.pertGraph;
+  if (!g || !g._nodes) return 0;
+  return g._nodes.filter(n => n.type === "pert/activity").length;
 }
 
 // Met à jour l'affichage du déclencheur (pastille + libellé du filtre courant).
@@ -44427,6 +45433,13 @@ function updateFilterTrigger() {
   if (f.type === "group") { color = pertGroups()[f.value] || null; label = f.value; }
   else if (f.type === "responsible") { label = f.value; icon = "👤"; }
   else if (f.type === "text") { label = "« " + f.value + " »"; icon = "🔎"; }
+  else if (f.type === "progress") {
+    label = pertProgressFilterLabel(f.value);
+    // Un REGROUPEMENT n'a pas de couleur propre : sa pastille porte les teintes des
+    // etats couverts, en bandes (cf. pertProgressGroupSwatch).
+    const gp = pertProgressFilterGroup(f.value);
+    color = gp ? pertProgressGroupSwatch(gp) : pertProgressDef(f.value).color;
+  }
   else { color = f.value; label = pertColorGroupLabel(f.value); }
   cur.appendChild(buildFilterSwatch(color, icon));
   const txt = document.createElement("span");
@@ -44447,6 +45460,7 @@ function applyFilter(filter, silent) {
   if (filter.type === "group") label = "groupe « " + filter.value + " »";
   else if (filter.type === "responsible") label = "responsable « " + filter.value + " »";
   else if (filter.type === "text") label = "recherche « " + filter.value + " »";
+  else if (filter.type === "progress") label = "avancement « " + pertProgressFilterLabel(filter.value) + " »";
   else label = "couleur de « " + pertColorGroupLabel(filter.value) + " »";
   showToast("Filtre actif : " + label + " mis en évidence");
 }
@@ -44565,9 +45579,12 @@ function buildCheckbox(parent, labelText, checked, onChange, title) {
   return cb;
 }
 
-function buildSelect(parent, labelText, value, options, onChange) {
+// opts.title (optionnel) : infobulle posee sur le libelle du champ, pour expliquer
+// ce que le reglage fait — et, le cas echeant, ce qu'il ne fait PAS.
+function buildSelect(parent, labelText, value, options, onChange, opts) {
   const label = document.createElement("label");
   label.textContent = labelText;
+  if (opts && opts.title) label.title = opts.title;
   const sel = document.createElement("select");
   options.forEach(o => {
     const opt = document.createElement("option");
@@ -44842,6 +45859,23 @@ function fillLinksSection(node) {
 function pertFocusNode(node) {
   const canvas = window.pertCanvas;
   if (!canvas || !node) return;
+  // Correctif (bug v0.20) : ALLER a un nœud RETIRE le filtre en cours. Sans cela, on
+  // demandait a l'outil de montrer un nœud precis et il le centrait... sous le voile
+  // d'estompage, ou carrement invisible parmi des nœuds tous estompes. Le cas le plus
+  // deroutant venait de la synthese : filtrer, ouvrir la fenetre, cliquer un lien —
+  // et se retrouver devant un planning eteint. Poser un filtre et demander un nœud
+  // sont deux intentions contraires ; la derniere exprimee gagne.
+  //   ⚠️ Ne PAS toucher aux chemins qui posent DELIBEREMENT un filtre (bouton 🔎 de
+  //   l'analyse, « Voir dans le planning » du suivi) : eux ne mènent pas a un nœud.
+  if (window.pertFilter) {
+    const nom = (node.properties && (node.properties.label || node.properties.text)) || "ce nœud";
+    if (typeof pertClearFilterSearch === "function") pertClearFilterSearch();
+    applyFilter(null, true);        // silencieux : le toast ci-dessous dit la CAUSE
+    updateFilterTrigger();
+    if (typeof showToast === "function") {
+      showToast("Filtre désactivé pour vous mener à « " + nom + " »");
+    }
+  }
   canvas.selectNode(node);          // selection unique (remplace la precedente)
   const el = canvas.canvas;
   const ds = canvas.ds;

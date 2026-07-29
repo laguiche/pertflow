@@ -226,6 +226,17 @@ function pertSynthLevenshtein(a, b) {
 const PERT_SYNTH_SIMILARITY = 0.85;
 const PERT_SYNTH_MIN_LABEL = 5;   // en deca, la distance d'edition ne veut plus rien dire
 
+// Part d'un nœud qui doit etre RECOUVERTE pour qu'on le declare masque.
+//
+// Le critere n'est pas « ces deux nœuds se touchent » mais « celui-ci perd une part
+// significative de son information ». Un recouvrement partiel ou leger n'est pas un
+// probleme : sur un planning un peu dense il y en a partout, et les signaler
+// produirait une liste interminable ou l'on ne verrait plus le seul cas qui compte —
+// typiquement un jalon integralement disparu sous une activite. A 50 %, c'est la
+// moitie du contenu du nœud (ses dates, sa marge, son avancement) qui n'est plus
+// lisible : le seuil est deja genereux.
+const PERT_SYNTH_MASK_RATIO = 0.5;
+
 function pertSynthSimilarity(a, b) {
   if (!a || !b) return 0;
   const max = Math.max(a.length, b.length);
@@ -355,7 +366,72 @@ function pertBuildAnalyses(g, adj) {
     })),
   });
 
-  // 5) Taches de duree nulle — une Activite de duree 0 est un JALON deguise : elle
+  // 5) Nœuds MASQUES a l'ecran. On ne signale pas « deux nœuds qui se touchent » —
+  // un recouvrement partiel n'est pas un probleme, il y en a partout sur un planning
+  // dense, et en faire la liste noierait le seul cas qui compte. On signale la PERTE
+  // D'INFORMATION : un nœud dont une part significative disparait sous un autre.
+  // L'exemple type est le jalon integralement recouvert par une activite — il n'est
+  // plus lisible, plus cliquable, et l'utilisateur peut le croire supprime.
+  //
+  // Le sens du recouvrement compte, et il est donne par l'ORDRE DE DESSIN : LiteGraph
+  // parcourt _nodes dans l'ordre, le dernier passe donc par-dessus. C'est le nœud du
+  // DESSOUS qui perd de l'information — le rapport se calcule sur SA surface a lui,
+  // et non sur celle de l'intersection dans l'absolu : une grosse tache a moitie
+  // couverte perd autant qu'un petit jalon a moitie couvert.
+  //
+  // TOUS les types comptent : Activites, Jalons et Labels dessinent tous un fond
+  // OPAQUE (un Label a une couleur de fond, defaut #fffedc) — un Label pose sur une
+  // tache la masque donc tout autant.
+  const boite = (n) => {
+    if (!n.pos || !n.size || !(n.size[0] > 0) || !(n.size[1] > 0)) return null;
+    return { x: n.pos[0], y: n.pos[1], w: n.size[0], h: n.size[1] };
+  };
+  const masques = [];
+  const boites = nodes.map(n => ({ n, b: boite(n) })).filter(x => x.b);
+  for (let i = 0; i < boites.length; i++) {
+    for (let j = i + 1; j < boites.length; j++) {
+      // i est dessine AVANT j → i est dessous, c'est lui qui peut etre masque.
+      const dessous = boites[i], dessus = boites[j];
+      const a = dessous.b, b = dessus.b;
+      const dx = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const dy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      if (dx <= 0 || dy <= 0) continue;
+      const part = (dx * dy) / (a.w * a.h);
+      if (part < PERT_SYNTH_MASK_RATIO) continue;
+      masques.push({ masque: dessous.n, par: dessus.n, part });
+    }
+  }
+  // Du plus grave au plus anodin : le nœud le plus recouvert est celui dont on a
+  // perdu le plus, et c'est par lui qu'on veut commencer.
+  masques.sort((p, q) => q.part - p.part);
+  const typeOf = (n) => n.type === "pert/activity" ? "Tâche"
+                      : (n.type === "pert/milestone" ? "Jalon" : "Label");
+  push({
+    id: "noeuds-masques",
+    title: "Nœuds masqués",
+    hint: "Ces nœuds disparaissent sous un autre : leur contenu (dates, marge, "
+        + "avancement) n'est plus lisible et la zone recouverte intercepte les clics — "
+        + "au point qu'on peut croire le nœud supprimé. Déplacer celui du dessus, ou "
+        + "relancer « Réorganiser », suffit. Les recouvrements partiels, eux, ne sont "
+        + "pas signalés : ils ne font perdre aucune information.",
+    columns: [{ text: "Nœud masqué" }, { text: "Type" }, { text: "Masqué à", cls: "num" },
+              { text: "Par" }, { text: "Type" }],
+    rows: masques.map(c => ({
+      // Une ligne met en jeu DEUX nœuds sans rien de commun dans leur nom : aucun
+      // terme ne les surlignerait tous les deux. On retient le nœud MASQUE, celui
+      // qu'on cherche a retrouver ; les deux noms, eux, menent chacun a leur nœud.
+      filterText: labelOf(c.masque),
+      cells: [
+        { text: labelOf(c.masque), nodeId: c.masque.id },
+        { text: typeOf(c.masque) },
+        { text: Math.round(c.part * 100) + " %", cls: "num" },
+        { text: labelOf(c.par), nodeId: c.par.id },
+        { text: typeOf(c.par) },
+      ],
+    })),
+  });
+
+  // 6) Taches de duree nulle — une Activite de duree 0 est un JALON deguise : elle
   // n'occupe personne et brouille la lecture des enchainements.
   push({
     id: "duree-nulle",
@@ -443,10 +519,21 @@ function synthTable(headers, rows) {
 // Dans les deux cas la fenetre se ferme : elle recouvre le planning, l'y laisser
 // ouverte rendrait le resultat invisible.
 
+// Ferme TOUTES les fenetres de rapport (synthese, suivi). Un lien vers un nœud est
+// rendu par les deux : plutot que de faire porter a chaque lien la connaissance de la
+// fenetre qui l'a construit, on ferme ce qui recouvre le planning, point.
+function pertCloseReportDialogs() {
+  ["synthesis-dialog", "suivi-dialog"].forEach(id => {
+    const d = document.getElementById(id);
+    if (d) d.style.display = "none";
+  });
+}
+window.pertCloseReportDialogs = pertCloseReportDialogs;
+
 function pertSynthGoToNode(id) {
   const g = window.pertGraph;
   const node = g && g._nodes ? g._nodes.find(n => n.id === id) : null;
-  pertCloseSynthesisDialog();
+  pertCloseReportDialogs();
   if (!node) return;
   if (typeof pertFocusNode === "function") pertFocusNode(node);
 }
@@ -456,7 +543,7 @@ window.pertSynthGoToNode = pertSynthGoToNode;
 // menu Filtre : tout ce qui en depend (compteur, libelle du declencheur, regles de
 // vidage) reste ainsi valable, sans dupliquer la moindre logique.
 function pertSynthFilterOn(text) {
-  pertCloseSynthesisDialog();
+  pertCloseReportDialogs();
   const input = document.getElementById("filter-search");
   if (!input) return;
   input.value = text || "";
@@ -753,13 +840,33 @@ window.pertCloseSynthesisDialog = pertCloseSynthesisDialog;
 // est retiree a l'evenement afterprint (bien supporte sur les navigateurs cibles).
 // ⚠️ Pas de setTimeout de nettoyage : sous Chrome window.print() ouvre un apercu NON
 // bloquant → un timer retirerait la classe pendant que l'apercu est encore ouvert.
-function pertPrintSynthesis() {
-  document.body.classList.add("synthesis-printing");
+// dialogId designe la fenetre a imprimer : elle recoit le marqueur .synth-printing,
+// sur lequel les regles @media print s'appuient. Cibler une fenetre par son ID ne
+// marche plus depuis qu'il y en a DEUX (synthese et suivi) : la regle
+// `display: block !important` aurait force-affiche la fenetre fermee sur le papier.
+// Pose (ou retire) les deux marqueurs dont depend @media print. Fonction a part, et
+// exposee : c'est le SEUL endroit qui sait quelles classes portent l'impression, et
+// les tests l'appellent au lieu de reposer les classes a la main — sans quoi ils
+// derivent silencieusement le jour ou le marquage change (ce qui vient d'arriver).
+function pertPrintMark(dialogId, on) {
+  const d = document.getElementById(dialogId);
+  if (!d) return null;
+  document.body.classList.toggle("synthesis-printing", !!on);
+  d.classList.toggle("synth-printing", !!on);
+  return d;
+}
+window.pertPrintMark = pertPrintMark;
+
+function pertPrintDialog(dialogId) {
+  if (!pertPrintMark(dialogId, true)) return;
   const cleanup = () => {
-    document.body.classList.remove("synthesis-printing");
+    pertPrintMark(dialogId, false);
     window.removeEventListener("afterprint", cleanup);
   };
   window.addEventListener("afterprint", cleanup);
   window.print();
 }
+window.pertPrintDialog = pertPrintDialog;
+
+function pertPrintSynthesis() { pertPrintDialog("synthesis-dialog"); }
 window.pertPrintSynthesis = pertPrintSynthesis;

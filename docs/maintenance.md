@@ -166,3 +166,4 @@ merger sur `main` → taguer → pousser le tag.
 | Le rendu des nœuds / liens | `src/nodes.js`, `src/link_routing.js` |
 | Les exports | `src/export*.js` |
 | La sérialisation / l'undo / l'autosave | `src/storage.js`, `history.js`, `autosave.js` |
+| Les fenêtres de rapport (synthèse, suivi d'avancement) | `src/synthesis.js`, `src/suivi.js` |

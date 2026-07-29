@@ -50,6 +50,8 @@ pertflow/
 │   ├── t0_marker.js    # Repère T0 + bande « travaux anticipés » (2 couches de rendu)
 │   ├── ui.js           # Toolbar, panneau latéral, interactions
 │   ├── storage.js      # Sauvegarde/chargement JSON
+│   ├── synthesis.js    # Fenêtre de synthèse (planification) + helpers de rendu partagés
+│   ├── suivi.js        # Fenêtre de suivi d'avancement (v0.21) — réutilise ces helpers
 │   └── export.js       # Export PNG et PDF
 └── css/
     └── style.css       # Styles globaux de l'application
@@ -83,6 +85,11 @@ pertflow/
   etp: 1,               // S8.5 : nombre d'ETP (Equivalent Temps Plein) estimé — modifiable
   responsible: "",      // optionnel
   notes: "",            // S8 : note libre (panneau seul, jamais rendue sur le nœud)
+  progress: "NON_COMMENCE", // v0.21 : avancement — "NON_COMMENCE" | "EN_COURS" | "TERMINE".
+                        // Vocabulaire dans PERT_PROGRESS_STATES (nodes.js), lu via
+                        // pertProgressDef / pertActivityProgress (robustes aux valeurs
+                        // absentes : un .pert anterieur s'ouvre en NON_COMMENCE, aucune
+                        // migration). N'ENTRE DANS AUCUN CALCUL (cf. section Suivi).
   group: "",            // S6 : WP/métier/service (couleur mémorisée dans meta.groups)
   color: "#4A90D9",     // couleur de fond du nœud
   // Coût estimé (S8.5) : NON stocké — dérivé (duration→heures × etp × taux, cf.
@@ -281,7 +288,11 @@ Découpage : **ce qui est saisi** d'un côté, **ce qui est calculé ou déduit*
   « Propriétés » à chaque clic rendrait la Synthèse inutilisable. **État de vue** — non sérialisé
   dans le `.pert`, comme le filtre.
 - Voisins **cliquables** (`pertFocusNode`) : sélectionne le nœud et centre la vue dessus **sans
-  changer le zoom**. `selectNode()` ne déclenche PAS `onNodeSelected` (réservé au clic souris) →
+  changer le zoom**, et **LÈVE le filtre en cours** (correctif v0.21 d'un bug v0.20 : la vue se
+  centrait sur un nœud resté sous le voile d'estompage, voire invisible). `pertFocusNode` est le
+  **seul point de passage** des deux entrées — voisins du panneau ET liens de la synthèse/du suivi —
+  d'où le correctif à cet endroit unique. Ne PAS toucher aux chemins qui posent délibérément un
+  filtre (bouton 🔎 de l'analyse, « Voir dans le planning » du suivi) : eux ne mènent à aucun nœud. `selectNode()` ne déclenche PAS `onNodeSelected` (réservé au clic souris) →
   appeler `showProperties()` soi-même.
 - Adjacence lue via **`pertBuildAdjacency`** (moteur), jamais recalculée à la main : même source
   de vérité que le calcul PERT, donc pas de divergence entre ce que le panneau annonce et ce que
@@ -299,9 +310,23 @@ Découpage : **ce qui est saisi** d'un côté, **ce qui est calculé ou déduit*
 > vérifier aussi la **surface occupée** (`getBoundingClientRect`) ou faire une capture.
 
 ### Filtre (`window.pertFilter`) — état de vue, jamais sérialisé
-Quatre natures : `group`, `color`, `responsible` — qui ne « matchent » que des **Activités** — et
-`text` (v0.20), **seule à porter sur les trois types de nœuds**, sur le **nom ET les notes**
-(`pertNodeSearchText`), insensible à la casse et aux accents (`pertNormalizeSearch`).
+Cinq natures : `group`, `color`, `responsible`, `progress` (v0.21) — qui ne « matchent » que des
+**Activités** — et `text` (v0.20), **seule à porter sur les trois types de nœuds**, sur le **nom ET
+les notes** (`pertNodeSearchText`), insensible à la casse et aux accents (`pertNormalizeSearch`).
+- **`progress`** se pilote par une **liste déroulante** (`buildProgressFilterSelect`) et non par des
+  lignes à pastille : groupe/couleur/responsable sont des vocabulaires **ouverts** nés du projet,
+  l'avancement est **fermé** et connu d'avance. Section placée **en tête** du menu — il est plafonné
+  à 340 px et défile, une section en fin de liste tombe hors champ dès qu'un planning est fourni ;
+  celle-ci est bornée, c'est celle qui coûte le moins cher en haut.
+- Sa valeur est un **état** OU un **regroupement** (`PERT_PROGRESS_FILTER_GROUPS`, ex.
+  `RESTE_A_FAIRE`). Un regroupement n'est **PAS** un état : il ne vit ni dans `properties`, ni dans
+  le panneau, ni dans les exports. Correspondance via `pertProgressFilterMatch`, libellé via
+  `pertProgressFilterLabel`, validité via `pertProgressFilterKnown`.
+- **Jamais invalidé** quand plus aucune tâche n'est dans l'état demandé : « plus rien en cours » est
+  une réponse, pas une anomalie (même raisonnement que la recherche).
+- **PIÈGE** : une recherche REMPLACE le filtre courant → `pertRefreshFilterActiveRows` doit remettre
+  la liste sur « Tous », sinon elle annonce un filtre qui n'est plus actif (même défaut que la ligne
+  « Aucun filtre », corrigé en v0.20).
 - La zone de recherche est **fixe dans `index.html`** ; `refreshFilterOptions()` ne reconstruit
   que `#filter-options`. La reconstruire ferait perdre la saisie **et** le focus.
 - Taper applique le filtre **en silence** (`applyFilter(filter, silent)`) : un toast par
@@ -311,6 +336,45 @@ Quatre natures : `group`, `color`, `responsible` — qui ne « matchent » que d
 - Poser un filtre depuis ailleurs (synthèse) : passer par l'**événement `input` sur
   `#filter-search`**, jamais par `window.pertFilter` directement — sinon compteur, libellé et
   règles de vidage divergent.
+
+### Avancement des tâches et fenêtre de suivi (v0.21)
+
+**RÈGLE ABSOLUE — l'avancement n'entre dans AUCUN calcul.** Ni es/ef/ls/lf, ni marge, ni chemin
+critique, ni coût, ni layout, ni tenue de cible. Le PERT reste l'objectif prioritaire : modifier
+l'avancement ne doit **jamais** déclencher `pertRecalc()`. Un smoke compare l'intégralité du calcul
+avant/après pour le garantir — le conserver.
+
+- **Vocabulaire** : `PERT_PROGRESS_STATES` (nodes.js), trois états, codes ASCII. Délibérément ni
+  pourcentage, ni valeur acquise, ni replanification — pilotage « ordre de grandeur ».
+- **Marqueur sur le nœud** dessiné **UNIQUEMENT** pour `EN_COURS` et `TERMINE` : un planning que
+  personne ne suit doit être rendu **exactement** comme avant, au pixel près (smoke dédié). Les deux
+  marques sont **tracées géométriquement** en Canvas2D et non écrites avec « ◐ » / « ✔ » : on ne
+  maîtrise pas les polices du poste DSI, un glyphe absent s'afficherait en carré « tofu » sans la
+  moindre erreur. Même raison pour la pastille d'un regroupement de filtre (dégradé CSS).
+- `updateSize` **réserve la place du marqueur avant** le découpage du libellé en lignes.
+
+**Fenêtre de suivi** (`src/suivi.js`) — bouton « 📊 Synthèse ▾ » → *Avancement*. Deux onglets,
+Tâches et Jalons. Elle **confronte** les dates du PERT à la date du jour, elle ne recalcule rien.
+- **Date du point** : `pertSuiviTodayISO()`, surchargeable par `window.pertSuiviToday` — un suivi
+  est relatif au calendrier, sans cette couture ni test ni capture ne seraient reproductibles.
+  Aucune UI ne l'expose (elle laisserait croire qu'on peut « se placer » à une autre date alors que
+  seules les listes bougeraient).
+- **Amont d'un jalon pris TRANSITIVEMENT** (`pertSuiviUpstreamActivities`, mémoïsé et défensif
+  vis-à-vis des cycles) : ce qui met une échéance en péril n'est pas le seul prédécesseur direct.
+- **Deux niveaux d'alerte** : amont `NON_COMMENCE` = rouge (replanification), amont `EN_COURS`
+  seulement = orange (vigilance). La distinction est reprise **dans la cellule d'amont** — la
+  couleur de ligne dit le niveau, la cellule dit s'il faut *lancer* ou *surveiller*.
+- **Horizon** dans l'unité du projet (`PERT_SUIVI_HORIZON`), échéance = `pertTimeAxisOffset`.
+- **Une section vide reste AFFICHÉE** avec son message — l'inverse de la règle de l'onglet Analyse :
+  « aucune tâche en retard » est une réponse qu'un pilote vient chercher.
+- **Sans T0**, le suivi le dit au lieu de rendre des tableaux faussement vides.
+
+**Coquille de fenêtre MUTUALISÉE** : gabarit, onglets, tableaux et impression sont portés par des
+**classes** (`.synth-content`, `.synth-tabs`, `.synth-printing`) et non par les ids de la synthèse.
+> **PIÈGE — impression avec DEUX fenêtres.** Les règles `@media print` ne peuvent plus cibler une
+> fenêtre par son id : le `display: block !important` **force-afficherait la fenêtre fermée** sur le
+> papier. Elles ciblent le marqueur `.synth-printing`, posé par `pertPrintMark(dialogId, on)` — que
+> les tests appellent aussi, plutôt que de reposer les classes à la main.
 
 ### Fenêtre de synthèse — **quatre onglets = quatre chapitres imprimés** (v0.20)
 `Générique` / `Jalons sortants` / `Jalons entrants` / `Analyse`. À l'écran un panneau visible ; à
@@ -331,6 +395,17 @@ Règles à respecter en ajoutant un contrôle :
   un `filterText` (bouton 🔎 → met en évidence **tous** les nœuds de la ligne) ;
 - se méfier des **faux positifs** : le rapprochement de noms écarte les **séries numérotées** et
   les jalons **déjà reliés**. Un contrôle qui remonte du bruit décrédibilise tout l'onglet.
+
+> **Cas d'école du bruit — « Nœuds masqués » (v0.21).** Le contrôle a d'abord signalé toute paire de
+> nœuds se chevauchant de quelques pixels : inexploitable, il y en a partout sur un planning dense.
+> Le critère retenu est la **perte d'information** — on ne signale un nœud que lorsque
+> `PERT_SYNTH_MASK_RATIO` (50 %) de **sa** surface disparaît sous un autre. Deux conséquences :
+> le **sens** compte (l'ordre de dessin = l'ordre de `_nodes`, le dernier passe au-dessus, c'est
+> celui du **dessous** qui perd), et le rapport se calcule **sur la surface du nœud masqué**, pas
+> sur l'aire d'intersection absolue (sinon une grosse tâche à moitié couverte écrase le classement
+> devant un petit jalon intégralement disparu). Les trois types comptent : Activités, Jalons **et
+> Labels** dessinent tous un fond opaque. Le smoke vérifie les **deux** sens — aucune ligne sur des
+> recouvrements partiels (garde-fou anti-bruit), une ligne sur un jalon recouvert à 100 %.
 
 **Couleur vs cliquabilité** : dans les listes de jalons, la couleur porte la **tenue de cible** —
 le lien hérite donc de la couleur de sa ligne, et le **soulignement pointillé** porte seul
@@ -412,7 +487,7 @@ onDrawForeground(ctx) {
 
 ## ÉTAT D'AVANCEMENT
 
-> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.20** (28/07/2026).
+> **Roadmap S1 → Doc TERMINÉE.** Dernier tag : **v0.21** (29/07/2026).
 > **Le récit détaillé de chaque session vit dans [`docs/historique-sessions.md`](docs/historique-sessions.md)** —
 > décisions d'implémentation, pièges rencontrés, validations. Ce tableau n'en est
 > que l'index. **À la clôture d'une session : détail dans l'archive, UNE ligne ici.**
@@ -450,6 +525,7 @@ onDrawForeground(ctx) {
 | Anticipation avant T0 + cible en « T0+X » | v0.16 | Offsets négatifs légaux (T0 = origine, plus un plancher) ; case « tâche anticipée » ; cible de jalon en date **ou** T0±X ; repère T0 + coût anticipé au prorata |
 | Date-cible des jalons prise en compte | v0.15.5 | `pertTimeAxisOffset` (cible → sinon ES) : réorg « axe temps seul » place le jalon sur sa cible ; listes de jalons de la synthèse triées chronologiquement |
 | Lisibilité de la trame + date « À propos » | v0.18.1 | Libellé d'année en filigrane (`PERT_TG_LABEL_PX`, suit le zoom) ; date de bundle sans heure, corrigée côté générateur ET côté affichage pour les bundles antérieurs ; fixture `pert_a_exporter.pert` restaurée → suite smoke complète (23/23), attendus MSPDI déduits de la fixture |
+| Suivi d'avancement | v0.21 | Champ `progress` (3 états, **aucun effet sur le PERT**, marqueur nœud pour 2 états seulement) ; fenêtre de suivi `src/suivi.js` (Tâches / Jalons, alerte à 2 niveaux, amont transitif) en 2e volet du bouton Synthèse ; filtre par avancement + regroupement « reste à faire » ; colonnes CSV/Gantt ; contrôle d'analyse « Nœuds masqués » ; correctif : aller à un nœud lève le filtre |
 | Recherche par nom + synthèse en chapitres et Analyse | v0.20 | Filtre `type:"text"` (nom/notes, 3 types de nœuds, casse+accents, compteur) ; synthèse en 4 onglets = chapitres imprimés (piège : `break-before` ignoré sous parent flex) ; onglet **Analyse** extensible (orphelins, noms similaires, isolées, fins sans jalon, durée nulle) ; synthèse cliquable → nœud ou mise en évidence |
 | Panneau en 2 onglets + couleur des nouvelles tâches | v0.19 | Panneau scindé *Propriétés* (saisie) / *Synthèse* (calculs + prédécesseurs/successeurs cliquables, Supprimer en pied fixe, onglet mémorisé) ; réglage « Couleur des nouvelles tâches » (libre / groupe existant). Piège : id dupliqué `synthesis-content` — tests verts, écran vide |
 | Intensité réglable de la trame + Paramètres en onglets | v0.18 | Curseur d'intensité (goût/écran : aucune valeur ne fait consensus) avec vignette d'aperçu — le voile du dialogue rendrait un aperçu en direct trompeur ; dialogue réparti en 3 onglets, panneaux masqués et non retirés du DOM |
