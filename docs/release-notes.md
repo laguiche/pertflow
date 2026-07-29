@@ -11,6 +11,32 @@ technique, est dans `CLAUDE.md` et `docs/journal-developpement.md`).
 
 ---
 
+## v0.21 — 29/07/2026 · Suivi d'avancement
+- Nouveau champ **Avancement** sur chaque tâche : **Non commencé** (par défaut), **En cours**,
+  **Terminé**. Il **n'a aucun effet sur le calcul PERT** — dates, marges, chemin critique et coûts
+  sont identiques que vous le renseigniez ou non. Une **pastille** apparaît sur le nœud pour « en
+  cours » et « terminé » seulement : un planning que personne ne suit s'affiche exactement comme
+  avant.
+- Le bouton **📊 Synthèse** devient un menu à deux entrées : **Planification** (la synthèse
+  existante — le planning tel qu'il est prévu) et **Avancement** (le nouveau **suivi** — le même
+  planning confronté à la date du jour).
+- La **fenêtre de suivi** a deux onglets. **Tâches** : ce qui est *en cours*, ce qui est *à
+  engager* (l'amont est en cours, ou la date de début est atteinte) et ce qui **aurait dû
+  commencer**, avec le retard et la tâche amont qui bloque. **Jalons** : les *prochains jalons* par
+  ordre chronologique, et les *jalons en alerte* — échéance proche alors que l'amont n'est pas
+  terminé, en **rouge** si une tâche amont n'est même pas commencée (replanification à prévoir), en
+  **orange** si elle est engagée mais pas finie (à surveiller). Tout est cliquable et imprimable.
+- Le **filtre** gagne l'axe **avancement**, avec un regroupement **« En cours ou non commencé »**
+  pour voir le **reste à faire** tout confondu.
+- Les exports **CSV** et **Gantt Excel** transportent l'avancement.
+- Nouveau contrôle dans l'onglet **Analyse** : **Nœuds masqués** — un nœud dont la moitié au moins
+  disparaît sous un autre n'est plus lisible ni cliquable, au point qu'on peut le croire supprimé.
+  Les recouvrements partiels ne sont pas signalés.
+- **Correctif** : aller à un nœud (voisin du panneau, nom cliqué dans la synthèse ou le suivi)
+  **lève désormais le filtre** en cours. Auparavant la vue se centrait sur un nœud resté estompé,
+  voire invisible — particulièrement déroutant en enchaînant filtre et navigation depuis la
+  synthèse.
+
 ## v0.20 — 28/07/2026 · Recherche par nom & synthèse en chapitres
 - **Recherche par nom** dans le menu **🔎 Filtre** : une zone de saisie met en évidence les
   nœuds dont le **nom** ou les **notes** contiennent le texte tapé. Insensible à la casse et

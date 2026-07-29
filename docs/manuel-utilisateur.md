@@ -34,9 +34,10 @@ et le chemin critique, puis vous permet d'exporter le résultat (image, PDF, Exc
 10. [Sauvegarde, ouverture et récupération](#10-sauvegarde-ouverture-et-récupération)
 11. [Exporter le planning](#11-exporter-le-planning)
 12. [La synthèse du planning](#12-la-synthèse-du-planning)
-13. [Les paramètres du projet](#13-les-paramètres-du-projet)
-14. [Raccourcis clavier](#14-raccourcis-clavier)
-15. [Questions fréquentes](#15-questions-fréquentes)
+13. [Le suivi d'avancement](#13-le-suivi-davancement)
+14. [Les paramètres du projet](#14-les-paramètres-du-projet)
+15. [Raccourcis clavier](#15-raccourcis-clavier)
+16. [Questions fréquentes](#16-questions-fréquentes)
 
 ---
 
@@ -118,13 +119,14 @@ L'écran se compose de quatre zones :
 | **➖ / ➕** | Dézoome / zoome (utile sans molette de souris). |
 | **🔍 Tout afficher** | Ajuste le zoom pour voir tout le planning. |
 | **▦ Grille** | Active/désactive la grille aimantée (alignement des nœuds au déplacement). |
-| **🔎 Filtre** | Met en évidence un groupe, une couleur ou un responsable (voir §6). |
+| **🔎 Filtre** | Met en évidence un groupe, une couleur, un responsable ou un état d'**avancement** (voir §6). |
 | **⚙ Paramètres** | Ouvre les réglages du projet (T0, unité, styles, coûts…). |
 | **📥 Importer Excel** | Importe un planning Excel existant (voir §9). |
 | **📂 Ouvrir** | Charge un fichier `.pert`. |
 | **💾 Sauvegarder** | Télécharge le projet au format `.pert`. |
 | **⬇ Exporter** | Ouvre la fenêtre d'export (image, PDF, Excel, MS Project…). |
 | **↶ Annuler / ↷ Rétablir** | Annule / rétablit la dernière action (Ctrl+Z / Ctrl+Y). |
+| **📊 Synthèse ▾** | Ouvre la **synthèse de planification** (§12) ou le **suivi d'avancement** (§13). |
 | **ℹ À propos** | Auteur, licence et version. |
 
 ### Se déplacer dans le canvas
@@ -149,7 +151,8 @@ L'écran se compose de quatre zones :
 Une **Activité** représente une tâche qui **prend du temps** (une durée). Elle se lit ainsi :
 
 - **En-tête coloré** : le nom de la tâche + le **responsable** (précédé de 👤). La couleur
-  reflète le **groupe** métier (voir §7).
+  reflète le **groupe** métier (voir §7). Une **pastille** peut y apparaître en haut à droite :
+  c'est le marqueur d'**avancement** (voir §13).
 - **Durée** : exprimée dans l'unité du projet (jours, semaines ou mois).
 - **Fin t.tôt** : la **date de fin au plus tôt** calculée (voir §4).
 - **Marge** : le nombre d'unités de « jeu » avant que la tâche ne retarde le projet.
@@ -412,6 +415,9 @@ Pour une **Activité** :
 - **Durée** — dans l'unité du projet.
 - **Tâche anticipée (avant T0)** — case à cocher : la tâche est planifiée « juste à temps » et
   peut passer **avant T0** (voir §4). Sans successeur, la case reste sans effet.
+- **Avancement** — *Non commencé* (par défaut), *En cours* ou *Terminé*. Sert au **suivi**
+  (voir §13) et **n'a aucun effet sur le calcul PERT** : ni les dates, ni les marges, ni le
+  chemin critique, ni le coût n'en dépendent.
 - **ETP** (Équivalent Temps Plein) — l'effort estimé, utilisé pour le **coût** (voir §8).
 - **Responsable** — liste déroulante enrichissable (les noms déjà saisis sont reproposés).
 - **Couleur** — couleur de fond du nœud.
@@ -542,6 +548,7 @@ Le bouton **🔎 Filtre** met en évidence un sous-ensemble de nœuds ; les autr
 (voile sombre). Vous pouvez filtrer par :
 
 - **Recherche** (nom ou notes) — voir ci-dessous ;
+- **Avancement** — voir ci-dessous ;
 - **Groupe** (WP / métier / service) ;
 - **Couleur** ;
 - **Responsable**.
@@ -549,6 +556,29 @@ Le bouton **🔎 Filtre** met en évidence un sous-ensemble de nœuds ; les autr
 Le menu affiche une **pastille** de couleur (ou une icône 👤 pour les responsables) et un libellé
 parlant. Choisissez « Aucun filtre » pour tout réafficher. Le filtre est un **état de vue** : il
 n'est pas enregistré dans le fichier.
+
+> **Aller à un nœud lève le filtre.** Partout où PertFlow vous **mène à un nœud** — un voisin du
+> panneau (§5), un nom cliqué dans la synthèse (§12) ou dans le suivi (§13) —, le filtre en cours
+> est retiré et un message vous le signale. Sans cela, la vue se centrait sur un nœud… resté sous
+> le voile d'estompage. Les boutons qui **posent** délibérément un filtre (🔎 d'une ligne
+> d'analyse, « Voir dans le planning » du suivi) ne sont évidemment pas concernés.
+
+#### Le filtre par avancement
+
+![La liste déroulante d'avancement dans le menu Filtre](images/manuel/filtre-avancement.png)
+
+Une **liste déroulante** — et non des lignes à pastille comme les groupes ou les couleurs : les
+états d'avancement forment un vocabulaire **fermé**, connu d'avance, sans code couleur à retenir.
+
+| Choix | Ce qui reste en évidence |
+|---|---|
+| **Tous** | Aucun filtre d'avancement. |
+| **Non commencé** / **En cours** / **Terminé** | Les tâches dans cet état. |
+| **En cours ou non commencé** | Le **reste à faire**, tout confondu. |
+
+Comme les autres filtres d'attribut, il ne concerne que les **tâches** : les jalons et les labels
+n'ont pas d'avancement, ils sont donc estompés. Le filtre **n'est pas levé** quand plus aucune
+tâche n'est dans l'état demandé : « plus rien en cours » est une réponse, pas une anomalie.
 
 #### La recherche par nom
 
@@ -583,7 +613,7 @@ nouveau nom, ou choisissez-en un déjà utilisé.
 - **Bouton « Appliquer ce groupe aux tâches de même couleur »** : rattache d'un clic toutes les
   tâches d'une même couleur au groupe courant — pratique pour taguer un lot importé.
 - **La couleur des tâches que vous créez** se règle dans **Paramètres → Projet → Couleur des nouvelles tâches**
-  (§13) : soit une couleur **libre**, qu'aucun groupe n'utilise, soit directement **le groupe** de
+  (§14) : soit une couleur **libre**, qu'aucun groupe n'utilise, soit directement **le groupe** de
   votre choix, avec sa couleur.
 
 ---
@@ -685,8 +715,15 @@ zoom courant à l'écran) :
 
 ## 12. La synthèse du planning
 
-Le bouton **📊 Synthèse** ouvre une fenêtre qui récapitule **tout le planning en une vue**, au-delà
-du résumé compact de la barre d'état en bas de l'écran.
+Le bouton **📊 Synthèse ▾** ouvre un menu à **deux entrées** :
+
+| Entrée | Fenêtre |
+|---|---|
+| **📊 Planification** | La synthèse décrite dans ce chapitre : le planning **tel qu'il est prévu**. |
+| **📈 Avancement** | Le **suivi** : le même planning **confronté à la date du jour** (voir §13). |
+
+La **synthèse de planification** récapitule **tout le planning en une vue**, au-delà du résumé
+compact de la barre d'état en bas de l'écran.
 
 ![La fenêtre de synthèse](images/manuel/synthese.png)
 
@@ -768,6 +805,15 @@ liste de choses à regarder, pas comme une liste de cases vertes à faire défil
 | **Tâches isolées** | Une tâche hors du réseau : elle ne participe à aucun enchaînement et ne peut pas être sur le chemin critique. |
 | **Fins de chaîne sans jalon** | Une tâche sans successeur : son aboutissement n'est matérialisé par aucun jalon. |
 | **Tâches de durée nulle** | Une tâche sans durée est en réalité un jalon. |
+| **Nœuds masqués** | Un nœud dont **la moitié au moins disparaît** sous un autre : son contenu n'est plus lisible, la zone recouverte intercepte les clics, et l'on peut croire le nœud supprimé. |
+
+![Le contrôle « Nœuds masqués » : un jalon disparu sous une tâche](images/manuel/synthese-noeuds-masques.png)
+
+> Les recouvrements **partiels** ne sont **pas** signalés : sur un planning dense il y en a
+> partout, ils ne font perdre aucune information, et en dresser la liste noierait le seul cas qui
+> compte — typiquement un jalon intégralement disparu sous une activité. La ligne indique **quel
+> nœud est masqué, à quel pourcentage, et par lequel** : c'est celui du dessus qu'il faut
+> déplacer, ou bien relancer **⤓ Réorganiser**.
 
 **Chaque ligne mène au planning**, de deux façons complémentaires :
 
@@ -805,7 +851,93 @@ l'impression n'a aucune importance — tout est imprimé.
 
 ---
 
-## 13. Les paramètres du projet
+## 13. Le suivi d'avancement
+
+Une fois le PERT **réalisé et acté**, on passe en **suivi** : où en est-on aujourd'hui, et
+qu'est-ce qui doit inquiéter ? PertFlow répond à cette question **sans cesser d'être un PERT**.
+
+> **Ce que le suivi n'est pas.** Il ne replanifie rien, ne recalcule aucune date à partir du réel,
+> ne fait ni pourcentage d'avancement ni valeur acquise. Il **confronte** les dates du PERT à la
+> date du jour et à l'état des tâches, et le dit quand l'écart devient gros. C'est du pilotage
+> « ordre de grandeur » — quand une échéance ne tient plus, c'est à vous de retoucher le PERT.
+
+### Renseigner l'avancement d'une tâche
+
+Dans l'onglet **Propriétés** du panneau (§5), le champ **Avancement** propose trois états :
+**Non commencé** (par défaut), **En cours**, **Terminé**.
+
+![Le champ Avancement dans le panneau](images/manuel/panneau-avancement.png)
+
+Sur le planning, une **pastille** apparaît en haut à droite de la tâche — **uniquement** pour
+« en cours » (disque à moitié rempli, orange) et « terminé » (coche, verte) :
+
+![Les marqueurs d'avancement sur les nœuds](images/manuel/noeud-avancement.png)
+
+> Une tâche **non commencée** ne porte **aucune** marque : tant que personne ne saisit
+> d'avancement, votre planning est affiché exactement comme avant. Le suivi n'impose rien à qui
+> ne le pratique pas.
+
+**L'avancement n'entre dans aucun calcul** : dates au plus tôt et au plus tard, marges, chemin
+critique et coûts sont strictement identiques, que vous le renseigniez ou non. Le PERT reste la
+référence.
+
+### La fenêtre de suivi
+
+**📊 Synthèse ▾ → 📈 Avancement.** Deux onglets — **Tâches** et **Jalons** —, tous deux datés par
+rapport au **jour du point d'avancement** (la date du jour), rappelé en tête de fenêtre. Une
+**pastille** sur chaque onglet compte ses alertes.
+
+#### Onglet Tâches
+
+![L'onglet Tâches du suivi](images/manuel/suivi-taches.png)
+
+| Section | Ce qu'elle liste |
+|---|---|
+| **Où en est-on ?** | La date du point et le décompte des tâches par état. |
+| **En cours** | Les tâches déclarées en cours, **par groupe** puis par ordre chronologique de début au plus tôt. |
+| **À engager** | Les tâches non commencées **mûres** : celles dont une tâche amont est en cours, et celles dont le début au plus tôt tombe aujourd'hui. Ce sont les prochaines à lancer. |
+| **Auraient dû commencer** | Les tâches non commencées dont le **début au plus tôt est passé**, avec leur **retard** et la colonne **« Amont pas terminé »** — elle dit s'il faut relancer la tâche elle-même ou celle qui la précède. |
+
+Le bouton **🔎 Voir dans le planning** de la section *En cours* pose le filtre d'avancement (§6)
+et ferme la fenêtre : les tâches concernées sont mises en évidence, le reste est estompé.
+
+#### Onglet Jalons
+
+![L'onglet Jalons du suivi](images/manuel/suivi-jalons.png)
+
+| Section | Ce qu'elle liste |
+|---|---|
+| **Prochains jalons** | Les jalons à venir, du plus proche au plus lointain. La colonne **Amont restant** compte les tâches amont non terminées sur le total de l'amont. |
+| **Jalons en alerte** | Les jalons dont l'échéance tombe **dans l'horizon** (ou est déjà passée) alors que des tâches amont ne sont pas terminées. |
+
+L'échéance retenue est la **date-cible** du jalon si elle est renseignée, sinon sa **fin au plus
+tôt** — le jalon se juge là où on l'attend. L'horizon de vigilance vaut **15 jours**, **4 semaines**
+ou **2 mois** selon l'unité du projet.
+
+L'alerte a **deux niveaux**, parce que les deux situations n'appellent pas la même réaction :
+
+- **rouge** — au moins une tâche amont n'est **même pas commencée** si près de l'échéance : elle
+  ne tiendra probablement pas sans **replanification** ;
+- **orange** — l'amont est **engagé mais pas fini** : à **surveiller**.
+
+La colonne **Amont non terminé** nomme les tâches en cause et reprend la distinction : en rouge
+celles qu'il faut **lancer**, en orange celles qu'il faut **surveiller**. Toutes sont cliquables.
+
+> L'amont est pris **en remontant toute la chaîne**, et pas seulement le prédécesseur direct :
+> une tâche non commencée trois crans en amont menace tout autant l'échéance. Un jalon dont
+> **tout** l'amont est terminé n'est jamais en alerte, même à un jour de sa cible.
+
+### Retrouver un nœud, et imprimer
+
+Comme dans la synthèse (§12), **tous les noms listés mènent au nœud** : le clic ferme la fenêtre,
+sélectionne le nœud et centre la vue dessus — en **levant le filtre** s'il y en avait un (§6).
+
+Le bouton **🖨 Imprimer / PDF** imprime le suivi, les deux onglets devenant deux chapitres — de
+quoi emporter le point d'avancement en revue de projet.
+
+---
+
+## 14. Les paramètres du projet
 
 ![Le dialogue Paramètres](images/manuel/parametres.png)
 
@@ -874,7 +1006,7 @@ subdivisions disparaissent avant que la trame ne vire au gris uni.
 
 ---
 
-## 14. Raccourcis clavier
+## 15. Raccourcis clavier
 
 | Raccourci | Action |
 |---|---|
@@ -887,7 +1019,7 @@ subdivisions disparaissent avant que la trame ne vire au gris uni.
 
 ---
 
-## 15. Questions fréquentes
+## 16. Questions fréquentes
 
 **Puis-je utiliser PertFlow sans internet ?**
 Oui, c'est même le mode prévu : double-clic sur `pertflow.html`, tout fonctionne hors ligne.
