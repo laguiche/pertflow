@@ -1,0 +1,14 @@
+{
+  "name": "pertflow-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Outillage DEV : validation et captures d'ecran PertFlow (Playwright local, file://). Hors livraison.",
+  "scripts": {
+    "test": "node run-smokes.js",
+    "smoke": "node smoke.js",
+    "shot": "node screenshot.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.40.0"
+  }
+}

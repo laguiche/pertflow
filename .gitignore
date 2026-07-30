@@ -11,18 +11,41 @@ Thumbs.db
 # Node (si serveur de dev)
 node_modules/
 
-# Fichiers de projet sauvegardés
+# Fichiers de projet sauvegardés — sauf les jeux d'essai, réautorisés un par un plus bas.
 *.pert
 
-# Outillage de validation/captures (Playwright local, hors livraison)
-tools/
+# L'outillage de validation et de captures (tools/) EST versionné depuis le 30/07/2026 :
+# c'est la seule chose qui permette à un repreneur de vérifier une modification. Seuls
+# restent hors dépôt ses produits temporaires.
+tools/.smoke-out/
 
-# Fichiers d'exemple servant de reference aux tests (CPERT reels, exports attendus).
-# Non versionnes : ce sont les fichiers de travail de l'utilisateur.
-test_cases/
+# ── Jeux d'essai (test_cases/) ────────────────────────────────────────────────────────
+# Versionnés, mais en LISTE BLANCHE : tout est ignoré par défaut, chaque fichier partagé
+# est réautorisé nommément. Le sens de la règle est volontaire — un planning déposé ici
+# pour un essai n'est PAS suivi tant qu'on ne l'a pas explicitement décidé.
+#
+# Ce que la liste blanche protège : les exports CPERT (.xlsm) sont des plannings
+# d'entreprise. Et le danger n'est pas que dans le contenu visible — un classeur Excel
+# transporte, invisibles, le nom de son auteur, une classification DLP, les auteurs de
+# commentaires, un serveur d'impression, et le chemin complet des classeurs liés. C'est
+# ce qui a écarté gantt_charge.xlsx et microjalons.xlsx le 30/07/2026, dont les cellules
+# étaient pourtant synthétiques. Avant d'ajouter un « ! » pour un fichier Office :
+# ouvrir son zip et regarder docProps/, xl/externalLinks/, xl/comments*, printerSettings.
+test_cases/*
+!test_cases/pert_a_exporter.pert
+!test_cases/pert_a_exporter.csv
+!test_cases/pert_a_exporter_gantt.xlsx
+!test_cases/pert_a_exporter_microjalons.xlsx
+!test_cases/Nouveau_projet.pert
+!test_cases/test.pert
+!test_cases/test_2.pert
+!test_cases/test_3.pert
+!test_cases/test_4.pert
+!test_cases/test_5.pert
+!test_cases/test_6.pert
 
 # Le bundle HTML standalone (dist/pertflow.html) EST versionne : il est regenere et
-# committe a chaque fin de session (cf. CLAUDE.md « Rituel de fin de session »).
+# committe a chaque fin de session (cf. docs/maintenance.md « Rituel de fin de session »).
 
 # Archives de livraison : regenerables (scripts/make-release.js) et hebergees par les
 # « Releases » GitHub. Les versionner ferait un doublon du bundle, deja suivi.

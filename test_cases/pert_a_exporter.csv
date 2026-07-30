@@ -1,0 +1,9 @@
+﻿Type;UID;Libellé;Groupe;Responsable;Durée;Unité;ETP;Coût(k€);DébutTôt;FinTôt;DébutTard;FinTard;Marge;Critique;DateCible;TagJalon
+Jalon;;Jalon entrée 2;;;;mois;;;01/08/26;01/08/26;01/08/26;01/08/26;0;oui;01/08/26;
+Jalon;;Jalon entrée;;;;mois;;;01/09/26;01/09/26;01/09/26;01/09/26;0;oui;01/09/26;
+Jalon;;Jalon sortie 1;;;;mois;;;01/02/27;01/02/27;01/05/27;01/05/27;3;non;;
+Jalon;;Jalon sortie 2;;;;mois;;;01/02/27;01/02/27;01/03/27;01/03/27;1;non;01/03/27;DOTD
+Activité;a-mr2lq0c2-ygzmum;Activité 3;sys;toto;6;mois;1;110,2;01/08/26;01/02/27;01/08/26;01/02/27;0;oui;;
+Activité;a-mr2lq0c1-97ajg1;Activité 2;sys;;3;mois;0,75;41,3;01/11/26;01/02/27;01/02/27;01/05/27;3;non;;
+Activité;a-mr2lq0bx-vpalxh;Activité 1;algo;tata;2;mois;1;36,7;01/09/26;01/11/26;01/12/26;01/02/27;3;non;;
+Activité;a-mr2lq0c3-rl0oai;Activité 4;algo;;3;mois;2;110,2;01/02/27;01/05/27;01/02/27;01/05/27;0;oui;;

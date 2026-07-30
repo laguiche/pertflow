@@ -1,0 +1,321 @@
+{
+  "version": "1.0",
+  "meta": {
+    "title": "Nouveau projet",
+    "t0": "2025-07-01",
+    "unit": "mois",
+    "layout_gap": 30
+  },
+  "graph": {
+    "last_node_id": 6,
+    "last_link_id": 4,
+    "nodes": [
+      {
+        "id": 1,
+        "type": "pert/activity",
+        "pos": [
+          60,
+          234.76188976377952
+        ],
+        "size": [
+          140,
+          106
+        ],
+        "flags": {},
+        "order": 0,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null,
+            "pos": [
+              0,
+              42
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": [
+              1
+            ],
+            "pos": [
+              140,
+              42
+            ]
+          }
+        ],
+        "properties": {
+          "label": "Rédaction EMP",
+          "duration": 1.9,
+          "responsible": "",
+          "color": "#7ED321"
+        },
+        "color": "#7ED321",
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 3,
+        "type": "pert/activity",
+        "pos": [
+          247,
+          313
+        ],
+        "size": [
+          140,
+          106
+        ],
+        "flags": {},
+        "order": 1,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null,
+            "pos": [
+              0,
+              42
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": [
+              2,
+              4
+            ],
+            "pos": [
+              140,
+              42
+            ]
+          }
+        ],
+        "properties": {
+          "label": "Planification",
+          "duration": 1.9,
+          "responsible": "",
+          "color": "#7ED321"
+        },
+        "color": "#7ED321",
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 4,
+        "type": "pert/milestone",
+        "pos": [
+          805,
+          115
+        ],
+        "size": {
+          "0": 243.4166717529297,
+          "1": 70
+        },
+        "flags": {},
+        "order": 3,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 2
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": null
+          }
+        ],
+        "properties": {
+          "label": "RPP PERT\n(BP et Tranche 1)",
+          "due_date": "2025-08-28"
+        },
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 2,
+        "type": "pert/milestone",
+        "pos": [
+          726,
+          -2
+        ],
+        "size": {
+          "0": 160,
+          "1": 70
+        },
+        "flags": {},
+        "order": 2,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 1
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": null
+          }
+        ],
+        "properties": {
+          "label": "RPP EMP",
+          "due_date": "2025-08-28"
+        },
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 5,
+        "type": "pert/activity",
+        "pos": [
+          529,
+          324
+        ],
+        "size": {
+          "0": 180,
+          "1": 106
+        },
+        "flags": {},
+        "order": 4,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 4,
+            "pos": [
+              0,
+              42
+            ]
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null,
+            "pos": [
+              0,
+              62
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": [
+              3
+            ],
+            "pos": [
+              180,
+              42
+            ]
+          }
+        ],
+        "properties": {
+          "label": "Intégration",
+          "duration": 3,
+          "responsible": "jean-marcel ",
+          "color": "#7ED321"
+        },
+        "color": "#7ED321",
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 6,
+        "type": "pert/milestone",
+        "pos": [
+          882,
+          285
+        ],
+        "size": {
+          "0": 160,
+          "1": 70
+        },
+        "flags": {},
+        "order": 5,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 3
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": null
+          }
+        ],
+        "properties": {
+          "label": "STR",
+          "due_date": "2026-01-30"
+        },
+        "bgcolor": "#ffffff"
+      }
+    ],
+    "links": [
+      [
+        1,
+        1,
+        0,
+        2,
+        0,
+        "pert_flow"
+      ],
+      [
+        2,
+        3,
+        0,
+        4,
+        0,
+        "pert_flow"
+      ],
+      [
+        3,
+        5,
+        0,
+        6,
+        0,
+        "pert_flow"
+      ],
+      [
+        4,
+        3,
+        0,
+        5,
+        0,
+        "pert_flow"
+      ]
+    ],
+    "groups": [],
+    "config": {},
+    "extra": {},
+    "version": 0.4
+  }
+}

@@ -1,0 +1,559 @@
+{
+  "version": "1.0",
+  "meta": {
+    "title": "Nouveau projet",
+    "t0": "2026-07-01",
+    "unit": "mois",
+    "layout_gap": 30,
+    "link_mode": "courbe",
+    "prop_width": true,
+    "time_grid": false,
+    "time_grid_intensity": 1,
+    "hours_per_month": 135,
+    "hours_per_day": 8,
+    "hourly_rate": 136,
+    "groups": {
+      "sys": "#7ED321",
+      "algo": "#3584e4"
+    },
+    "autosave": true
+  },
+  "graph": {
+    "last_node_id": 9,
+    "last_link_id": 7,
+    "nodes": [
+      {
+        "id": 7,
+        "type": "pert/milestone",
+        "pos": [
+          540,
+          60
+        ],
+        "size": [
+          160,
+          90
+        ],
+        "flags": {},
+        "order": 4,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 5
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": null
+          }
+        ],
+        "properties": {
+          "label": "Jalon sortie 2",
+          "due_date": "2027-03-01",
+          "due_mode": "date",
+          "due_offset": null,
+          "tag": "DOTD",
+          "notes": ""
+        },
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 4,
+        "type": "pert/milestone",
+        "pos": [
+          630,
+          212
+        ],
+        "size": [
+          160,
+          55
+        ],
+        "flags": {},
+        "order": 8,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 2
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": null
+          }
+        ],
+        "properties": {
+          "label": "Jalon sortie 1",
+          "due_date": "",
+          "due_mode": "date",
+          "due_offset": null,
+          "tag": "",
+          "notes": ""
+        },
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 6,
+        "type": "pert/milestone",
+        "pos": [
+          120,
+          364
+        ],
+        "size": [
+          160,
+          70
+        ],
+        "flags": {},
+        "order": 0,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": [
+              4
+            ]
+          }
+        ],
+        "properties": {
+          "label": "Jalon entrée 2",
+          "due_date": "2026-08-01",
+          "due_mode": "date",
+          "due_offset": null,
+          "tag": "",
+          "notes": ""
+        },
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 5,
+        "type": "pert/milestone",
+        "pos": [
+          27.098236775818485,
+          670.2821158690176
+        ],
+        "size": [
+          160,
+          70
+        ],
+        "flags": {},
+        "order": 1,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": [
+              3
+            ]
+          }
+        ],
+        "properties": {
+          "label": "Jalon entrée",
+          "due_date": "2026-09-01",
+          "due_mode": "date",
+          "due_offset": null,
+          "tag": "",
+          "notes": ""
+        },
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 8,
+        "type": "pert/activity",
+        "pos": [
+          387,
+          518
+        ],
+        "size": [
+          180,
+          106
+        ],
+        "flags": {},
+        "order": 5,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 6,
+            "pos": [
+              0,
+              42
+            ]
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null,
+            "pos": [
+              0,
+              62
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": null,
+            "pos": [
+              180,
+              42
+            ]
+          }
+        ],
+        "properties": {
+          "uid": "a-mr2lq0c3-rl0oai",
+          "label": "Activité 4",
+          "duration": 3,
+          "etp": 2,
+          "responsible": "",
+          "group": "algo",
+          "notes": "blablabla",
+          "anticipated": false,
+          "color": "#3584e4"
+        },
+        "color": "#3584e4",
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 2,
+        "type": "pert/activity",
+        "pos": [
+          267,
+          670
+        ],
+        "size": [
+          180,
+          106
+        ],
+        "flags": {},
+        "order": 6,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 1,
+            "pos": [
+              0,
+              42
+            ]
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null,
+            "pos": [
+              0,
+              62
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": [
+              2
+            ],
+            "pos": [
+              180,
+              42
+            ]
+          }
+        ],
+        "properties": {
+          "uid": "a-mr2lq0c1-97ajg1",
+          "label": "Activité 2",
+          "duration": 3,
+          "etp": 0.75,
+          "responsible": "",
+          "group": "sys",
+          "notes": "",
+          "anticipated": false,
+          "color": "#7ED321"
+        },
+        "color": "#7ED321",
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 1,
+        "type": "pert/activity",
+        "pos": [
+          210,
+          820
+        ],
+        "size": [
+          180,
+          122
+        ],
+        "flags": {},
+        "order": 3,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 3,
+            "pos": [
+              0,
+              58
+            ]
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null,
+            "pos": [
+              0,
+              78
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": [
+              1,
+              7
+            ],
+            "pos": [
+              180,
+              58
+            ],
+            "slot_index": 0
+          }
+        ],
+        "properties": {
+          "uid": "a-mr2lq0bx-vpalxh",
+          "label": "Activité 1",
+          "duration": 3,
+          "etp": 1,
+          "responsible": "tata",
+          "group": "algo",
+          "notes": "",
+          "anticipated": false,
+          "color": "#3584e4"
+        },
+        "color": "#3584e4",
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 9,
+        "type": "pert/activity",
+        "pos": [
+          420,
+          820
+        ],
+        "size": [
+          180,
+          106
+        ],
+        "flags": {},
+        "order": 7,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 7,
+            "pos": [
+              0,
+              42
+            ]
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null,
+            "pos": [
+              0,
+              62
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": null,
+            "pos": [
+              180,
+              42
+            ]
+          }
+        ],
+        "properties": {
+          "uid": "a-mr88pj2f-3ayzg9",
+          "label": "Nouvelle activité",
+          "duration": 3,
+          "etp": 3,
+          "responsible": "",
+          "group": "",
+          "notes": "",
+          "anticipated": false,
+          "color": "#4A90D9"
+        },
+        "color": "#4A90D9",
+        "bgcolor": "#ffffff"
+      },
+      {
+        "id": 3,
+        "type": "pert/activity",
+        "pos": [
+          -45,
+          513
+        ],
+        "size": [
+          360,
+          122
+        ],
+        "flags": {},
+        "order": 2,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": 4,
+            "pos": [
+              0,
+              58
+            ]
+          },
+          {
+            "name": "",
+            "type": "pert_flow",
+            "link": null,
+            "pos": [
+              0,
+              78
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "",
+            "type": "pert_flow",
+            "links": [
+              5,
+              6
+            ],
+            "pos": [
+              360,
+              58
+            ]
+          }
+        ],
+        "properties": {
+          "uid": "a-mr2lq0c2-ygzmum",
+          "label": "Activité 3",
+          "duration": 6,
+          "etp": 1,
+          "responsible": "toto",
+          "group": "sys",
+          "notes": "",
+          "anticipated": false,
+          "color": "#7ED321"
+        },
+        "color": "#7ED321",
+        "bgcolor": "#ffffff"
+      }
+    ],
+    "links": [
+      [
+        1,
+        1,
+        0,
+        2,
+        0,
+        "pert_flow"
+      ],
+      [
+        2,
+        2,
+        0,
+        4,
+        0,
+        "pert_flow"
+      ],
+      [
+        3,
+        5,
+        0,
+        1,
+        0,
+        "pert_flow"
+      ],
+      [
+        4,
+        6,
+        0,
+        3,
+        0,
+        "pert_flow"
+      ],
+      [
+        5,
+        3,
+        0,
+        7,
+        0,
+        "pert_flow"
+      ],
+      [
+        6,
+        3,
+        0,
+        8,
+        0,
+        "pert_flow"
+      ],
+      [
+        7,
+        1,
+        0,
+        9,
+        0,
+        "pert_flow"
+      ]
+    ],
+    "groups": [],
+    "config": {},
+    "extra": {},
+    "version": 0.4
+  }
+}
