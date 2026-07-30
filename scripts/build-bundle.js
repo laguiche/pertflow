@@ -8,7 +8,7 @@
 //
 // Contrainte file:// : le bundle s'ouvre par double-clic, sans serveur. Comme tout
 // est inliné, il n'y a aucune requête réseau ni chargement de fichier — compatible
-// avec les contraintes DSI (cf. CLAUDE.md). Aucune dépendance npm : Node natif seul.
+// avec les contraintes DSI (cf. docs/conception.md). Aucune dépendance npm : Node natif seul.
 //
 // Le bundle embarque ses métadonnées de version (date de génération + tag de la
 // branche main) dans window.PERTFLOW_BUILD, affichées par le bouton « À propos ».

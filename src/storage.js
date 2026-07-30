@@ -1,6 +1,6 @@
 // ─── Sauvegarde / chargement JSON (.pert) — Session 3 ───────────────────────────
 //
-// Format du fichier .pert (cf. CLAUDE.md « MODELE DE DONNEES ») :
+// Format du fichier .pert (modele de donnees detaille dans docs/conception.md) :
 //   { version, meta:{ title, t0, unit, layout_gap }, graph: <graph.serialize()> }
 //
 // Contrainte file:// (PC verrouille DSI) : aucune requete reseau.

@@ -5,7 +5,7 @@
 // connecteurs = aretes) ; les metadonnees (T0, unite, feuille cible) sont lues
 // dans la feuille de config "MANUEL".
 //
-// Contrainte file:// (cf. CLAUDE.md) : pas de fetch, pas de module ES6, pas de
+// Contrainte file:// (cf. docs/conception.md) : pas de fetch, pas de module ES6, pas de
 // serveur. Le .xlsm (un ZIP) est dezippe par fflate (lib/fflate.min.js, charge en
 // <script src> avant ce fichier) a partir d'un ArrayBuffer fourni par FileReader.
 // Les XML sont parses par DOMParser natif (navigateur).
