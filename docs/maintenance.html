@@ -39,8 +39,9 @@
     @page { margin: 18mm 16mm; }
     </style></head><body><h1 id="document-de-maintenance-pertflow">Document de maintenance — PertFlow</h1>
 <p>Guide pratique pour <strong>reprendre et faire évoluer</strong> PertFlow. À lire avec
-<a href="conception.md">conception.md</a> (architecture) et le <code>CLAUDE.md</code> racine (historique détaillé des
-sessions et décisions).</p>
+<a href="conception.md">conception.md</a>, qui explique l'architecture et <em>pourquoi</em> elle est ainsi.
+Ces deux documents, avec le <a href="manuel-utilisateur.md">manuel utilisateur</a>, sont la mémoire du
+projet : ce qui n'y figure pas n'a pas à être cherché ailleurs.</p>
 <hr />
 <h2 id="1-reprendre-le-projet-en-2-minutes">1. Reprendre le projet en 2 minutes</h2>
 <ul>
@@ -49,7 +50,8 @@ sessions et décisions).</p>
 <li><strong>Pour développer</strong>, éditez <code>index.html</code>, <code>src/*.js</code>, <code>css/style.css</code> et rechargez la page.</li>
 <li>Un serveur local (<code>npx serve .</code> ou <code>python -m http.server</code>) n'est qu'un <strong>confort de dev
   ponctuel</strong> : il ne doit <strong>jamais</strong> devenir nécessaire (voir contraintes ci-dessous).</li>
-<li>Récupérer l'environnement : <code>npm install</code> reconstitue <code>node_modules</code> (exclu du git).</li>
+<li><strong>Pour valider</strong> une modification, en revanche, il y a une installation (Node + le Chromium de
+  Playwright) : voir <a href="../tools/README.md"><code>tools/README.md</code></a>, puis <code>cd tools &amp;&amp; npm test</code>.</li>
 </ul>
 <hr />
 <h2 id="2-contraintes-absolues-a-ne-jamais-enfreindre">2. Contraintes ABSOLUES (à ne jamais enfreindre)</h2>
@@ -132,21 +134,26 @@ déploiement cible.</p>
 LiteGraph, l'intégrer au moteur si pertinent (<code>pert_engine.js</code>) et à la sérialisation.</p>
 <hr />
 <h2 id="5-outillage-de-validation-tools">5. Outillage de validation (<code>tools/</code>)</h2>
-<blockquote>
-<p>⚠️ Le dossier <strong><code>tools/</code> est gitignoré</strong> (outillage de dev, hors livraison). Il contient
-<code>playwright-core</code> + un Chromium local. <code>npx playwright install chromium</code> si absent.</p>
-</blockquote>
+<p><strong>Le mode d'emploi complet est dans <a href="../tools/README.md"><code>tools/README.md</code></a></strong> — prérequis,
+lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :</p>
+<pre><code class="language-bash">cd tools &amp;&amp; npm install &amp;&amp; npx playwright install chromium   # une fois
+npm test                                                     # 29 tests, ~85 s
+</code></pre>
 <ul>
-<li><strong>Smoke tests</strong> headless en navigateur réel (<code>file://</code>) : <code>tools/smoke.js</code> (parcours général)
-  et un <code>tools/smoke-sN.js</code> par session. Ils pilotent l'app via Playwright et vérifient l'absence
-  d'erreur console. Modèle de validation systématique avant clôture de session.</li>
-<li><strong>Captures d'écran de doc</strong> : <code>tools/screenshot.js</code> (<code>--app</code> / <code>--graph</code>) et <code>tools/doc-shots.js</code>
-  (jeu de captures du manuel dans <code>docs/images/manuel/</code>).</li>
-<li>Certains tests attendent <code>C_PERT_exemple.xlsm</code> à la racine ; les fichiers d'exemple vivent dans
-  <code>test_cases/</code> (<strong>non versionné</strong>) → copie temporaire à la racine pour lancer ces tests.</li>
+<li><strong>Suite smoke</strong> : chaque test pilote l'application dans un vrai Chromium ouvert en <code>file://</code> —
+  le mode de déploiement cible — clique les vrais boutons, et vérifie ce qui est affiché ou
+  exporté, erreurs console comprises. <code>run-smokes.js</code> les enchaîne et rend un compte rendu unique.</li>
+<li><strong>Jeux d'essai dans <code>test_cases/</code></strong>, versionnés en <strong>liste blanche</strong> (tout ignoré, chaque fichier
+  réautorisé nommément). <strong>Aucun fichier CPERT n'est versionné</strong> — ce sont des plannings
+  d'entreprise : les deux étapes qui en dépendent se désactivent seules, la suite reste verte. Pour
+  les jouer, y déposer son propre export — cf. <code>tools/README.md</code>.</li>
+<li><strong>Captures d'écran</strong> : <code>doc-shots*.js</code> alimentent <code>docs/images/manuel/</code> (versionné),
+  <code>shots-*.js</code> produisent des captures de relecture dans <code>/tmp</code>, <code>screenshot.js</code> fait l'unitaire.</li>
+<li><strong><code>check-bundle.js</code></strong> vérifie le bundle livré, pas les sources — à lancer après un build.</li>
 </ul>
-<p>Validation « pure Node » possible quand Playwright est indisponible (le moteur PERT est du JS sans
-DOM ; on stube <code>window</code>).</p>
+<blockquote>
+<p>La suite doit passer <strong>avant</strong> toute clôture de session : c'est le seul filet du projet.</p>
+</blockquote>
 <h3 id="documentation-markdown-base-html-autonome-pdf">Documentation : Markdown (base) + HTML autonome + PDF</h3>
 <p>Les documents (<code>docs/*.md</code>) sont la <strong>source</strong>. Pour <strong>chaque</strong> document, on génère aussi une
 <strong>version HTML autonome</strong> (images embarquées en data-URI, consultable hors ligne d'un double-clic)
@@ -177,22 +184,28 @@ et un <strong>PDF</strong>. Ces sorties <code>docs/*.html</code> et <code>docs/*
 <h3 id="rituel-de-fin-de-session-obligatoire">Rituel de fin de session (obligatoire)</h3>
 <p>À chaque clôture, <strong>avant</strong> le commit final :</p>
 <ol>
-<li><strong>Mettre à jour la documentation</strong> (<code>CLAUDE.md</code>, <code>docs/journal-developpement.md</code>, mémoire) —
-   <strong>avant</strong> le push.</li>
+<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 29/29).</li>
+<li><strong>Mettre à jour la documentation</strong> touchée — les <code>.md</code> de <code>docs/</code>, leurs versions HTML/PDF
+   (<code>node tools/build-docs.js</code>) et les notes de version — <strong>avant</strong> le push.</li>
 <li><strong>Régénérer le bundle</strong> avec le tag de la session :
-   <code>node scripts/build-bundle.js --tag vX.Y</code>.</li>
+   <code>node scripts/build-bundle.js --tag vX.Y</code>, puis le vérifier : <code>node tools/check-bundle.js vX.Y</code>.</li>
 <li><strong>Committer + pousser le bundle</strong> (<code>dist/pertflow.html</code>, <strong>versionné</strong>) avec le reste.</li>
 <li>Le bundle embarque le bouton <strong>« À propos »</strong> (© Stéphane Guichard, licence MIT, date de
    génération et tag) : ces valeurs sont injectées par le build dans <code>window.PERTFLOW_BUILD</code> —
    <strong>ne jamais les coder en dur</strong>.</li>
 </ol>
-<p>Ordre : finaliser code/doc → régénérer bundle (<code>--tag</code>) → committer (source + bundle) → pousser →
-merger sur <code>main</code> → taguer → pousser le tag.</p>
+<p>Ordre : finaliser code/doc → suite verte → régénérer bundle (<code>--tag</code>) → committer (source +
+bundle) → pousser → merger sur <code>main</code> → taguer → pousser le tag.</p>
 <hr />
 <h2 id="7-points-de-vigilance-divers">7. Points de vigilance divers</h2>
 <ul>
-<li><strong>Ne pas versionner</strong> <code>test_cases/</code> ni <code>tools/</code> (déjà gitignorés). Éviter <code>git add -A</code> aveugle
-  (préférer <code>git add &lt;fichiers&gt;</code> explicites) pour ne pas committer un <code>.xlsm</code> d'exemple.</li>
+<li><strong><code>test_cases/</code> est en liste blanche, ne pas la transformer en liste noire</strong> : le <code>.gitignore</code>
+  ignore tout le répertoire et réautorise chaque fichier nommément, ce qui rend <code>git add -A</code> sans
+  danger et laisse déposer un planning de travail sans risque de le publier. Avant d'ajouter un
+  <code>!</code> sur un fichier Office, <strong>inspecter son zip</strong> : <code>docProps/</code> (auteur, classification),
+  <code>xl/externalLinks/</code> (chemin complet des classeurs liés), <code>xl/comments*</code> (auteurs),
+  <code>printerSettings</code> (serveur d'impression). Deux <code>.xlsx</code> aux cellules pourtant synthétiques ont
+  été écartés pour cette seule raison le 30/07/2026.</li>
 <li><strong><code>console.log</code> fonctionne</strong> ici (contrairement à l'intégration LaBotBox du dépôt jumeau) ; mais
   en <code>file://</code> l'utilisateur final n'a pas la console → passer par <code>showToast</code>/<code>showError</code>.</li>
 <li><strong>Compatibilité navigateur</strong> : cible Chrome/Edge/Firefox récents. Les contrôles « natifs »
@@ -212,16 +225,16 @@ merger sur <code>main</code> → taguer → pousser le tag.</p>
 </thead>
 <tbody>
 <tr>
-<td>L'historique détaillé et les décisions de chaque session</td>
-<td><code>CLAUDE.md</code> (racine)</td>
-</tr>
-<tr>
-<td>Le récit de développement (restitution)</td>
-<td><code>docs/journal-developpement.md</code></td>
-</tr>
-<tr>
 <td>Le manuel utilisateur</td>
 <td><code>docs/manuel-utilisateur.md</code></td>
+</tr>
+<tr>
+<td>Ce qui a changé d'une version à l'autre</td>
+<td><code>docs/release-notes.md</code></td>
+</tr>
+<tr>
+<td>Comment valider une modification</td>
+<td><code>tools/README.md</code></td>
 </tr>
 <tr>
 <td>L'architecture et les choix techniques</td>

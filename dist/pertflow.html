@@ -1911,7 +1911,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"29/07/2026","tag":"v0.21"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"30/07/2026","tag":"v0.21"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -39210,7 +39210,7 @@ window.pertMilestoneDueLabel = pertMilestoneDueLabel;
 // connecteurs = aretes) ; les metadonnees (T0, unite, feuille cible) sont lues
 // dans la feuille de config "MANUEL".
 //
-// Contrainte file:// (cf. CLAUDE.md) : pas de fetch, pas de module ES6, pas de
+// Contrainte file:// (cf. docs/conception.md) : pas de fetch, pas de module ES6, pas de
 // serveur. Le .xlsm (un ZIP) est dezippe par fflate (lib/fflate.min.js, charge en
 // <script src> avant ce fichier) a partir d'un ArrayBuffer fourni par FileReader.
 // Les XML sont parses par DOMParser natif (navigateur).
@@ -39642,7 +39642,7 @@ window.pertMilestoneDueLabel = pertMilestoneDueLabel;
 // l'ordre d'affichage ne depend PAS de l'ordre de chargement des <script>.
 //
 // Ce module heberge aussi les DEUX regles transverses aux formats (decisions du
-// 08/07/2026, cf. docs/historique-sessions.md « Refonte de l'import ») :
+// 08/07/2026, refonte de l'import) :
 //
 //   1. T0 = min(T0 courant, T0 importe) + ANCRAGE. Le bloc dont le T0 d'origine est le
 //      plus tardif recoit un jalon entrant date a ce T0, branche sur ses racines. On
@@ -40475,7 +40475,7 @@ window.applyPertImport = applyPertImport;
 /* src/storage.js */
 // ─── Sauvegarde / chargement JSON (.pert) — Session 3 ───────────────────────────
 //
-// Format du fichier .pert (cf. CLAUDE.md « MODELE DE DONNEES ») :
+// Format du fichier .pert (modele de donnees detaille dans docs/conception.md) :
 //   { version, meta:{ title, t0, unit, layout_gap }, graph: <graph.serialize()> }
 //
 // Contrainte file:// (PC verrouille DSI) : aucune requete reseau.
@@ -40895,7 +40895,7 @@ window.pertCloseExportDialog = pertCloseExportDialog;
 // de colonnes est « ; »), dates au format FR. Un BOM UTF-8 est prepose pour qu'Excel
 // reconnaisse l'encodage et affiche correctement les accents.
 //
-// Colonnes (schema figé — detail S9 dans docs/historique-sessions.md) :
+// Colonnes (schema fige, a ne plus bouger : des tableurs utilisateurs s'y adossent) :
 //   Type ; UID ; Libellé ; Groupe ; Responsable ; Durée ; Unité ; ETP ; Coût(k€) ;
 //   DébutTôt ; FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon ;
 //   Avancement

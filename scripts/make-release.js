@@ -18,7 +18,7 @@
 // Usage :  node scripts/make-release.js [--tag vX.Y]
 //   --tag : version a livrer (sinon : dernier tag git accessible).
 //
-// Publication : voir le rituel de fin de session dans CLAUDE.md
+// Publication : voir le rituel de fin de session dans docs/maintenance.md
 //   gh release create vX.Y dist/release/pertflow_vX_Y.zip --title ... --notes-file ...
 
 "use strict";
@@ -67,7 +67,7 @@ if (bundleTag !== tag) {
 }
 if (!fs.existsSync(MANUEL)) fail("manuel PDF absent : " + MANUEL + " (node tools/build-docs.js)");
 
-// zip est fourni par le systeme (aucune dependance npm dans ce projet, cf. CLAUDE.md).
+// zip est fourni par le systeme (aucune dependance npm dans ce projet, cf. docs/conception.md).
 try {
   cp.execSync("command -v zip", { stdio: "ignore" });
 } catch (e) {

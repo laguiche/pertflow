@@ -1,8 +1,9 @@
 # Document de maintenance — PertFlow
 
 Guide pratique pour **reprendre et faire évoluer** PertFlow. À lire avec
-[conception.md](conception.md) (architecture) et le `CLAUDE.md` racine (historique détaillé des
-sessions et décisions).
+[conception.md](conception.md), qui explique l'architecture et *pourquoi* elle est ainsi.
+Ces deux documents, avec le [manuel utilisateur](manuel-utilisateur.md), sont la mémoire du
+projet : ce qui n'y figure pas n'a pas à être cherché ailleurs.
 
 ---
 
@@ -13,7 +14,8 @@ sessions et décisions).
 - **Pour développer**, éditez `index.html`, `src/*.js`, `css/style.css` et rechargez la page.
 - Un serveur local (`npx serve .` ou `python -m http.server`) n'est qu'un **confort de dev
   ponctuel** : il ne doit **jamais** devenir nécessaire (voir contraintes ci-dessous).
-- Récupérer l'environnement : `npm install` reconstitue `node_modules` (exclu du git).
+- **Pour valider** une modification, en revanche, il y a une installation (Node + le Chromium de
+  Playwright) : voir [`tools/README.md`](../tools/README.md), puis `cd tools && npm test`.
 
 ---
 
@@ -80,19 +82,26 @@ LiteGraph, l'intégrer au moteur si pertinent (`pert_engine.js`) et à la séria
 
 ## 5. Outillage de validation (`tools/`)
 
-> ⚠️ Le dossier **`tools/` est gitignoré** (outillage de dev, hors livraison). Il contient
-> `playwright-core` + un Chromium local. `npx playwright install chromium` si absent.
+**Le mode d'emploi complet est dans [`tools/README.md`](../tools/README.md)** — prérequis,
+lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :
 
-- **Smoke tests** headless en navigateur réel (`file://`) : `tools/smoke.js` (parcours général)
-  et un `tools/smoke-sN.js` par session. Ils pilotent l'app via Playwright et vérifient l'absence
-  d'erreur console. Modèle de validation systématique avant clôture de session.
-- **Captures d'écran de doc** : `tools/screenshot.js` (`--app` / `--graph`) et `tools/doc-shots.js`
-  (jeu de captures du manuel dans `docs/images/manuel/`).
-- Certains tests attendent `C_PERT_exemple.xlsm` à la racine ; les fichiers d'exemple vivent dans
-  `test_cases/` (**non versionné**) → copie temporaire à la racine pour lancer ces tests.
+```bash
+cd tools && npm install && npx playwright install chromium   # une fois
+npm test                                                     # 29 tests, ~85 s
+```
 
-Validation « pure Node » possible quand Playwright est indisponible (le moteur PERT est du JS sans
-DOM ; on stube `window`).
+- **Suite smoke** : chaque test pilote l'application dans un vrai Chromium ouvert en `file://` —
+  le mode de déploiement cible — clique les vrais boutons, et vérifie ce qui est affiché ou
+  exporté, erreurs console comprises. `run-smokes.js` les enchaîne et rend un compte rendu unique.
+- **Jeux d'essai dans `test_cases/`**, versionnés en **liste blanche** (tout ignoré, chaque fichier
+  réautorisé nommément). **Aucun fichier CPERT n'est versionné** — ce sont des plannings
+  d'entreprise : les deux étapes qui en dépendent se désactivent seules, la suite reste verte. Pour
+  les jouer, y déposer son propre export — cf. `tools/README.md`.
+- **Captures d'écran** : `doc-shots*.js` alimentent `docs/images/manuel/` (versionné),
+  `shots-*.js` produisent des captures de relecture dans `/tmp`, `screenshot.js` fait l'unitaire.
+- **`check-bundle.js`** vérifie le bundle livré, pas les sources — à lancer après un build.
+
+> La suite doit passer **avant** toute clôture de session : c'est le seul filet du projet.
 
 ### Documentation : Markdown (base) + HTML autonome + PDF
 
@@ -126,24 +135,30 @@ et un **PDF**. Ces sorties `docs/*.html` et `docs/*.pdf` sont **versionnées** (
 
 À chaque clôture, **avant** le commit final :
 
-1. **Mettre à jour la documentation** (`CLAUDE.md`, `docs/journal-developpement.md`, mémoire) —
-   **avant** le push.
-2. **Régénérer le bundle** avec le tag de la session :
-   `node scripts/build-bundle.js --tag vX.Y`.
-3. **Committer + pousser le bundle** (`dist/pertflow.html`, **versionné**) avec le reste.
-4. Le bundle embarque le bouton **« À propos »** (© Stéphane Guichard, licence MIT, date de
+1. **Faire passer la suite** : `cd tools && npm test` (attendu : 29/29).
+2. **Mettre à jour la documentation** touchée — les `.md` de `docs/`, leurs versions HTML/PDF
+   (`node tools/build-docs.js`) et les notes de version — **avant** le push.
+3. **Régénérer le bundle** avec le tag de la session :
+   `node scripts/build-bundle.js --tag vX.Y`, puis le vérifier : `node tools/check-bundle.js vX.Y`.
+4. **Committer + pousser le bundle** (`dist/pertflow.html`, **versionné**) avec le reste.
+5. Le bundle embarque le bouton **« À propos »** (© Stéphane Guichard, licence MIT, date de
    génération et tag) : ces valeurs sont injectées par le build dans `window.PERTFLOW_BUILD` —
    **ne jamais les coder en dur**.
 
-Ordre : finaliser code/doc → régénérer bundle (`--tag`) → committer (source + bundle) → pousser →
-merger sur `main` → taguer → pousser le tag.
+Ordre : finaliser code/doc → suite verte → régénérer bundle (`--tag`) → committer (source +
+bundle) → pousser → merger sur `main` → taguer → pousser le tag.
 
 ---
 
 ## 7. Points de vigilance divers
 
-- **Ne pas versionner** `test_cases/` ni `tools/` (déjà gitignorés). Éviter `git add -A` aveugle
-  (préférer `git add <fichiers>` explicites) pour ne pas committer un `.xlsm` d'exemple.
+- **`test_cases/` est en liste blanche, ne pas la transformer en liste noire** : le `.gitignore`
+  ignore tout le répertoire et réautorise chaque fichier nommément, ce qui rend `git add -A` sans
+  danger et laisse déposer un planning de travail sans risque de le publier. Avant d'ajouter un
+  `!` sur un fichier Office, **inspecter son zip** : `docProps/` (auteur, classification),
+  `xl/externalLinks/` (chemin complet des classeurs liés), `xl/comments*` (auteurs),
+  `printerSettings` (serveur d'impression). Deux `.xlsx` aux cellules pourtant synthétiques ont
+  été écartés pour cette seule raison le 30/07/2026.
 - **`console.log` fonctionne** ici (contrairement à l'intégration LaBotBox du dépôt jumeau) ; mais
   en `file://` l'utilisateur final n'a pas la console → passer par `showToast`/`showError`.
 - **Compatibilité navigateur** : cible Chrome/Edge/Firefox récents. Les contrôles « natifs »
@@ -158,9 +173,9 @@ merger sur `main` → taguer → pousser le tag.
 
 | Je cherche… | Fichier |
 |---|---|
-| L'historique détaillé et les décisions de chaque session | `CLAUDE.md` (racine) |
-| Le récit de développement (restitution) | `docs/journal-developpement.md` |
 | Le manuel utilisateur | `docs/manuel-utilisateur.md` |
+| Ce qui a changé d'une version à l'autre | `docs/release-notes.md` |
+| Comment valider une modification | `tools/README.md` |
 | L'architecture et les choix techniques | `docs/conception.md` |
 | Le calcul PERT | `src/pert_engine.js` |
 | Le rendu des nœuds / liens | `src/nodes.js`, `src/link_routing.js` |

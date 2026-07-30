@@ -1,7 +1,7 @@
 # PertFlow — Notes de version
 
-Historique synthétique des versions livrées, orienté utilisateur (la version détaillée,
-technique, est dans `CLAUDE.md` et `docs/journal-developpement.md`).
+Historique synthétique des versions livrées, orienté utilisateur (le détail technique est
+dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 - **Licence** : MIT — © Stéphane Guichard
 - **Usage** : application web 100 % hors ligne, ouverte par double-clic (`file://`) ;
