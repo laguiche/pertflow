@@ -137,16 +137,17 @@ LiteGraph, l'intégrer au moteur si pertinent (<code>pert_engine.js</code>) et �
 <p><strong>Le mode d'emploi complet est dans <a href="../tools/README.md"><code>tools/README.md</code></a></strong> — prérequis,
 lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :</p>
 <pre><code class="language-bash">cd tools &amp;&amp; npm install &amp;&amp; npx playwright install chromium   # une fois
-npm test                                                     # 29 tests, ~85 s
+npm test                                                     # 30 tests, ~90 s
 </code></pre>
 <ul>
 <li><strong>Suite smoke</strong> : chaque test pilote l'application dans un vrai Chromium ouvert en <code>file://</code> —
   le mode de déploiement cible — clique les vrais boutons, et vérifie ce qui est affiché ou
   exporté, erreurs console comprises. <code>run-smokes.js</code> les enchaîne et rend un compte rendu unique.</li>
 <li><strong>Jeux d'essai dans <code>test_cases/</code></strong>, versionnés en <strong>liste blanche</strong> (tout ignoré, chaque fichier
-  réautorisé nommément). <strong>Aucun fichier CPERT n'est versionné</strong> — ce sont des plannings
-  d'entreprise : les deux étapes qui en dépendent se désactivent seules, la suite reste verte. Pour
-  les jouer, y déposer son propre export — cf. <code>tools/README.md</code>.</li>
+  réautorisé nommément). Aucun planning CPERT réel n'y figure — ce sont des documents d'entreprise :
+  l'import CPERT est testé sur un classeur <strong>fabriqué</strong> par <code>tools/make-cpert-fixture.js</code>, conçu
+  pour exercer chaque règle de lecture. Si vous disposez d'un vrai CPERT, le déposer ici ajoute une
+  non-régression supplémentaire — cf. <code>tools/README.md</code>.</li>
 <li><strong>Captures d'écran</strong> : <code>doc-shots*.js</code> alimentent <code>docs/images/manuel/</code> (versionné),
   <code>shots-*.js</code> produisent des captures de relecture dans <code>/tmp</code>, <code>screenshot.js</code> fait l'unitaire.</li>
 <li><strong><code>check-bundle.js</code></strong> vérifie le bundle livré, pas les sources — à lancer après un build.</li>
@@ -184,7 +185,7 @@ et un <strong>PDF</strong>. Ces sorties <code>docs/*.html</code> et <code>docs/*
 <h3 id="rituel-de-fin-de-session-obligatoire">Rituel de fin de session (obligatoire)</h3>
 <p>À chaque clôture, <strong>avant</strong> le commit final :</p>
 <ol>
-<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 29/29).</li>
+<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 30/30).</li>
 <li><strong>Mettre à jour la documentation</strong> touchée — les <code>.md</code> de <code>docs/</code>, leurs versions HTML/PDF
    (<code>node tools/build-docs.js</code>) et les notes de version — <strong>avant</strong> le push.</li>
 <li><strong>Régénérer le bundle</strong> avec le tag de la session :

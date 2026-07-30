@@ -87,16 +87,17 @@ lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :
 
 ```bash
 cd tools && npm install && npx playwright install chromium   # une fois
-npm test                                                     # 29 tests, ~85 s
+npm test                                                     # 30 tests, ~90 s
 ```
 
 - **Suite smoke** : chaque test pilote l'application dans un vrai Chromium ouvert en `file://` —
   le mode de déploiement cible — clique les vrais boutons, et vérifie ce qui est affiché ou
   exporté, erreurs console comprises. `run-smokes.js` les enchaîne et rend un compte rendu unique.
 - **Jeux d'essai dans `test_cases/`**, versionnés en **liste blanche** (tout ignoré, chaque fichier
-  réautorisé nommément). **Aucun fichier CPERT n'est versionné** — ce sont des plannings
-  d'entreprise : les deux étapes qui en dépendent se désactivent seules, la suite reste verte. Pour
-  les jouer, y déposer son propre export — cf. `tools/README.md`.
+  réautorisé nommément). Aucun planning CPERT réel n'y figure — ce sont des documents d'entreprise :
+  l'import CPERT est testé sur un classeur **fabriqué** par `tools/make-cpert-fixture.js`, conçu
+  pour exercer chaque règle de lecture. Si vous disposez d'un vrai CPERT, le déposer ici ajoute une
+  non-régression supplémentaire — cf. `tools/README.md`.
 - **Captures d'écran** : `doc-shots*.js` alimentent `docs/images/manuel/` (versionné),
   `shots-*.js` produisent des captures de relecture dans `/tmp`, `screenshot.js` fait l'unitaire.
 - **`check-bundle.js`** vérifie le bundle livré, pas les sources — à lancer après un build.
@@ -135,7 +136,7 @@ et un **PDF**. Ces sorties `docs/*.html` et `docs/*.pdf` sont **versionnées** (
 
 À chaque clôture, **avant** le commit final :
 
-1. **Faire passer la suite** : `cd tools && npm test` (attendu : 29/29).
+1. **Faire passer la suite** : `cd tools && npm test` (attendu : 30/30).
 2. **Mettre à jour la documentation** touchée — les `.md` de `docs/`, leurs versions HTML/PDF
    (`node tools/build-docs.js`) et les notes de version — **avant** le push.
 3. **Régénérer le bundle** avec le tag de la session :

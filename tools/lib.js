@@ -15,14 +15,19 @@ const ROOT = path.resolve(__dirname, '..');
 // pouvoir y entrer par megarde -- voir tools/README.md, « Jeux d'essai ».
 const EXEMPLES = path.join(ROOT, 'test_cases');
 
-// Planning CPERT (.xlsm) de reference : VOLONTAIREMENT hors depot. Les exports CPERT
-// dont on dispose sont des plannings d'entreprise, ils ne peuvent pas etre publies.
-// Les tests qui en dependent se desactivent proprement en son absence (cf.
-// tools/README.md) ; pour les activer, deposer son propre export CPERT ici, ou
-// pointer la variable d'environnement PERTFLOW_CPERT vers un autre fichier.
-const CPERT = process.env.PERTFLOW_CPERT || path.join(EXEMPLES, 'C_PERT_exemple.xlsm');
+// Classeur au format CPERT servant aux tests : fabrique de toutes pieces par
+// tools/make-cpert-fixture.js, donc VERSIONNE et toujours disponible, y compris sur
+// un clone nu. C'est lui qui fait foi. Les CPERT reels, eux, sont des plannings
+// d'entreprise et ne peuvent pas etre publies -- d'ou ce classeur fabrique.
+const CPERT = path.join(EXEMPLES, 'cpert_synthetique.xlsx');
 
-function cpertPresent() { return fs.existsSync(CPERT); }
+// Classeur CPERT REEL, facultatif et hors depot : bien plus riche que le classeur
+// d'essai (des centaines de formes, des cas non anticipes). smoke-cpert.js s'en sert
+// en non-regression quand il en trouve un. Pour l'activer, deposer son propre export
+// dans test_cases/ ou pointer PERTFLOW_CPERT dessus.
+const CPERT_REEL = process.env.PERTFLOW_CPERT || path.join(EXEMPLES, 'C_PERT_exemple.xlsm');
+
+function cpertReelPresent() { return fs.existsSync(CPERT_REEL); }
 
 // Localise le binaire Chromium de Playwright (derniere version chromium-<n> presente).
 function findChromium() {
@@ -135,6 +140,6 @@ async function openSynthesisMenu(page, quoi) {
   await page.waitForSelector(dialog + '[style*="flex"]');
 }
 
-module.exports = { ROOT, EXEMPLES, CPERT, cpertPresent,
+module.exports = { ROOT, EXEMPLES, CPERT, CPERT_REEL, cpertReelPresent,
                    findChromium, launch, openApp, importXlsm, importPert,
                    pickImportFormat, resolveUnitDialog, openSynthesisMenu };
