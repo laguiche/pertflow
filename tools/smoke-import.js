@@ -305,15 +305,11 @@ async function snapshot(page) {
   check('10b uid tous distincts', new Set(uids).size, 4);
 
   // ── 11 : non-regression CPERT (unite du projet non ecrasee) ───────────────────
-  if (lib.cpertPresent()) {
-    await seedProject(page, '2026-03-02', 'j', 2);   // projet en JOURS
-    await lib.importXlsm(page, lib.CPERT, { unitChoice: 'ignore' }); // le CPERT est en mois
-    s = await snapshot(page);
-    check('11a unite du projet preservee (plus d\'ecrasement)', s.unit, 'j');
-    check('11b nœuds importes', s.nodes.length > 1, true);
-  } else {
-    console.log('  (11 ignore : aucun fichier CPERT — cf. tools/README.md)');
-  }
+  await seedProject(page, '2026-03-02', 'j', 2);   // projet en JOURS
+  await lib.importXlsm(page, lib.CPERT, { unitChoice: 'ignore' }); // le CPERT est en mois
+  s = await snapshot(page);
+  check('11a unite du projet preservee (plus d\'ecrasement)', s.unit, 'j');
+  check('11b nœuds importes', s.nodes.length > 1, true);
 
   console.log('\nErreurs console/page:', errors.length ? errors : 'aucune');
   console.log(`${pass} assertion(s) OK, ${fail} echec(s).`);

@@ -36,7 +36,7 @@ cd tools && npm install && npx playwright install chromium && npm test
 
 ```bash
 cd tools
-npm test                        # toute la suite (29 tests, ~85 s)
+npm test                        # toute la suite (30 tests, ~90 s)
 node run-smokes.js -v           # idem, en affichant la sortie de chaque test
 node run-smokes.js import s9    # seulement les tests dont le nom contient "import" ou "s9"
 node smoke-suivi.js             # un test isolé (c'est ainsi qu'on débogue)
@@ -46,16 +46,17 @@ Le lanceur rend `0` si tout passe, `1` sinon, et rejoue en fin de compte rendu l
 tests en échec. Chaque `smoke*.js` reste un **programme autonome** : le contrat entre lui et le
 lanceur se limite au code de sortie, il n'y a aucun framework de test à apprendre.
 
-**Attendu sur `main` : 29/29.** Un test rouge sur un dépôt fraîchement cloné est un bug, pas une
+**Attendu sur `main` : 30/30.** Un test rouge sur un dépôt fraîchement cloné est un bug, pas une
 fatalité — signalez-le.
 
 ---
 
 ## 3. Jeux d'essai
 
-`test_cases/` rassemble les plannings d'exemple : projets `.pert` de complexité croissante, et les
-exports de référence (CSV, Gantt chargé, micro-jalonnement) du projet `pert_a_exporter`. La suite
-n'en consomme qu'un, `pert_a_exporter.pert`, mais tous servent aux essais manuels. Ils sont
+`test_cases/` rassemble les plannings d'exemple : un classeur au format CPERT (voir plus bas),
+des projets `.pert` de complexité croissante, et les exports de référence (CSV, Gantt chargé,
+micro-jalonnement) du projet `pert_a_exporter`. La suite en consomme deux, le classeur CPERT et
+`pert_a_exporter.pert` ; les autres servent aux essais manuels. Ils sont
 **intégralement synthétiques** (« Activité 1 », « toto ») et versionnés : la suite doit tourner sur
 un clone nu, sans rien préparer.
 
@@ -67,23 +68,36 @@ un clone nu, sans rien préparer.
 > un serveur d'impression et le chemin complet des classeurs liés (`docProps/`,
 > `xl/externalLinks/`, `xl/comments*`, `printerSettings`).
 
-### Le fichier CPERT (`.xlsm`) — absent, volontairement
+### Le classeur CPERT — fabriqué, pas emprunté
 
-L'import d'un planning **CPERT** est une fonction majeure de PertFlow, mais les seuls fichiers
-CPERT existants sont des **plannings d'entreprise** : ils ne peuvent pas être publiés. Le dépôt
-n'en contient donc aucun, et n'en contiendra pas.
+L'import d'un planning **CPERT** est une fonction majeure de PertFlow, et les seuls classeurs
+CPERT réels sont des **plannings d'entreprise** : ils ne peuvent pas être publiés. Plutôt que de
+laisser cette fonction hors de portée des tests, le dépôt contient un classeur **fabriqué de
+toutes pièces** :
 
-Conséquence : deux vérifications se désactivent d'elles-mêmes, sans faire échouer la suite —
+```bash
+node tools/make-cpert-fixture.js        # → test_cases/cpert_synthetique.xlsx
+```
 
-- `smoke.js` étape 1 (import CPERT) : se rabat sur la fixture `.pert`, les étapes 2 à 8
-  (persistance, exports, copier-coller, Label) restent jouées ;
-- `smoke-import.js` assertion 11 (non-régression sur l'unité du projet).
+Sept nœuds, sept liens, aucune donnée réelle. Il n'est pas là pour ressembler à un planning, mais
+pour **exercer chaque règle de lecture**, y compris les pièges déjà rencontrés : une date placée
+avant la durée dans le même nœud (sans motif ancré, `01/11/2026` se lit comme une durée de 1), une
+marge indéterminée `2/?`, une décimale à la française `1,5/0`, une date-cible collée au libellé
+`… E=(01/06/2027)`. La table en tête du script décrit chaque cas et pourquoi il est là ; c'est
+aussi la meilleure documentation du format qui existe.
 
-Toute la logique de transformation CPERT reste couverte, elle : `smoke-import.js` teste les
-fonctions pures (`buildImportModel` et consorts) sur des données fabriquées en mémoire. Ce que ces
-deux étapes ajoutent, c'est la lecture réelle du fichier Excel (dézippage, DrawingML).
+Le fichier produit est versionné — la suite doit tourner sur un clone nu — et régénérable à
+l'identique (`zip -X`, sortie déterministe). C'est un `.xlsx` et non un `.xlsm` : un vrai CPERT
+porte l'extension macro parce qu'il embarque la macro de l'outil d'origine, que PertFlow ne lit
+jamais. Le sélecteur d'import accepte les deux.
 
-**Pour les activer**, fournir son propre export CPERT :
+`smoke-cpert.js` s'en sert pour couvrir **toute la chaîne de lecture** — dézippage, feuille
+`MANUEL`, résolution feuille → dessin, extraction du DrawingML — là où `smoke-import.js` ne
+couvrait que les transformations pures, sur des données fabriquées en mémoire.
+
+**Un vrai CPERT, en plus** : si vous en avez un, `smoke-cpert.js` l'importe aussi, en
+non-régression (il exige seulement un planning non vide et sans erreur — son contenu est inconnu
+du test). Absent, cette vérification s'annonce comme ignorée et la suite reste verte.
 
 ```bash
 cp mon_planning.xlsm test_cases/C_PERT_exemple.xlsm    # non suivi : hors liste blanche
@@ -101,8 +115,8 @@ Le fichier déposé n'est pas suivi par git, et n'a pas à l'être : c'est le v�
 de scripts différent ne se verrait pas en testant `index.html` :
 
 ```bash
-node scripts/build-bundle.js --tag v0.21
-node tools/check-bundle.js v0.21       # le tag attendu est comparé à celui inscrit dans le bundle
+node scripts/build-bundle.js --tag v0.21.1
+node tools/check-bundle.js v0.21.1     # le tag attendu est comparé à celui inscrit dans le bundle
 ```
 
 Hors de `run-smokes.js` à dessein : ce test porte sur un artefact **construit**, il n'a de sens
@@ -126,15 +140,20 @@ qu'après un build.
 
 ## 6. Écrire un nouveau test
 
-Le plus simple est de copier le smoke le plus proche. Quatre conventions y sont tenues partout :
+Le plus simple est de copier le smoke le plus proche. Cinq conventions y sont tenues partout :
 
 1. **Passer par `lib.js`** pour tout geste d'interface (import, menu Synthèse…). Un geste
-   centralisé se répare une fois quand l'IHM bouge, au lieu de 29 fois.
+   centralisé se répare une fois quand l'IHM bouge, au lieu de 30 fois.
 2. **Emprunter le vrai chemin utilisateur** : cliquer les boutons plutôt qu'appeler les fonctions
    internes. Un test qui appelle directement `pertRecalc()` ne prouve pas que le bouton marche.
 3. **Déduire les attendus de la fixture** plutôt que les coder en dur (cf. `smoke-s9.js`) : sinon
    la moindre recomposition d'un jeu d'essai se traduit par un échec qui ne dit rien de la qualité
    du code.
 4. **Faire échouer avec un message**, et sortir en code 1 — c'est tout ce que le lanceur regarde.
+5. **Vérifier qu'un test neuf sait échouer** : casser volontairement ce qu'il prétend protéger, et
+   confirmer que c'est bien *lui* qui rouspète, avant de rétablir. Un test vert du premier coup n'a
+   encore rien prouvé — il peut se contenter de mesurer ce que le code fait, quel qu'il soit.
+   (Fait pour `smoke-cpert.js` : motif de durée désancré → durée lue 1 au lieu de 3, une seule
+   assertion en échec, la bonne.)
 
 Sorties temporaires : `tools/.smoke-out/` (gitignoré) et `/tmp`. Rien à nettoyer à la main.

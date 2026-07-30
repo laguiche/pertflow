@@ -2,11 +2,10 @@
 // Couvre : import Excel, persistance .pert, export PNG/PDF, copier-coller, Label.
 // Usage : node tools/smoke.js
 //
-// L'etape 1 (import CPERT) n'est jouee que si un fichier CPERT est disponible : il
-// n'y en a pas dans le depot, les exports CPERT reels etant des documents
-// d'entreprise (cf. lib.CPERT et tools/README.md). A defaut, on repart de la fixture
-// versionnee : les etapes 2 a 8 (persistance, exports, copier-coller, Label) ne
-// dependent pas de la PROVENANCE du planning, elles restent donc pleinement valides.
+// Le planning de depart vient d'un import CPERT (lib.CPERT, fabrique par
+// tools/make-cpert-fixture.js). Ce que l'import CPERT lit exactement est verifie
+// ailleurs, par smoke-cpert.js ; ici il n'est qu'un point de depart realiste pour
+// eprouver la suite du parcours.
 
 const lib = require('./lib');
 const path = require('path');
@@ -23,13 +22,8 @@ fs.mkdirSync(DL, { recursive: true });
 
   await lib.openApp(page);
 
-  // 1) Import du PERT Excel de reference, ou repli sur la fixture versionnee
-  if (lib.cpertPresent()) {
-    await lib.importXlsm(page, lib.CPERT);
-  } else {
-    console.log('(1 ignore : aucun fichier CPERT — repli sur test_cases/pert_a_exporter.pert)');
-    await lib.importPert(page, path.join(lib.EXEMPLES, 'pert_a_exporter.pert'));
-  }
+  // 1) Import du PERT Excel de reference
+  await lib.importXlsm(page, lib.CPERT);
   const nbNodes = await page.evaluate(() => window.pertGraph._nodes.length);
   console.log('Noeuds importes:', nbNodes);
   if (nbNodes < 2) throw new Error('Import insuffisant');

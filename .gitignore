@@ -32,6 +32,10 @@ tools/.smoke-out/
 # étaient pourtant synthétiques. Avant d'ajouter un « ! » pour un fichier Office :
 # ouvrir son zip et regarder docProps/, xl/externalLinks/, xl/comments*, printerSettings.
 test_cases/*
+# Classeur au format CPERT fabrique de toutes pieces par tools/make-cpert-fixture.js :
+# aucune donnee reelle, et c'est le seul moyen de tester l'import CPERT sans publier un
+# planning d'entreprise. Regenerable a l'identique (zip -X, sortie deterministe).
+!test_cases/cpert_synthetique.xlsx
 !test_cases/pert_a_exporter.pert
 !test_cases/pert_a_exporter.csv
 !test_cases/pert_a_exporter_gantt.xlsx

@@ -37,15 +37,16 @@ if (!tests.length) {
 }
 
 // Un prerequis manquant n'est pas un echec de test : on le dit une fois, clairement,
-// plutot que de laisser 29 tests echouer sur la meme cause.
+// plutot que de laisser toute la suite echouer sur la meme cause.
 if (!lib.findChromium()) {
   console.error('Chromium introuvable dans ~/.cache/ms-playwright.');
   console.error('  → npx playwright install chromium   (cf. tools/README.md)');
   process.exit(2);
 }
-if (!lib.cpertPresent()) {
-  console.log('Note : aucun fichier CPERT (.xlsm) disponible — les etapes qui en dependent');
-  console.log('       seront ignorees, sans faire echouer la suite (cf. tools/README.md).\n');
+if (!fs.existsSync(lib.CPERT)) {
+  console.error('Classeur CPERT d\'essai absent : ' + lib.CPERT);
+  console.error('  → node tools/make-cpert-fixture.js   (cf. tools/README.md)');
+  process.exit(2);
 }
 
 const echecs = [];
