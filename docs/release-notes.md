@@ -11,6 +11,19 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
+## v0.21.1 — 31/07/2026 · Dépôt prêt pour une reprise
+- **Aucun changement dans l'application** : cette version est fonctionnellement identique à la
+  v0.21. Si vous utilisez PertFlow, vous n'avez rien à faire — cette archive et la précédente
+  contiennent le même outil.
+- Ce qui change est **côté dépôt**, pour qui reprendrait le développement : la **suite de tests**
+  (29 tests qui pilotent l'application dans un vrai navigateur) et les **plannings d'exemple**
+  entrent dans le dépôt, avec leur mode d'emploi et leurs prérequis dans `tools/README.md`. Ils en
+  étaient absents jusqu'ici : personne d'autre que l'auteur ne pouvait vérifier une modification.
+- La documentation de reprise (`docs/conception.md`, `docs/maintenance.md`) est réalignée, et les
+  documents qui ne traçaient que l'avancement du chantier ont quitté le dépôt.
+- Le numéro de version est repris uniquement pour que le bouton **« À propos »** de l'application
+  et cette archive affichent la même chose.
+
 ## v0.21 — 29/07/2026 · Suivi d'avancement
 - Nouveau champ **Avancement** sur chaque tâche : **Non commencé** (par défaut), **En cours**,
   **Terminé**. Il **n'a aucun effet sur le calcul PERT** — dates, marges, chemin critique et coûts
