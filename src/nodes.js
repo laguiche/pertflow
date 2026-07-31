@@ -266,6 +266,16 @@ function ActivityNode() {
     // (cf. pertActivityCost) mais N'est PAS stocke (recalcule, comme es/ef). Affiches
     // dans le panneau lateral uniquement — JAMAIS sur le nœud (PERT != outil de chiffrage).
     etp: 1,
+    // Mode d'expression de la charge (31/07/2026) : "etp" (historique) ou "heures"
+    // (phase Offre). Le mode designe la valeur SAISIE ; l'autre en est deduite via
+    // l'elongation et les parametres globaux de cout (cf. le bloc « Mode de charge »
+    // de pert_engine.js — ne JAMAIS lire etp / charge_hours en direct, passer par
+    // pertActivityEtp / pertActivityHours).
+    charge_mode: "etp",
+    // Charge globale en heures homme — saisie de reference quand charge_mode vaut
+    // "heures", simple reflet de l'ETP sinon. null = jamais saisie (le panneau la
+    // pre-remplit alors depuis l'ETP courant au premier passage en mode heures).
+    charge_hours: null,
     responsible: "",
     // #2 Dimension "groupe" (WP / metier / service) au-dela du responsable. Texte
     // libre saisi via un combobox enrichissable (cf. ui.js). Couleur du groupe

@@ -918,6 +918,39 @@ body {
   cursor: pointer;
 }
 
+/* Charge d'une tâche : ETP et heures CÔTE À CÔTE (31/07/2026). Les deux expriment la
+   même grandeur — les empiler comme deux réglages indépendants laisserait croire
+   qu'elles s'additionnent. Le champ déduit est grisé : il se lit, il ne se saisit pas.
+   `min-width: 0` sur les colonnes, sinon la largeur mini d'un <input> (~170 px) déborde
+   du panneau au lieu de se partager la place. */
+.charge-pair {
+  display: flex;
+  gap: 8px;
+  /* Les deux cases doivent rester alignees meme si un libelle passe sur deux lignes
+     (250 px de panneau, donc ~14 caracteres par colonne) : l'<input> est le dernier
+     enfant de son <label>, aligner les BAS aligne les cases. */
+  align-items: flex-end;
+}
+
+.charge-pair > label {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Idem sur l'<input> lui-même : sa taille intrinsèque (attribut `size`) l'emporterait
+   sur le partage de place du conteneur flex. */
+.charge-pair input {
+  width: 100%;
+  min-width: 0;
+}
+
+#properties-content input.field-derived {
+  background: #141b30;
+  border-style: dashed;
+  color: #8fa8cc;
+  cursor: default;
+}
+
 #properties-content input:focus,
 #properties-content textarea:focus {
   outline: none;
@@ -941,9 +974,12 @@ body {
 .ro-label { color: #8899bb; }
 .ro-value { color: #aaccff; font-weight: 600; }
 
-/* Section des valeurs calculées (PERT) */
+/* Section des valeurs calculées (PERT) — et intertitre du panneau de saisie
+   (« Suivi et coût »), qui marque le passage aux fonctions secondaires : même
+   graphie, pour qu'un seul niveau de titre existe dans le panneau. */
 #calc-section { margin-top: 8px; }
-.calc-title {
+.calc-title,
+.prop-subtitle {
   font-size: 11px;
   font-weight: 700;
   color: #8899bb;
@@ -1911,7 +1947,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"31/07/2026","tag":"v0.21.1"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"01/08/2026","tag":"v0.22"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -2016,8 +2052,9 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
         <label>Taux horaire moyen (€/h)
           <input type="number" id="settings-rate" min="0" step="1">
         </label>
-        <p class="settings-hint">Servent au coût estimé des tâches (durée convertie en heures
-          × ETP × taux). Les jalons et les labels n'ont pas de coût.</p>
+        <p class="settings-hint">Servent au coût estimé des tâches (charge en heures × taux),
+          et à convertir la charge d'une tâche entre ETP et heures quand elle est exprimée
+          en ETP (durée convertie en heures × ETP). Les jalons et les labels n'ont pas de coût.</p>
       </div>
 
       <div class="dialog-buttons">
@@ -37446,6 +37483,16 @@ function ActivityNode() {
     // (cf. pertActivityCost) mais N'est PAS stocke (recalcule, comme es/ef). Affiches
     // dans le panneau lateral uniquement — JAMAIS sur le nœud (PERT != outil de chiffrage).
     etp: 1,
+    // Mode d'expression de la charge (31/07/2026) : "etp" (historique) ou "heures"
+    // (phase Offre). Le mode designe la valeur SAISIE ; l'autre en est deduite via
+    // l'elongation et les parametres globaux de cout (cf. le bloc « Mode de charge »
+    // de pert_engine.js — ne JAMAIS lire etp / charge_hours en direct, passer par
+    // pertActivityEtp / pertActivityHours).
+    charge_mode: "etp",
+    // Charge globale en heures homme — saisie de reference quand charge_mode vaut
+    // "heures", simple reflet de l'ETP sinon. null = jamais saisie (le panneau la
+    // pre-remplit alors depuis l'ETP courant au premier passage en mode heures).
+    charge_hours: null,
     responsible: "",
     // #2 Dimension "groupe" (WP / metier / service) au-dela du responsable. Texte
     // libre saisi via un combobox enrichissable (cf. ui.js). Couleur du groupe
@@ -39128,14 +39175,16 @@ function pertPublishStatus(res) {
 
 // ─── Estimation de coût (Session 8.5) ───────────────────────────────────────────
 //
-// Cout d'une Activite = (duree convertie en heures) × ETP × taux horaire moyen.
+// Cout d'une Activite = CHARGE (en heures homme) × taux horaire moyen. La charge
+// s'exprime de deux facons au choix de l'utilisateur (cf. bloc « Mode de charge ») ;
+// en ETP — le fonctionnement historique — elle vaut (duree convertie en heures) × ETP.
 // La conversion duree→heures depend de l'unite courante (meta.unit) :
 //   - jour    : duree × heures_par_jour
 //   - semaine : duree × 5 × heures_par_jour   (semaine = 5 jours ouvres)
 //   - mois    : duree × heures_par_mois        (parametre independant, non derive du jour)
 // Les parametres (heures/mois, heures/jour, taux) sont dans meta, modifiables dans le
 // dialogue Parametres. pertActivityCost renvoie des EUROS ; l'affichage convertit en k€.
-// Les Jalons et Labels n'ont pas de cout (pas de duree/ETP).
+// Les Jalons et Labels n'ont pas de cout (pas de duree/charge).
 
 const PERT_DEFAULT_HOURS_MONTH = 135;  // defaut entreprise
 const PERT_DEFAULT_HOURS_DAY   = 8;    // semaine = 5 × 8 = 40 h
@@ -39149,16 +39198,82 @@ function pertDurationToHours(duration, unit, meta) {
   return duration * hpd; // "j" (jours) par defaut
 }
 
-// Cout estime d'une Activite en euros (0 pour tout autre type de nœud).
-function pertActivityCost(node) {
+// ─── Mode de charge d'une Activite (31/07/2026) ─────────────────────────────────
+//
+// Deux facons d'exprimer la MEME grandeur — la charge de travail de la tache :
+//   - "etp"    : nombre d'Equivalents Temps Plein mobilises pendant toute l'elongation
+//                (fonctionnement historique, mode de PILOTAGE : « combien de monde ») ;
+//   - "heures" : charge globale en heures homme (phase OFFRE : le chiffrage se negocie
+//                en heures, l'elongation n'est parfois pas encore arretee).
+//
+// Le mode dit LEQUEL DES DEUX est la saisie ; l'autre en est deduit. Ce n'est pas un
+// detail d'IHM : c'est ce qui reste INVARIANT quand l'elongation ou les parametres
+// globaux de cout bougent. En "etp", allonger la tache augmente sa charge en heures
+// (le monde reste mobilise plus longtemps) ; en "heures", allonger la tache dilue la
+// meme enveloppe d'heures sur plus de temps, donc baisse l'ETP. Stocker les deux
+// valeurs cote a cote SANS ce drapeau les ferait diverger a la premiere modification
+// de duree, sans moyen de savoir laquelle croire.
+//
+// Compatibilite : mode absent = "etp", et les .pert anterieurs ne portent que `etp` —
+// aucune migration, le defaut suffit.
+
+const PERT_CHARGE_MODES = [
+  { value: "etp",    label: "ETP (équivalent temps plein)" },
+  { value: "heures", label: "Heures (charge globale)" },
+];
+
+// Mode de charge effectif d'un nœud (toute valeur inconnue retombe sur "etp").
+function pertChargeMode(node) {
+  const m = node && node.properties ? node.properties.charge_mode : null;
+  return m === "heures" ? "heures" : "etp";
+}
+
+// Nombre d'heures ouvrees couvertes par l'ELONGATION de la tache, pour 1 ETP. C'est le
+// facteur de conversion entre les deux expressions de la charge : heures = ETP × ce
+// pivot. Vaut 0 si la duree est nulle (tache jalon-like) — le sens s'inverse alors :
+// une charge en heures reste connue, mais l'ETP correspondant n'existe pas.
+function pertActivityDurationHours(node) {
   if (!node || node.type !== "pert/activity" || !node.properties) return 0;
   const meta = window.pertMeta || {};
   const dur = parseFloat(node.properties.duration) || 0;
-  const etpRaw = parseFloat(node.properties.etp);
-  const etp = isNaN(etpRaw) ? 0 : etpRaw;
+  return pertDurationToHours(dur, meta.unit || "j", meta);
+}
+
+// Charge d'une Activite en HEURES homme (0 pour tout autre type de nœud).
+function pertActivityHours(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return 0;
+  if (pertChargeMode(node) === "heures") {
+    const h = parseFloat(node.properties.charge_hours);
+    return isNaN(h) ? 0 : h;
+  }
+  const etp = parseFloat(node.properties.etp);
+  return (isNaN(etp) ? 0 : etp) * pertActivityDurationHours(node);
+}
+
+// Charge d'une Activite en ETP, ou null si elle n'est pas calculable — cas d'une
+// saisie en heures sur une tache de duree nulle : la division n'a pas de sens et
+// afficher 0 mentirait (la charge, elle, existe). Les consommateurs qui ont besoin
+// d'un nombre (exports) retombent sur 0 ou 1 selon leur propre convention.
+function pertActivityEtp(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return 0;
+  if (pertChargeMode(node) !== "heures") {
+    const etp = parseFloat(node.properties.etp);
+    return isNaN(etp) ? 0 : etp;
+  }
+  const durH = pertActivityDurationHours(node);
+  if (durH <= 0) return null;
+  return pertActivityHours(node) / durH;
+}
+
+// Cout estime d'une Activite en euros (0 pour tout autre type de nœud).
+// Passe TOUJOURS par la charge en heures : en mode "etp" la formule est identique a
+// celle de S8.5 (duree→heures × ETP × taux), en mode "heures" le cout d'une charge
+// saisie ne depend plus de l'elongation.
+function pertActivityCost(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return 0;
+  const meta = window.pertMeta || {};
   const rate = (meta.hourly_rate != null) ? meta.hourly_rate : PERT_DEFAULT_RATE;
-  const hours = pertDurationToHours(dur, meta.unit || "j", meta);
-  return hours * etp * rate;
+  return pertActivityHours(node) * rate;
 }
 
 // Part ANTICIPEE d'une Activite : fraction de sa duree situee avant T0 (0 → 1).
@@ -39185,9 +39300,21 @@ function pertFormatCost(euros) {
   return k.toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " k€";
 }
 
+// Formatage d'une charge en heures, notation FR. Ex. "1 012,5 h". Pas de conversion
+// en jours/ETP : c'est la grandeur du chiffrage d'offre, elle se lit telle quelle —
+// la ramener a une autre unite obligerait a rappeler laquelle a chaque affichage.
+function pertFormatHours(hours) {
+  return (hours || 0).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " h";
+}
+
 // Exposition globale (appelée depuis ui.js sur les événements de graphe)
 window.pertActivityCost = pertActivityCost;
+window.pertChargeMode = pertChargeMode;
+window.pertActivityHours = pertActivityHours;
+window.pertActivityEtp = pertActivityEtp;
+window.pertActivityDurationHours = pertActivityDurationHours;
 window.pertFormatCost = pertFormatCost;
+window.pertFormatHours = pertFormatHours;
 window.pertRecalc = pertRecalc;
 window.pertOffsetToDate = pertOffsetToDate;
 window.pertDateToOffset = pertDateToOffset;
@@ -40898,10 +41025,16 @@ window.pertCloseExportDialog = pertCloseExportDialog;
 // Colonnes (schema fige, a ne plus bouger : des tableurs utilisateurs s'y adossent) :
 //   Type ; UID ; Libellé ; Groupe ; Responsable ; Durée ; Unité ; ETP ; Coût(k€) ;
 //   DébutTôt ; FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon ;
-//   Avancement
-// « Avancement » (29/07/2026) est ajoutee EN FIN de schema, jamais intercalee : les
-// depouillements existants (tableaux croises, formules) reperent leurs colonnes par
-// position — une insertion au milieu les casserait tous en silence.
+//   Avancement ; Charge(h)
+// « Avancement » (29/07/2026) puis « Charge(h) » (31/07/2026) sont ajoutees EN FIN de
+// schema, jamais intercalees : les depouillements existants (tableaux croises,
+// formules) reperent leurs colonnes par position — une insertion au milieu les
+// casserait tous en silence.
+// « Charge(h) » n'est pas redondante avec ETP : c'est la charge globale en heures
+// homme, la grandeur du chiffrage d'offre, et le lecteur du CSV ne peut PAS la
+// recalculer (les parametres heures/jour et heures/mois ne figurent pas dans le
+// fichier). ETP reste rempli meme quand la charge est saisie en heures (valeur
+// deduite, cf. pertActivityEtp), et vide quand elle n'existe pas (duree nulle).
 //
 // Les valeurs calculees (es/ef/ls/lf/slack/is_critical) sont lues sur l'objet nœud
 // (posees par pertRecalc) ; les proprietes saisies sont dans node.properties.
@@ -40952,7 +41085,12 @@ function pertCsvRowForNode(node) {
   const group = isAct ? (p.group || "") : "";
   const resp = isAct ? (p.responsible || "") : "";
   const duration = isAct ? pertCsvNum(pertDuration(node)) : "";
-  const etp = isAct ? pertCsvNum(p.etp != null ? p.etp : "") : "";
+  // ETP et charge : arrondis a 2 decimales cote export — la valeur deduite tombe
+  // volontiers sur un rationnel a rallonge (135 h / 8 h), illisible en tableur.
+  const etpVal = isAct ? pertActivityEtp(node) : null;
+  const etp = (etpVal === null || etpVal === undefined)
+    ? "" : pertCsvNum(Math.round(etpVal * 100) / 100);
+  const chargeH = isAct ? pertCsvNum(Math.round(pertActivityHours(node) * 100) / 100) : "";
   const cost = isAct ? pertCsvNum(Math.round(pertActivityCost(node) / 100) / 10) : ""; // k€, 1 decimale
   const es = pertCsvDateFromOffset(node.es);
   const ef = pertCsvDateFromOffset(node.ef);
@@ -40978,12 +41116,12 @@ function pertCsvRowForNode(node) {
     ? pertProgressDef(p.progress).label : "";
 
   return [type, uid, label, group, resp, duration, unit, etp, cost,
-          es, ef, ls, lf, slack, critical, dueDate, tag, progress];
+          es, ef, ls, lf, slack, critical, dueDate, tag, progress, chargeH];
 }
 
 const PERT_CSV_HEADER = ["Type", "UID", "Libellé", "Groupe", "Responsable", "Durée",
   "Unité", "ETP", "Coût(k€)", "DébutTôt", "FinTôt", "DébutTard", "FinTard", "Marge",
-  "Critique", "DateCible", "TagJalon", "Avancement"];
+  "Critique", "DateCible", "TagJalon", "Avancement", "Charge(h)"];
 
 // Serialise l'ensemble du planning en texte CSV (avec BOM UTF-8).
 function pertBuildCSV() {
@@ -41312,7 +41450,16 @@ function pertGanttColor(act) {
 }
 
 // ETP d'une Activite (0 accepte ; defaut 1 si non renseigne / invalide).
+// Passe par pertActivityEtp : une tache dont la charge est saisie en HEURES n'a pas
+// d'ETP stocke, il se deduit de l'elongation (cf. « Mode de charge », pert_engine.js).
+// pertActivityEtp rend null quand la duree est nulle : la tache n'occupe alors aucune
+// colonne de periode dans le Gantt, la valeur n'est jamais ecrite — on retombe sur 0
+// plutot que sur 1, qui gonflerait la ligne « total charge » si elle l'etait un jour.
 function pertGanttEtp(act) {
+  if (pertChargeMode(act) === "heures") {
+    const v = pertActivityEtp(act);
+    return (v === null || isNaN(v)) ? 0 : v;
+  }
   const raw = act.properties.etp;
   if (raw === "" || raw == null) return 1;
   const v = parseFloat(raw);
@@ -41547,8 +41694,10 @@ function pertBuildMSPDI(model) {
     const uid = i + 1;
     const isAct = n.type === "pert/activity";
     const durH = isAct ? pertDurationToHours(pertDuration(n), model.unit, meta) : 0;
-    const etp = isAct ? pertGanttEtp(n) : 0;
-    const workH = durH * etp;
+    // Work MSPDI = charge en heures homme. On la prend a la source (pertActivityHours)
+    // plutot que de refaire duree × ETP : une charge saisie en heures sur une tache de
+    // duree nulle existe quand meme, et le produit la perdrait.
+    const workH = isAct ? pertActivityHours(n) : 0;
     // Un jalon (ou une activite de duree nulle) est un Milestone.
     const isMilestone = !isAct || durH <= 0;
     const startOff = isAct ? n.es : model.msOffset(n);
@@ -42647,6 +42796,10 @@ function pertBuildSynthesisModel() {
     nbTasks: 0,
     nbMilestones: 0,
     totalCost: 0,
+    // Charge en heures homme (31/07/2026), agregee comme le cout : c'est la grandeur
+    // du chiffrage d'offre, celle qu'on negocie avant d'en parler en euros. Toujours
+    // lue via pertActivityHours, qui connait le mode de saisie de chaque tache.
+    totalHours: 0,
     // Part du cout total ENGAGEE AVANT T0 (travaux anticipes), au prorata de la duree
     // situee a gauche de T0. Sert de bascule d'affichage : les colonnes « anticipe /
     // non anticipe » n'apparaissent que si le planning comporte de l'anticipation.
@@ -42683,6 +42836,7 @@ function pertBuildSynthesisModel() {
       activities.push(n);
       const c = pertActivityCost(n);
       model.totalCost += c;
+      model.totalHours += pertActivityHours(n);
       model.anticCost += pertAnticipatedCost(n);
       if (critIds.has(n.id)) { model.critTasks++; model.critCost += c; }
     }
@@ -42757,9 +42911,10 @@ function pertBuildSynthesisModel() {
     // Cout GLOBAL du groupe, puis sa decomposition anticipe (avant T0) / non anticipe
     // (demande utilisateur du 24/07/2026) : c'est par groupe que se decide qui porte
     // l'effort d'anticipation et le budget correspondant.
-    let cost = 0, anticCost = 0, maxLf = null;
+    let cost = 0, hours = 0, anticCost = 0, maxLf = null;
     nodes.forEach(n => {
       cost += pertActivityCost(n);
+      hours += pertActivityHours(n);
       anticCost += pertAnticipatedCost(n);
       if (n.lf != null && (maxLf === null || n.lf > maxLf)) maxLf = n.lf;
     });
@@ -42767,6 +42922,7 @@ function pertBuildSynthesisModel() {
       name: name || "(sans groupe)",
       color: name ? (groupColors[name] || (nodes[0].properties && nodes[0].properties.color) || null) : null,
       nbTasks: nodes.length,
+      hours,
       cost,
       anticCost,
       plainCost: cost - anticCost,
@@ -43302,6 +43458,9 @@ function pertRenderSynthesis() {
   synthKV(ov, "Fin de projet", pertFormatDate(m.endDate));
   synthKV(ov, "Tâches", String(m.nbTasks));
   synthKV(ov, "Jalons", String(m.nbMilestones));
+  // Charge puis coût : la somme des heures du tableau par groupe doit se retrouver ici,
+  // sinon le lecteur additionne les lignes à la main pour vérifier.
+  synthKV(ov, "Charge totale", pertFormatHours(m.totalHours));
   synthKV(ov, "Coût total", pertFormatCost(m.totalCost));
   // Depense engagee AVANT le lancement contractuel : ligne affichee seulement si le
   // planning comporte effectivement des travaux anticipes.
@@ -43370,6 +43529,10 @@ function pertRenderSynthesis() {
     const cells = [
       { node: nameCell },
       { text: String(gr.nbTasks), cls: "num" },
+      // La charge PRECEDE le coût : elle en est la cause (charge × taux), et c'est
+      // elle qu'on négocie en phase Offre. Toujours affichée, quel que soit le mode de
+      // saisie des tâches du groupe — les deux expressions s'agrègent dans la même unité.
+      { text: pertFormatHours(gr.hours), cls: "num" },
       { text: pertFormatCost(gr.cost), cls: "num" },
     ];
     if (showAntic) {
@@ -43380,7 +43543,8 @@ function pertRenderSynthesis() {
     return cells;
   });
   const grpHeaders = [
-    { text: "Groupe" }, { text: "Tâches", cls: "num" }, { text: "Coût global", cls: "num" },
+    { text: "Groupe" }, { text: "Tâches", cls: "num" }, { text: "Charge (h)", cls: "num" },
+    { text: "Coût global", cls: "num" },
   ];
   if (showAntic) {
     grpHeaders.push({ text: "dont anticipé", cls: "num" });
@@ -44631,6 +44795,7 @@ function showProperties(node) {
   content.innerHTML = "";
   synth.innerHTML = "";
   footer.innerHTML = "";
+  pertChargeRefresh = null;   // le bloc charge du nœud précédent n'existe plus
   // L'onglet consulté est conservé d'une sélection a l'autre (cf. pertPanelTab).
   pertSelectPanelTab(pertPanelTab);
 
@@ -44658,6 +44823,9 @@ function showProperties(node) {
       node.setDirtyCanvas(true);
       pertRecalc();
       fillSynthesis(node);
+      // L'élongation est le pivot de la conversion ETP ↔ heures : la valeur déduite
+      // du bloc charge devient fausse dès qu'on touche à la durée.
+      pertRefreshChargeFields(node);
     }, { min: 0, step: 0.5 });
     // Anticipation (24/07/2026) : la tache est engagee AVANT T0 pour degager de la
     // marge en aval. Cochee, elle est planifiee au plus tard (juste-a-temps) et recule
@@ -44672,34 +44840,6 @@ function showProperties(node) {
       },
       "Planifie la tâche au plus tard : elle finit pile quand l'aval en a besoin, "
       + "quitte à démarrer avant T0. Sans successeur, la case reste sans effet.");
-    // Avancement (29/07/2026) : suivi leger, une fois le PERT realise et acte.
-    // PAS de pertRecalc — et c'est volontaire : l'avancement n'entre dans aucun
-    // calcul (dates, marges, chemin critique, cout). Seul updateSize est necessaire,
-    // car le marqueur reserve de la place au libelle dans l'en-tete du nœud.
-    buildSelect(content, "Avancement", pertActivityProgress(node),
-      PERT_PROGRESS_STATES.map(s => ({ value: s.value, label: s.label })),
-      v => {
-        node.properties.progress = v;
-        node.updateSize();
-        node.setDirtyCanvas(true, true);
-      },
-      { title: "Suivi d'avancement (pilotage léger). Sans aucun effet sur le calcul "
-        + "PERT : dates, marges et chemin critique restent inchangés." });
-    // Estimation de cout (S8.5) : ETP modifiable. Le cout en decoule (affiche en lecture
-    // seule dans la section calculs via fillCalcSection). Pas de pertRecalc : l'ETP
-    // n'affecte pas l'ordonnancement, seulement le cout → on rafraichit juste le cout.
-    buildField(content, "ETP (équivalent temps plein)", "number", node.properties.etp, v => {
-      node.properties.etp = parseFloat(v) || 0;
-      node.setDirtyCanvas(true);
-      fillSynthesis(node);
-    }, { min: 0, step: 0.1 });
-    // Responsable : combobox enrichissable (#13 amorce) — texte libre + reproposition
-    // des responsables deja saisis (datalist) pour une orthographe coherente.
-    buildCombobox(content, "Responsable", node.properties.responsible, collectResponsibles(), v => {
-      node.properties.responsible = v;
-      node.updateSize();           // #8 l'en-tete doit grandir pour loger la ligne 👤
-      node.setDirtyCanvas(true, true);
-    }, null, { optionsProvider: collectResponsibles });
 
     // #2 Couleur — on garde la reference de l'input pour resynchroniser sa valeur
     // quand le groupe vient d'imposer sa teinte. #14 : changer la couleur d'une
@@ -44736,12 +44876,56 @@ function showProperties(node) {
     sameColorBtn.addEventListener("click", () => pertApplyGroupToSameColor(node));
     content.appendChild(sameColorBtn);
 
+    // Responsable : combobox enrichissable (#13 amorce) — texte libre + reproposition
+    // des responsables deja saisis (datalist) pour une orthographe coherente.
+    buildCombobox(content, "Responsable", node.properties.responsible, collectResponsibles(), v => {
+      node.properties.responsible = v;
+      node.updateSize();           // #8 l'en-tete doit grandir pour loger la ligne 👤
+      node.setDirtyCanvas(true, true);
+    }, null, { optionsProvider: collectResponsibles });
+
     // #12 Note libre (hypotheses de duree, contenu reel de la tache). Panneau
     // uniquement — jamais rendue sur le nœud (cf. nodes.js). Pas de updateSize ni de
     // setDirtyCanvas : la note n'affecte pas l'apparence du nœud.
     buildTextarea(content, "Notes (hypothèses, contenu réel)", node.properties.notes, v => {
       node.properties.notes = v;
     });
+
+    // ── Fonctions SECONDAIRES (31/07/2026, decision utilisateur) ────────────────
+    //
+    // ORDRE DELIBERE, a ne pas defaire : un PERT sert d'abord a PLANIFIER et a batir
+    // une strategie. Tout ce qui precede sert a cela (libelle, duree, anticipation,
+    // couleur, groupe, responsable, notes) ; le suivi d'avancement et l'estimation de
+    // charge/cout sont des fonctions d'appoint, greffees sur un planning deja construit.
+    // Elles descendent donc en pied de panneau, derriere un intertitre qui dit qu'on
+    // change de registre — sur une tache, la liste des champs a fini par etre longue.
+    // Toute nouveauté hors planification se range ICI, pas au milieu du haut de panneau.
+    const secTitle = document.createElement("div");
+    secTitle.className = "prop-subtitle";
+    secTitle.textContent = "Suivi et coût";
+    secTitle.title = "Fonctions secondaires : n'entrent ni dans les dates, ni dans les "
+      + "marges, ni dans le chemin critique.";
+    content.appendChild(secTitle);
+
+    // Avancement (29/07/2026) : suivi leger, une fois le PERT realise et acte.
+    // PAS de pertRecalc — et c'est volontaire : l'avancement n'entre dans aucun
+    // calcul (dates, marges, chemin critique, cout). Seul updateSize est necessaire,
+    // car le marqueur reserve de la place au libelle dans l'en-tete du nœud.
+    buildSelect(content, "Avancement", pertActivityProgress(node),
+      PERT_PROGRESS_STATES.map(s => ({ value: s.value, label: s.label })),
+      v => {
+        node.properties.progress = v;
+        node.updateSize();
+        node.setDirtyCanvas(true, true);
+      },
+      { title: "Suivi d'avancement (pilotage léger). Sans aucun effet sur le calcul "
+        + "PERT : dates, marges et chemin critique restent inchangés." });
+
+    // Estimation de cout (S8.5, etendue le 31/07/2026) : charge saisie en ETP ou en
+    // heures, les deux valeurs affichees cote a cote. Le cout en decoule (affiche en
+    // lecture seule dans la section calculs via fillCalcSection). Pas de pertRecalc :
+    // la charge n'affecte pas l'ordonnancement, seulement le cout.
+    buildChargeField(content, node);
 
   } else if (node.type === "pert/milestone") {
     buildField(content, "Libellé", "text", node.properties.label, v => {
@@ -45599,6 +45783,137 @@ function buildSelect(parent, labelText, value, options, onChange, opts) {
   return sel;
 }
 
+// ─── Charge d'une Activité : ETP ou heures (31/07/2026) ───────────────────────
+//
+// Une seule grandeur — la charge de travail — deux façons de l'exprimer (cf. le bloc
+// « Mode de charge » de pert_engine.js) : en ETP (pilotage : « combien de monde ») ou
+// en heures (phase Offre : le chiffrage se négocie en heures). Le sélecteur dit
+// laquelle des deux est SAISIE ; les deux valeurs restent affichées CÔTE À CÔTE, la
+// déduite en lecture seule, pour qu'on lise toujours les deux sans changer de mode.
+//
+// Trois propriétés à respecter si ce bloc évolue :
+//  1. basculer de mode ne change PAS le coût — la valeur déduite est figée dans la
+//     propriété cible au moment de la bascule (sinon on retrouverait un vieil ETP
+//     resté dans `properties` et le coût sauterait sans qu'on ait rien saisi) ;
+//  2. le champ déduit est rafraîchi par tout ce qui déplace la conversion : durée,
+//     unité, heures/jour, heures/mois — d'où pertRefreshChargeFields, appelé aussi
+//     depuis le champ Durée et depuis saveSettings ;
+//  3. duree = 0 en mode heures : l'ETP n'existe pas (division par zéro), on affiche
+//     « — » plutôt que 0 ; la charge, elle, reste connue et coûte.
+let pertChargeRefresh = null;   // fonction de re-rendu du bloc actuellement affiché
+
+// Arrondi d'affichage du champ déduit : la valeur exacte sert au calcul, mais
+// « 133,333333 h » dans une case de saisie est illisible. Décimale à la FRANÇAISE —
+// le champ est en lecture seule, sa valeur n'est jamais reparsée, et l'app écrit
+// partout ailleurs « 32,6 k€ » ou « 1,5 » (dates, coûts, CSV).
+function pertChargeRound(v, dec) {
+  if (v === null || v === undefined || isNaN(v)) return "";
+  return Math.round(v * Math.pow(10, dec)) / Math.pow(10, dec);
+}
+
+function pertChargeFmt(v, dec) {
+  const r = pertChargeRound(v, dec);
+  return r === "" ? "" : String(r).replace(".", ",");
+}
+
+function buildChargeField(parent, node) {
+  const box = document.createElement("div");
+  box.id = "charge-section";
+  parent.appendChild(box);
+
+  const render = () => {
+    box.innerHTML = "";
+    const mode = pertChargeMode(node);
+
+    // L'ETP/la charge n'affectent PAS l'ordonnancement (pas de pertRecalc) : seul le
+    // coût bouge, et la valeur déduite affichée à côté de la saisie.
+    const applied = () => {
+      node.setDirtyCanvas(true);
+      fillSynthesis(node);
+      render();
+    };
+
+    buildSelect(box, "Charge exprimée en", mode, PERT_CHARGE_MODES, v => {
+      // Bascule à coût constant : on fige d'abord la valeur qui devient la saisie.
+      if (v === "heures") {
+        node.properties.charge_hours = pertActivityHours(node);
+      } else {
+        const etp = pertActivityEtp(node);
+        if (etp !== null) node.properties.etp = etp;
+      }
+      node.properties.charge_mode = v === "heures" ? "heures" : "etp";
+      applied();
+    }, { title: "Choisit laquelle des deux valeurs est saisie ; l'autre en est déduite "
+      + "via l'élongation et les paramètres de coût. La bascule ne change pas le coût." });
+
+    const pair = document.createElement("div");
+    pair.className = "charge-pair";
+    box.appendChild(pair);
+
+    const durH = pertActivityDurationHours(node);
+    const derivedTitle = "Valeur déduite de la saisie voisine (élongation "
+      + pertChargeFmt(durH, 1) + " h pour 1 ETP, cf. Paramètres → Coûts).";
+
+    // Libellés courts (~14 caractères tiennent dans une colonne de panneau) : la nature
+    // exacte des deux grandeurs est déjà dite par le sélecteur juste au-dessus.
+    if (mode === "heures") {
+      // Champ de SAISIE : valeur brute (point décimal). Un <input type="number">
+      // rejette silencieusement une valeur à virgule — le champ s'afficherait vide.
+      buildField(pair, "Heures", "number",
+        pertChargeRound(pertActivityHours(node), 2), v => {
+          node.properties.charge_hours = parseFloat(v) || 0;
+          node.setDirtyCanvas(true);
+          fillSynthesis(node);
+          pertChargeUpdateDerived(node);   // sans re-rendu : ne pas casser la frappe
+        }, { min: 0, step: 1 });
+      const ro = buildField(pair, "ETP (déduit)", "text",
+        durH > 0 ? pertChargeFmt(pertActivityEtp(node), 2) : "—", () => {});
+      ro.readOnly = true;
+      ro.className = "field-derived";
+      ro.title = durH > 0 ? derivedTitle
+        : "Durée nulle : aucun ETP ne correspond à cette charge (la charge, elle, compte).";
+    } else {
+      buildField(pair, "ETP", "number", node.properties.etp, v => {
+        node.properties.etp = parseFloat(v) || 0;
+        node.setDirtyCanvas(true);
+        fillSynthesis(node);
+        pertChargeUpdateDerived(node);
+      }, { min: 0, step: 0.1 });
+      const ro = buildField(pair, "Heures (déduit)", "text",
+        pertChargeFmt(pertActivityHours(node), 1), () => {});
+      ro.readOnly = true;
+      ro.className = "field-derived";
+      ro.title = derivedTitle;
+    }
+  };
+
+  pertChargeRefresh = render;
+  render();
+}
+
+// Met à jour la SEULE valeur déduite, sans reconstruire le bloc : appelé à la frappe
+// dans le champ de saisie, où un re-rendu ferait perdre le focus au caractère suivant.
+function pertChargeUpdateDerived(node) {
+  const box = document.getElementById("charge-section");
+  if (!box) return;
+  const ro = box.querySelector("input.field-derived");
+  if (!ro) return;
+  if (pertChargeMode(node) === "heures") {
+    const durH = pertActivityDurationHours(node);
+    ro.value = durH > 0 ? pertChargeFmt(pertActivityEtp(node), 2) : "—";
+  } else {
+    ro.value = pertChargeFmt(pertActivityHours(node), 1);
+  }
+}
+
+// Reconstruit le bloc charge du nœud affiché — après un changement de durée, d'unité
+// ou de paramètres de coût : la conversion ETP ↔ heures n'est plus la même.
+function pertRefreshChargeFields(node) {
+  if (!node || node.type !== "pert/activity") return;
+  if (!document.getElementById("charge-section")) return;
+  if (pertChargeRefresh) pertChargeRefresh();
+}
+
 // Champ « Date-cible » d'un Jalon : sélecteur de MODE + saisie correspondante.
 // Deux modes (cf. le bloc « Date-cible » de pert_engine.js) : date calendaire, ou
 // T0 + X unités — X négatif accepté (cible antérieure à T0, cas de l'anticipation).
@@ -46150,7 +46465,12 @@ function saveSettings() {
   // T0 / unité affectent les dates calculées et les offsets des dates-cibles
   pertRecalc();
   const sel = Object.values(window.pertCanvas.selected_nodes || {});
-  if (sel.length === 1) fillSynthesis(sel[0]);
+  if (sel.length === 1) {
+    fillSynthesis(sel[0]);
+    // Unité et paramètres de coût entrent dans la conversion ETP ↔ heures : la valeur
+    // déduite affichée dans le panneau doit suivre (cf. buildChargeField).
+    pertRefreshChargeFields(sel[0]);
+  }
   updateStatus();
 }
 

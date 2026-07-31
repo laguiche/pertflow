@@ -280,11 +280,18 @@ function assert(cond, msg) { if (!cond) throw new Error('ECHEC: ' + msg); }
   });
   console.log('CSV en-tete :', exports.entete.join(';'));
   console.log('CSV ligne 1 :', exports.ligne1.join(';'));
-  assert(exports.entete[exports.entete.length - 1] === 'Avancement',
-    '« Avancement » doit etre la DERNIERE colonne du CSV (schema fige, jamais intercale)');
-  assert(exports.entete.length === 18, '18 colonnes CSV attendues, vu ' + exports.entete.length);
-  assert(exports.ligne1[exports.ligne1.length - 1] === 'Terminé',
-    'valeur d\'avancement absente du CSV — vu ' + exports.ligne1[exports.ligne1.length - 1]);
+  // « Avancement » a ete AJOUTEE en fin de schema (29/07/2026). Ce qu'on protege ici
+  // n'est pas sa position absolue — d'autres colonnes ont vocation a s'ajouter apres
+  // elle (« Charge(h) » l'a fait le 31/07/2026) — mais le fait qu'elle reste APRES
+  // toutes les colonnes historiques : les depouillements existants reperent leurs
+  // colonnes par position, une insertion au milieu les casserait en silence.
+  const iAvancement = exports.entete.indexOf('Avancement');
+  const iTagJalon = exports.entete.indexOf('TagJalon');
+  assert(iAvancement === iTagJalon + 1,
+    '« Avancement » doit suivre immediatement « TagJalon » (schema jamais intercale)');
+  assert(exports.entete.length >= 18, 'au moins 18 colonnes CSV attendues, vu ' + exports.entete.length);
+  assert(exports.ligne1[iAvancement] === 'Terminé',
+    'valeur d\'avancement absente du CSV — vu ' + exports.ligne1[iAvancement]);
   console.log('Gantt colonne D :', exports.ganttD, '| E est une date :', exports.ganttEestDate);
   assert(exports.ganttD === 'Avancement', 'Gantt : colonne D = « Avancement », vu ' + exports.ganttD);
   assert(exports.ganttEestDate, 'Gantt : la 1re colonne de periode doit avoir glisse en E');

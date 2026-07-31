@@ -279,10 +279,16 @@ const lib = require('./lib');
   if (!synth.kv.some(k => /dont anticipé/.test(k)))
     throw new Error('vue d\'ensemble : ligne « dont anticipe » absente');
   // Appro (2 mois entierement avant T0) : cout global == cout anticipe, non anticipe = 0.
+  // Colonnes reperees par leur EN-TETE et non par un index en dur : le tableau s'enrichit
+  // (« Charge (h) » s'y est intercalee le 31/07/2026), et un index fige transformerait
+  // n'importe quel ajout en echec sans rapport avec ce qui est teste ici.
   const appro = synth.rows.find(r => /Appro/.test(r[0]));
   if (!appro) throw new Error('groupe Appro absent de la synthese');
-  if (appro[2] !== appro[3]) throw new Error('Appro : cout global et anticipe devraient coincider : ' + appro.join(' | '));
-  if (!/^0\s/.test(appro[4])) throw new Error('Appro : la part non anticipee devrait etre nulle : ' + appro[4]);
+  const col = (motif) => appro[synth.headers.findIndex(h => motif.test(h))];
+  if (col(/Coût global/) !== col(/dont anticipé/))
+    throw new Error('Appro : cout global et anticipe devraient coincider : ' + appro.join(' | '));
+  if (!/^0\s/.test(col(/dont non anticipé/)))
+    throw new Error('Appro : la part non anticipee devrait etre nulle : ' + col(/dont non anticipé/));
 
   if (errors.length) throw new Error('erreurs console : ' + errors.join(' | '));
   console.log('\nOK — anticipation avant T0 validee');

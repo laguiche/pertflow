@@ -50,6 +50,10 @@ function pertBuildSynthesisModel() {
     nbTasks: 0,
     nbMilestones: 0,
     totalCost: 0,
+    // Charge en heures homme (31/07/2026), agregee comme le cout : c'est la grandeur
+    // du chiffrage d'offre, celle qu'on negocie avant d'en parler en euros. Toujours
+    // lue via pertActivityHours, qui connait le mode de saisie de chaque tache.
+    totalHours: 0,
     // Part du cout total ENGAGEE AVANT T0 (travaux anticipes), au prorata de la duree
     // situee a gauche de T0. Sert de bascule d'affichage : les colonnes « anticipe /
     // non anticipe » n'apparaissent que si le planning comporte de l'anticipation.
@@ -86,6 +90,7 @@ function pertBuildSynthesisModel() {
       activities.push(n);
       const c = pertActivityCost(n);
       model.totalCost += c;
+      model.totalHours += pertActivityHours(n);
       model.anticCost += pertAnticipatedCost(n);
       if (critIds.has(n.id)) { model.critTasks++; model.critCost += c; }
     }
@@ -160,9 +165,10 @@ function pertBuildSynthesisModel() {
     // Cout GLOBAL du groupe, puis sa decomposition anticipe (avant T0) / non anticipe
     // (demande utilisateur du 24/07/2026) : c'est par groupe que se decide qui porte
     // l'effort d'anticipation et le budget correspondant.
-    let cost = 0, anticCost = 0, maxLf = null;
+    let cost = 0, hours = 0, anticCost = 0, maxLf = null;
     nodes.forEach(n => {
       cost += pertActivityCost(n);
+      hours += pertActivityHours(n);
       anticCost += pertAnticipatedCost(n);
       if (n.lf != null && (maxLf === null || n.lf > maxLf)) maxLf = n.lf;
     });
@@ -170,6 +176,7 @@ function pertBuildSynthesisModel() {
       name: name || "(sans groupe)",
       color: name ? (groupColors[name] || (nodes[0].properties && nodes[0].properties.color) || null) : null,
       nbTasks: nodes.length,
+      hours,
       cost,
       anticCost,
       plainCost: cost - anticCost,
@@ -705,6 +712,9 @@ function pertRenderSynthesis() {
   synthKV(ov, "Fin de projet", pertFormatDate(m.endDate));
   synthKV(ov, "Tâches", String(m.nbTasks));
   synthKV(ov, "Jalons", String(m.nbMilestones));
+  // Charge puis coût : la somme des heures du tableau par groupe doit se retrouver ici,
+  // sinon le lecteur additionne les lignes à la main pour vérifier.
+  synthKV(ov, "Charge totale", pertFormatHours(m.totalHours));
   synthKV(ov, "Coût total", pertFormatCost(m.totalCost));
   // Depense engagee AVANT le lancement contractuel : ligne affichee seulement si le
   // planning comporte effectivement des travaux anticipes.
@@ -773,6 +783,10 @@ function pertRenderSynthesis() {
     const cells = [
       { node: nameCell },
       { text: String(gr.nbTasks), cls: "num" },
+      // La charge PRECEDE le coût : elle en est la cause (charge × taux), et c'est
+      // elle qu'on négocie en phase Offre. Toujours affichée, quel que soit le mode de
+      // saisie des tâches du groupe — les deux expressions s'agrègent dans la même unité.
+      { text: pertFormatHours(gr.hours), cls: "num" },
       { text: pertFormatCost(gr.cost), cls: "num" },
     ];
     if (showAntic) {
@@ -783,7 +797,8 @@ function pertRenderSynthesis() {
     return cells;
   });
   const grpHeaders = [
-    { text: "Groupe" }, { text: "Tâches", cls: "num" }, { text: "Coût global", cls: "num" },
+    { text: "Groupe" }, { text: "Tâches", cls: "num" }, { text: "Charge (h)", cls: "num" },
+    { text: "Coût global", cls: "num" },
   ];
   if (showAntic) {
     grpHeaders.push({ text: "dont anticipé", cls: "num" });

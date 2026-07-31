@@ -95,12 +95,14 @@ function projet() {
   // termine par un grand vide puis le bouton Supprimer — dans le manuel imprime, la
   // capture s'etalait sur deux pages pour ne rien montrer. On coupe sous la derniere
   // zone de saisie.
+  // Le repere du bas est le DERNIER bloc du panneau, quel qu'il soit — et non plus la
+  // derniere zone de texte : depuis la reorganisation du 31/07/2026 les Notes ne sont
+  // plus en fin de panneau (l'avancement et la charge les suivent), et couper sous
+  // elles aurait fait disparaitre de la capture le champ que le manuel illustre.
   const clip = await page.evaluate(() => {
     const panneau = document.getElementById('properties-panel').getBoundingClientRect();
-    const champs = document.querySelectorAll('#properties-content textarea');
-    const bas = champs.length
-      ? champs[champs.length - 1].getBoundingClientRect().bottom
-      : panneau.bottom;
+    const dernier = document.getElementById('properties-content').lastElementChild;
+    const bas = dernier ? dernier.getBoundingClientRect().bottom : panneau.bottom;
     return { x: panneau.x, y: panneau.y, width: panneau.width,
              height: Math.min(panneau.height, bas - panneau.y + 12) };
   });

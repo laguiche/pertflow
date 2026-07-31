@@ -148,7 +148,19 @@ câblage).</p>
 </ul>
 <h3 id="les-nuds">Les nœuds</h3>
 <ul>
-<li><strong>Activité</strong> (<code>pert/activity</code>) : <code>uid, label, duration, etp, responsible, notes, group, color</code>.</li>
+<li><strong>Activité</strong> (<code>pert/activity</code>) : <code>uid, label, duration, etp, charge_mode, charge_hours,
+  responsible, notes, group, color</code>.</li>
+<li><code>charge_mode</code> (<code>"etp"</code> par défaut | <code>"heures"</code>) désigne <strong>laquelle des deux expressions de la
+    charge est saisie</strong> ; l'autre est déduite via l'élongation et les paramètres de coût. Ce
+    drapeau n'est pas cosmétique : il dit ce qui reste <strong>invariant</strong> quand la durée change (en
+    <code>"etp"</code> la charge horaire suit la durée, en <code>"heures"</code> c'est l'ETP déduit qui se dilue).
+    Stocker les deux valeurs sans lui les ferait diverger dès la première modification de durée.</li>
+<li>Ne <strong>jamais</strong> lire <code>etp</code> / <code>charge_hours</code> en direct : passer par <code>pertActivityEtp</code> /
+    <code>pertActivityHours</code> (<code>pert_engine.js</code>), seuls à connaître le mode. <code>pertActivityEtp</code> rend
+    <code>null</code> quand l'ETP n'existe pas (charge en heures sur une durée nulle).</li>
+<li>Un <code>.pert</code> antérieur ne porte ni <code>charge_mode</code> ni <code>charge_hours</code> : les défauts du constructeur
+    subsistent (LiteGraph <strong>fusionne</strong> les propriétés sérialisées sur celles du nœud neuf) →
+    <strong>aucune migration</strong>.</li>
 <li><strong>Jalon</strong> (<code>pert/milestone</code>) : <code>label, due_date, tag</code> (<code>"" | DOTD | COTD | ING</code>).</li>
 <li><strong>Label</strong> (<code>pert/label</code>) : <code>text</code> (aucun lien, hors calcul).</li>
 </ul>

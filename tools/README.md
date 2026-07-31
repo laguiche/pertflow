@@ -36,7 +36,7 @@ cd tools && npm install && npx playwright install chromium && npm test
 
 ```bash
 cd tools
-npm test                        # toute la suite (30 tests, ~90 s)
+npm test                        # toute la suite (31 tests, ~90 s)
 node run-smokes.js -v           # idem, en affichant la sortie de chaque test
 node run-smokes.js import s9    # seulement les tests dont le nom contient "import" ou "s9"
 node smoke-suivi.js             # un test isolé (c'est ainsi qu'on débogue)
@@ -46,7 +46,7 @@ Le lanceur rend `0` si tout passe, `1` sinon, et rejoue en fin de compte rendu l
 tests en échec. Chaque `smoke*.js` reste un **programme autonome** : le contrat entre lui et le
 lanceur se limite au code de sortie, il n'y a aucun framework de test à apprendre.
 
-**Attendu sur `main` : 30/30.** Un test rouge sur un dépôt fraîchement cloné est un bug, pas une
+**Attendu sur `main` : 31/31.** Un test rouge sur un dépôt fraîchement cloné est un bug, pas une
 fatalité — signalez-le.
 
 ---

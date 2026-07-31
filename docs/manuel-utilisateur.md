@@ -411,21 +411,31 @@ en tâche en gardant la Synthèse sous les yeux.
 
 Pour une **Activité** :
 
+Les champs sont rangés dans l'ordre de ce à quoi sert un PERT : **d'abord la
+planification**, ensuite — sous l'intertitre **« Suivi et coût »** — les fonctions
+secondaires, qui n'entrent ni dans les dates, ni dans les marges, ni dans le chemin critique.
+
 - **Libellé** — le nom de la tâche.
 - **Durée** — dans l'unité du projet.
 - **Tâche anticipée (avant T0)** — case à cocher : la tâche est planifiée « juste à temps » et
   peut passer **avant T0** (voir §4). Sans successeur, la case reste sans effet.
-- **Avancement** — *Non commencé* (par défaut), *En cours* ou *Terminé*. Sert au **suivi**
-  (voir §13) et **n'a aucun effet sur le calcul PERT** : ni les dates, ni les marges, ni le
-  chemin critique, ni le coût n'en dépendent.
-- **ETP** (Équivalent Temps Plein) — l'effort estimé, utilisé pour le **coût** (voir §8).
-- **Responsable** — liste déroulante enrichissable (les noms déjà saisis sont reproposés).
 - **Couleur** — couleur de fond du nœud.
 - **Groupe** — le WP / métier / service (voir §7), avec le bouton
   **« Appliquer ce groupe aux tâches de même couleur »**.
+- **Responsable** — liste déroulante enrichissable (les noms déjà saisis sont reproposés).
 - **Notes** — texte libre (hypothèses, contenu réel de la tâche). Les notes restent dans le
   panneau et ne sont **jamais** affichées sur le nœud.
-- **Supprimer** — supprime le nœud (en pied de panneau, visible depuis les deux onglets).
+
+Puis, sous **« Suivi et coût »** :
+
+- **Avancement** — *Non commencé* (par défaut), *En cours* ou *Terminé*. Sert au **suivi**
+  (voir §13) et **n'a aucun effet sur le calcul PERT** : ni les dates, ni les marges, ni le
+  chemin critique, ni le coût n'en dépendent.
+- **Charge exprimée en** — *ETP* ou *Heures*, suivi des **deux valeurs côte à côte** : celle que
+  vous saisissez et celle qui en est **déduite** (grisée, en pointillés). C'est l'effort estimé,
+  utilisé pour le **coût** (voir §8).
+
+Enfin, **Supprimer** — supprime le nœud (en pied de panneau, visible depuis les deux onglets).
 
 ![Le panneau d'une tâche anticipée : la case cochée, onglet Propriétés](images/manuel/panneau-tache-anticipee.png)
 
@@ -623,14 +633,43 @@ nouveau nom, ou choisissez-en un déjà utilisé.
 PertFlow fournit une **estimation de coût** par tâche, sans pour autant devenir un outil de
 chiffrage : les montants restent **dans le panneau et la barre de statut**, jamais sur le nœud.
 
-- **Coût d'une Activité** = (durée convertie en heures) × **ETP** × **taux horaire moyen**,
-  affiché en **k€**. Le coût est **recalculé** (jamais figé) — il suit toujours les paramètres.
+- **Coût d'une Activité** = **charge en heures** × **taux horaire moyen**, affiché en **k€**. Le
+  coût est **recalculé** (jamais figé) — il suit toujours les paramètres.
 - **Paramètres de coût** (dans Paramètres) : **heures par mois**, **heures par jour**
   (la semaine = 5 jours), **taux horaire moyen**.
 - **Barre de statut** : le **coût total du projet** (limité aux tâches **visibles** si un filtre
   est actif) et le **coût du chemin critique** courant.
 
 Les **Jalons** et **Labels** n'ont pas de coût.
+
+### Exprimer la charge en ETP ou en heures
+
+Une tâche porte **une seule** grandeur — sa charge de travail — mais deux façons de l'écrire.
+Le sélecteur **« Charge exprimée en »** du panneau dit **laquelle vous saisissez** ; l'autre est
+calculée en face, en lecture seule, à partir de la **durée** de la tâche et des paramètres de coût.
+
+| Mode | Vous saisissez | PertFlow déduit | Quand l'employer |
+|---|---|---|---|
+| **ETP** | le nombre d'équivalents temps plein | la charge en heures | pilotage : « combien de monde sur la tâche » |
+| **Heures** | la charge globale en heures | l'ETP correspondant | **phase Offre** : le chiffrage se négocie en heures |
+
+Ce que le mode change vraiment, c'est ce qui **résiste** quand la durée bouge :
+
+- en **ETP**, allonger la tâche **augmente** sa charge en heures — les mêmes personnes restent
+  mobilisées plus longtemps ;
+- en **Heures**, allonger la tâche **dilue** la même enveloppe d'heures : la charge et le coût ne
+  bougent pas, c'est l'ETP déduit qui baisse.
+
+![La charge exprimée en ETP : les heures sont déduites](images/manuel/panneau-charge-etp.png)
+
+![La même tâche chiffrée en heures : c'est l'ETP qui est déduit](images/manuel/panneau-charge-heures.png)
+
+> **Changer de mode ne change jamais le coût** : la valeur affichée en face devient simplement
+> votre nouvelle saisie. Vous pouvez donc chiffrer une offre en heures, puis basculer en ETP pour
+> voir combien de monde cela suppose — sans rien perdre.
+
+Cas particulier : une tâche de **durée nulle** chiffrée en heures affiche « **—** » à la place de
+l'ETP (aucun ETP n'y correspond) ; sa charge et son coût, eux, comptent normalement.
 
 ### Le coût anticipé (travaux engagés avant T0)
 
@@ -744,11 +783,15 @@ sans avoir à l'ouvrir.
 ### Onglet Générique
 
 - **Vue d'ensemble** — titre du projet, T0, unité, **fin de projet**, nombre de tâches et de jalons,
-  **coût total** et **chemin critique** (nombre de tâches + coût). Le chemin critique repris est le
-  même que le tracé rouge : sans sélection, c'est le chemin de marge minimale ; avec une tâche
-  sélectionnée avant d'ouvrir la fenêtre, c'est le chemin qui la contraint.
-- **Par groupe (WP / métier)** — pour chaque groupe : nombre de tâches, **coût global** et
-  **fin au plus tard** (la date de fin la plus tardive parmi ses tâches).
+  **charge totale** (en heures), **coût total** et **chemin critique** (nombre de tâches + coût). Le
+  chemin critique repris est le même que le tracé rouge : sans sélection, c'est le chemin de marge
+  minimale ; avec une tâche sélectionnée avant d'ouvrir la fenêtre, c'est le chemin qui la contraint.
+- **Par groupe (WP / métier)** — pour chaque groupe : nombre de tâches, **charge en heures**,
+  **coût global** et **fin au plus tard** (la date de fin la plus tardive parmi ses tâches).
+  La colonne **Charge (h)** additionne les tâches du groupe **quel que soit leur mode de saisie**
+  (§8) : celles chiffrées en ETP et celles chiffrées en heures s'y retrouvent dans la même unité.
+
+![La synthèse : charge en heures et coût par groupe](images/manuel/synthese-charge-groupes.png)
 
 ### Onglets Jalons entrants / Jalons sortants
 
