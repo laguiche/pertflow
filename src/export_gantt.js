@@ -35,7 +35,16 @@ function pertGanttColor(act) {
 }
 
 // ETP d'une Activite (0 accepte ; defaut 1 si non renseigne / invalide).
+// Passe par pertActivityEtp : une tache dont la charge est saisie en HEURES n'a pas
+// d'ETP stocke, il se deduit de l'elongation (cf. « Mode de charge », pert_engine.js).
+// pertActivityEtp rend null quand la duree est nulle : la tache n'occupe alors aucune
+// colonne de periode dans le Gantt, la valeur n'est jamais ecrite — on retombe sur 0
+// plutot que sur 1, qui gonflerait la ligne « total charge » si elle l'etait un jour.
 function pertGanttEtp(act) {
+  if (pertChargeMode(act) === "heures") {
+    const v = pertActivityEtp(act);
+    return (v === null || isNaN(v)) ? 0 : v;
+  }
   const raw = act.properties.etp;
   if (raw === "" || raw == null) return 1;
   const v = parseFloat(raw);
@@ -270,8 +279,10 @@ function pertBuildMSPDI(model) {
     const uid = i + 1;
     const isAct = n.type === "pert/activity";
     const durH = isAct ? pertDurationToHours(pertDuration(n), model.unit, meta) : 0;
-    const etp = isAct ? pertGanttEtp(n) : 0;
-    const workH = durH * etp;
+    // Work MSPDI = charge en heures homme. On la prend a la source (pertActivityHours)
+    // plutot que de refaire duree × ETP : une charge saisie en heures sur une tache de
+    // duree nulle existe quand meme, et le produit la perdrait.
+    const workH = isAct ? pertActivityHours(n) : 0;
     // Un jalon (ou une activite de duree nulle) est un Milestone.
     const isMilestone = !isAct || durH <= 0;
     const startOff = isAct ? n.es : model.msOffset(n);

@@ -260,6 +260,35 @@ const lib = require('./lib');
   if (!nav.vueDeplacee)
     throw new Error('la vue doit se centrer sur le nœud atteint');
 
+  // ── 8) ORDRE des champs d'une Activite (decision utilisateur du 31/07/2026) ──
+  // Un PERT sert d'abord a PLANIFIER : les champs de planification viennent en tete,
+  // dans cet ordre precis, et les fonctions secondaires (suivi, cout) descendent
+  // derriere l'intertitre « Suivi et coût ». L'ordre est une DEMANDE, pas un hasard
+  // de construction : sans ce controle, la prochaine evolution le deferait en silence
+  // en ajoutant son champ la ou le code etait le plus commode.
+  const ordre = await page.evaluate(() => {
+    const g = window.pertGraph;
+    showProperties(g._nodes.find(n => n.id === window.__ids.A));
+    // Libelle de chaque bloc du panneau, dans l'ordre du DOM. On lit le premier nœud
+    // TEXTE direct du bloc et non son textContent : celui-ci ramasserait aussi les
+    // options du <select> (« AvancementNon commencéEn cours… ») et le « ▾ » des
+    // comboboxes, qui n'appartiennent pas a l'intitule.
+    return Array.from(document.getElementById('properties-content').children).map(el => {
+      if (el.id === 'charge-section') return 'CHARGE';
+      const txt = Array.from(el.childNodes)
+        .filter(n => n.nodeType === 3 && n.textContent.trim())
+        .map(n => n.textContent.trim())[0];
+      return (txt || el.textContent || '').trim().slice(0, 48);
+    });
+  });
+  console.log('ordre des champs :', ordre);
+  const attendu = ['Libellé', 'Durée', 'Tâche anticipée (avant T0)', 'Couleur', 'Groupe',
+    'Appliquer ce groupe aux tâches de même couleur', 'Responsable',
+    'Notes (hypothèses, contenu réel)', 'Suivi et coût', 'Avancement', 'CHARGE'];
+  if (ordre.join(' | ') !== attendu.join(' | '))
+    throw new Error('ordre des champs du panneau modifie :\n  attendu : '
+      + attendu.join(' | ') + '\n  vu      : ' + ordre.join(' | '));
+
   if (errors.length) throw new Error('erreurs JS :\n' + errors.join('\n'));
   console.log('\nOK — panneau en onglets + voisinage valides');
   await browser.close();

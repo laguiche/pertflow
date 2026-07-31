@@ -90,7 +90,19 @@ câblage).
 
 ### Les nœuds
 
-- **Activité** (`pert/activity`) : `uid, label, duration, etp, responsible, notes, group, color`.
+- **Activité** (`pert/activity`) : `uid, label, duration, etp, charge_mode, charge_hours,
+  responsible, notes, group, color`.
+  - `charge_mode` (`"etp"` par défaut | `"heures"`) désigne **laquelle des deux expressions de la
+    charge est saisie** ; l'autre est déduite via l'élongation et les paramètres de coût. Ce
+    drapeau n'est pas cosmétique : il dit ce qui reste **invariant** quand la durée change (en
+    `"etp"` la charge horaire suit la durée, en `"heures"` c'est l'ETP déduit qui se dilue).
+    Stocker les deux valeurs sans lui les ferait diverger dès la première modification de durée.
+  - Ne **jamais** lire `etp` / `charge_hours` en direct : passer par `pertActivityEtp` /
+    `pertActivityHours` (`pert_engine.js`), seuls à connaître le mode. `pertActivityEtp` rend
+    `null` quand l'ETP n'existe pas (charge en heures sur une durée nulle).
+  - Un `.pert` antérieur ne porte ni `charge_mode` ni `charge_hours` : les défauts du constructeur
+    subsistent (LiteGraph **fusionne** les propriétés sérialisées sur celles du nœud neuf) →
+    **aucune migration**.
 - **Jalon** (`pert/milestone`) : `label, due_date, tag` (`"" | DOTD | COTD | ING`).
 - **Label** (`pert/label`) : `text` (aucun lien, hors calcul).
 

@@ -226,6 +226,39 @@ body {
   cursor: pointer;
 }
 
+/* Charge d'une tâche : ETP et heures CÔTE À CÔTE (31/07/2026). Les deux expriment la
+   même grandeur — les empiler comme deux réglages indépendants laisserait croire
+   qu'elles s'additionnent. Le champ déduit est grisé : il se lit, il ne se saisit pas.
+   `min-width: 0` sur les colonnes, sinon la largeur mini d'un <input> (~170 px) déborde
+   du panneau au lieu de se partager la place. */
+.charge-pair {
+  display: flex;
+  gap: 8px;
+  /* Les deux cases doivent rester alignees meme si un libelle passe sur deux lignes
+     (250 px de panneau, donc ~14 caracteres par colonne) : l'<input> est le dernier
+     enfant de son <label>, aligner les BAS aligne les cases. */
+  align-items: flex-end;
+}
+
+.charge-pair > label {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Idem sur l'<input> lui-même : sa taille intrinsèque (attribut `size`) l'emporterait
+   sur le partage de place du conteneur flex. */
+.charge-pair input {
+  width: 100%;
+  min-width: 0;
+}
+
+#properties-content input.field-derived {
+  background: #141b30;
+  border-style: dashed;
+  color: #8fa8cc;
+  cursor: default;
+}
+
 #properties-content input:focus,
 #properties-content textarea:focus {
   outline: none;
@@ -249,9 +282,12 @@ body {
 .ro-label { color: #8899bb; }
 .ro-value { color: #aaccff; font-weight: 600; }
 
-/* Section des valeurs calculées (PERT) */
+/* Section des valeurs calculées (PERT) — et intertitre du panneau de saisie
+   (« Suivi et coût »), qui marque le passage aux fonctions secondaires : même
+   graphie, pour qu'un seul niveau de titre existe dans le panneau. */
 #calc-section { margin-top: 8px; }
-.calc-title {
+.calc-title,
+.prop-subtitle {
   font-size: 11px;
   font-weight: 700;
   color: #8899bb;

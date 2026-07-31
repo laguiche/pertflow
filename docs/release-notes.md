@@ -11,6 +11,30 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
+## v0.22 — 31/07/2026 · Charge en ETP ou en heures
+- La charge d'une tâche peut désormais s'exprimer **en heures** autant qu'en **ETP**. Le panneau
+  affiche un sélecteur **« Charge exprimée en »** puis **les deux valeurs côte à côte** : celle que
+  vous saisissez, et celle qui en est déduite (grisée). Utile en **phase Offre**, où le chiffrage
+  se négocie en heures et où l'élongation n'est pas toujours arrêtée.
+- **Changer de mode ne change jamais le coût** : la valeur affichée en face devient simplement la
+  nouvelle saisie. Vous pouvez chiffrer en heures puis basculer en ETP pour voir combien de monde
+  cela suppose.
+- Ce que le mode change, c'est ce qui **résiste quand la durée bouge** : en **ETP**, allonger la
+  tâche augmente sa charge en heures ; en **Heures**, l'enveloppe d'heures et le coût ne bougent
+  pas, c'est l'ETP déduit qui se dilue.
+- La **synthèse de planification** gagne une colonne **Charge (h)** par groupe et une ligne
+  **Charge totale** dans la vue d'ensemble : les tâches chiffrées en ETP et celles chiffrées en
+  heures s'y additionnent dans la même unité.
+- L'export **CSV** gagne une colonne **`Charge(h)`** en fin de ligne (la colonne `ETP` reste
+  remplie, avec la valeur déduite le cas échéant) ; le **Gantt Excel** et l'export **MS Project**
+  tiennent compte du mode.
+- **Panneau d'une tâche réorganisé** : d'abord ce qui sert à **planifier** (libellé, durée, tâche
+  anticipée, couleur, groupe, responsable, notes), puis, sous l'intertitre **« Suivi et coût »**,
+  l'avancement et la charge. Un PERT sert d'abord à bâtir une stratégie ; le suivi et le chiffrage
+  sont des fonctions d'appoint, et la liste des champs avait fini par le masquer.
+- **Vos plannings existants sont inchangés** : un fichier `.pert` antérieur s'ouvre en mode ETP,
+  avec exactement les mêmes coûts qu'avant.
+
 ## v0.21.1 — 31/07/2026 · Dépôt prêt pour une reprise
 - **Aucun changement dans l'application** : cette version est fonctionnellement identique à la
   v0.21. Si vous utilisez PertFlow, vous n'avez rien à faire — cette archive et la précédente

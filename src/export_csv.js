@@ -9,10 +9,16 @@
 // Colonnes (schema fige, a ne plus bouger : des tableurs utilisateurs s'y adossent) :
 //   Type ; UID ; Libellé ; Groupe ; Responsable ; Durée ; Unité ; ETP ; Coût(k€) ;
 //   DébutTôt ; FinTôt ; DébutTard ; FinTard ; Marge ; Critique ; DateCible ; TagJalon ;
-//   Avancement
-// « Avancement » (29/07/2026) est ajoutee EN FIN de schema, jamais intercalee : les
-// depouillements existants (tableaux croises, formules) reperent leurs colonnes par
-// position — une insertion au milieu les casserait tous en silence.
+//   Avancement ; Charge(h)
+// « Avancement » (29/07/2026) puis « Charge(h) » (31/07/2026) sont ajoutees EN FIN de
+// schema, jamais intercalees : les depouillements existants (tableaux croises,
+// formules) reperent leurs colonnes par position — une insertion au milieu les
+// casserait tous en silence.
+// « Charge(h) » n'est pas redondante avec ETP : c'est la charge globale en heures
+// homme, la grandeur du chiffrage d'offre, et le lecteur du CSV ne peut PAS la
+// recalculer (les parametres heures/jour et heures/mois ne figurent pas dans le
+// fichier). ETP reste rempli meme quand la charge est saisie en heures (valeur
+// deduite, cf. pertActivityEtp), et vide quand elle n'existe pas (duree nulle).
 //
 // Les valeurs calculees (es/ef/ls/lf/slack/is_critical) sont lues sur l'objet nœud
 // (posees par pertRecalc) ; les proprietes saisies sont dans node.properties.
@@ -63,7 +69,12 @@ function pertCsvRowForNode(node) {
   const group = isAct ? (p.group || "") : "";
   const resp = isAct ? (p.responsible || "") : "";
   const duration = isAct ? pertCsvNum(pertDuration(node)) : "";
-  const etp = isAct ? pertCsvNum(p.etp != null ? p.etp : "") : "";
+  // ETP et charge : arrondis a 2 decimales cote export — la valeur deduite tombe
+  // volontiers sur un rationnel a rallonge (135 h / 8 h), illisible en tableur.
+  const etpVal = isAct ? pertActivityEtp(node) : null;
+  const etp = (etpVal === null || etpVal === undefined)
+    ? "" : pertCsvNum(Math.round(etpVal * 100) / 100);
+  const chargeH = isAct ? pertCsvNum(Math.round(pertActivityHours(node) * 100) / 100) : "";
   const cost = isAct ? pertCsvNum(Math.round(pertActivityCost(node) / 100) / 10) : ""; // k€, 1 decimale
   const es = pertCsvDateFromOffset(node.es);
   const ef = pertCsvDateFromOffset(node.ef);
@@ -89,12 +100,12 @@ function pertCsvRowForNode(node) {
     ? pertProgressDef(p.progress).label : "";
 
   return [type, uid, label, group, resp, duration, unit, etp, cost,
-          es, ef, ls, lf, slack, critical, dueDate, tag, progress];
+          es, ef, ls, lf, slack, critical, dueDate, tag, progress, chargeH];
 }
 
 const PERT_CSV_HEADER = ["Type", "UID", "Libellé", "Groupe", "Responsable", "Durée",
   "Unité", "ETP", "Coût(k€)", "DébutTôt", "FinTôt", "DébutTard", "FinTard", "Marge",
-  "Critique", "DateCible", "TagJalon", "Avancement"];
+  "Critique", "DateCible", "TagJalon", "Avancement", "Charge(h)"];
 
 // Serialise l'ensemble du planning en texte CSV (avec BOM UTF-8).
 function pertBuildCSV() {

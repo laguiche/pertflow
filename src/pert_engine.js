@@ -1029,14 +1029,16 @@ function pertPublishStatus(res) {
 
 // ─── Estimation de coût (Session 8.5) ───────────────────────────────────────────
 //
-// Cout d'une Activite = (duree convertie en heures) × ETP × taux horaire moyen.
+// Cout d'une Activite = CHARGE (en heures homme) × taux horaire moyen. La charge
+// s'exprime de deux facons au choix de l'utilisateur (cf. bloc « Mode de charge ») ;
+// en ETP — le fonctionnement historique — elle vaut (duree convertie en heures) × ETP.
 // La conversion duree→heures depend de l'unite courante (meta.unit) :
 //   - jour    : duree × heures_par_jour
 //   - semaine : duree × 5 × heures_par_jour   (semaine = 5 jours ouvres)
 //   - mois    : duree × heures_par_mois        (parametre independant, non derive du jour)
 // Les parametres (heures/mois, heures/jour, taux) sont dans meta, modifiables dans le
 // dialogue Parametres. pertActivityCost renvoie des EUROS ; l'affichage convertit en k€.
-// Les Jalons et Labels n'ont pas de cout (pas de duree/ETP).
+// Les Jalons et Labels n'ont pas de cout (pas de duree/charge).
 
 const PERT_DEFAULT_HOURS_MONTH = 135;  // defaut entreprise
 const PERT_DEFAULT_HOURS_DAY   = 8;    // semaine = 5 × 8 = 40 h
@@ -1050,16 +1052,82 @@ function pertDurationToHours(duration, unit, meta) {
   return duration * hpd; // "j" (jours) par defaut
 }
 
-// Cout estime d'une Activite en euros (0 pour tout autre type de nœud).
-function pertActivityCost(node) {
+// ─── Mode de charge d'une Activite (31/07/2026) ─────────────────────────────────
+//
+// Deux facons d'exprimer la MEME grandeur — la charge de travail de la tache :
+//   - "etp"    : nombre d'Equivalents Temps Plein mobilises pendant toute l'elongation
+//                (fonctionnement historique, mode de PILOTAGE : « combien de monde ») ;
+//   - "heures" : charge globale en heures homme (phase OFFRE : le chiffrage se negocie
+//                en heures, l'elongation n'est parfois pas encore arretee).
+//
+// Le mode dit LEQUEL DES DEUX est la saisie ; l'autre en est deduit. Ce n'est pas un
+// detail d'IHM : c'est ce qui reste INVARIANT quand l'elongation ou les parametres
+// globaux de cout bougent. En "etp", allonger la tache augmente sa charge en heures
+// (le monde reste mobilise plus longtemps) ; en "heures", allonger la tache dilue la
+// meme enveloppe d'heures sur plus de temps, donc baisse l'ETP. Stocker les deux
+// valeurs cote a cote SANS ce drapeau les ferait diverger a la premiere modification
+// de duree, sans moyen de savoir laquelle croire.
+//
+// Compatibilite : mode absent = "etp", et les .pert anterieurs ne portent que `etp` —
+// aucune migration, le defaut suffit.
+
+const PERT_CHARGE_MODES = [
+  { value: "etp",    label: "ETP (équivalent temps plein)" },
+  { value: "heures", label: "Heures (charge globale)" },
+];
+
+// Mode de charge effectif d'un nœud (toute valeur inconnue retombe sur "etp").
+function pertChargeMode(node) {
+  const m = node && node.properties ? node.properties.charge_mode : null;
+  return m === "heures" ? "heures" : "etp";
+}
+
+// Nombre d'heures ouvrees couvertes par l'ELONGATION de la tache, pour 1 ETP. C'est le
+// facteur de conversion entre les deux expressions de la charge : heures = ETP × ce
+// pivot. Vaut 0 si la duree est nulle (tache jalon-like) — le sens s'inverse alors :
+// une charge en heures reste connue, mais l'ETP correspondant n'existe pas.
+function pertActivityDurationHours(node) {
   if (!node || node.type !== "pert/activity" || !node.properties) return 0;
   const meta = window.pertMeta || {};
   const dur = parseFloat(node.properties.duration) || 0;
-  const etpRaw = parseFloat(node.properties.etp);
-  const etp = isNaN(etpRaw) ? 0 : etpRaw;
+  return pertDurationToHours(dur, meta.unit || "j", meta);
+}
+
+// Charge d'une Activite en HEURES homme (0 pour tout autre type de nœud).
+function pertActivityHours(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return 0;
+  if (pertChargeMode(node) === "heures") {
+    const h = parseFloat(node.properties.charge_hours);
+    return isNaN(h) ? 0 : h;
+  }
+  const etp = parseFloat(node.properties.etp);
+  return (isNaN(etp) ? 0 : etp) * pertActivityDurationHours(node);
+}
+
+// Charge d'une Activite en ETP, ou null si elle n'est pas calculable — cas d'une
+// saisie en heures sur une tache de duree nulle : la division n'a pas de sens et
+// afficher 0 mentirait (la charge, elle, existe). Les consommateurs qui ont besoin
+// d'un nombre (exports) retombent sur 0 ou 1 selon leur propre convention.
+function pertActivityEtp(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return 0;
+  if (pertChargeMode(node) !== "heures") {
+    const etp = parseFloat(node.properties.etp);
+    return isNaN(etp) ? 0 : etp;
+  }
+  const durH = pertActivityDurationHours(node);
+  if (durH <= 0) return null;
+  return pertActivityHours(node) / durH;
+}
+
+// Cout estime d'une Activite en euros (0 pour tout autre type de nœud).
+// Passe TOUJOURS par la charge en heures : en mode "etp" la formule est identique a
+// celle de S8.5 (duree→heures × ETP × taux), en mode "heures" le cout d'une charge
+// saisie ne depend plus de l'elongation.
+function pertActivityCost(node) {
+  if (!node || node.type !== "pert/activity" || !node.properties) return 0;
+  const meta = window.pertMeta || {};
   const rate = (meta.hourly_rate != null) ? meta.hourly_rate : PERT_DEFAULT_RATE;
-  const hours = pertDurationToHours(dur, meta.unit || "j", meta);
-  return hours * etp * rate;
+  return pertActivityHours(node) * rate;
 }
 
 // Part ANTICIPEE d'une Activite : fraction de sa duree situee avant T0 (0 → 1).
@@ -1086,9 +1154,21 @@ function pertFormatCost(euros) {
   return k.toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " k€";
 }
 
+// Formatage d'une charge en heures, notation FR. Ex. "1 012,5 h". Pas de conversion
+// en jours/ETP : c'est la grandeur du chiffrage d'offre, elle se lit telle quelle —
+// la ramener a une autre unite obligerait a rappeler laquelle a chaque affichage.
+function pertFormatHours(hours) {
+  return (hours || 0).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + " h";
+}
+
 // Exposition globale (appelée depuis ui.js sur les événements de graphe)
 window.pertActivityCost = pertActivityCost;
+window.pertChargeMode = pertChargeMode;
+window.pertActivityHours = pertActivityHours;
+window.pertActivityEtp = pertActivityEtp;
+window.pertActivityDurationHours = pertActivityDurationHours;
 window.pertFormatCost = pertFormatCost;
+window.pertFormatHours = pertFormatHours;
 window.pertRecalc = pertRecalc;
 window.pertOffsetToDate = pertOffsetToDate;
 window.pertDateToOffset = pertDateToOffset;
