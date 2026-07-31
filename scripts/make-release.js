@@ -3,9 +3,9 @@
 //
 // Produit `dist/release/pertflow_vX_Y.zip` contenant ce dont un UTILISATEUR a
 // besoin, et rien d'autre : l'application (le bundle standalone), le manuel en PDF,
-// et un mot d'accueil expliquant qu'il suffit de double-cliquer. Le code source,
-// lui, reste sur GitHub pour qui veut le lire — l'archive n'est pas un miroir du
-// depot, c'est une livraison.
+// les NOTES DE VERSION et un mot d'accueil expliquant qu'il suffit de double-cliquer.
+// Le code source, lui, reste sur GitHub pour qui veut le lire — l'archive n'est pas
+// un miroir du depot, c'est une livraison.
 //
 // Pourquoi une archive et pas le bundle nu : le manuel doit voyager avec
 // l'application. Sur un PC verrouille, l'utilisateur telecharge un fichier, le
@@ -30,7 +30,86 @@ const cp = require("child_process");
 const ROOT = path.resolve(__dirname, "..");
 const BUNDLE = path.join(ROOT, "dist", "pertflow.html");
 const MANUEL = path.join(ROOT, "docs", "manuel-utilisateur.pdf");
+const NOTES = path.join(ROOT, "docs", "release-notes.md");
 const OUT_DIR = path.join(ROOT, "dist", "release");
+
+// ─── Notes de version : Markdown → texte brut lisible au Bloc-notes ─────────────
+//
+// L'archive part sur un poste verrouille ou l'utilisateur n'a ni visionneuse Markdown
+// ni acces a GitHub. On livre donc du .txt : les balises (**gras**, `code`, liens)
+// deviennent du bruit a l'ecran si on les laisse telles quelles.
+// L'historique COMPLET est inclus, pas seulement la version livree : quelqu'un qui
+// saute plusieurs versions doit pouvoir lire ce qu'il a manque, et le fichier reste
+// antechronologique — ce qui vient d'etre installe est en tete.
+
+// Une puce Markdown tient sur plusieurs lignes source ; en texte brut, ses lignes de
+// continuation non indentees se lisent mal. On rassemble donc chaque puce avant de la
+// re-envelopper a la largeur voulue.
+function wrapText(texte, largeur, indent, indentSuite) {
+  const mots = texte.split(/\s+/).filter(Boolean);
+  const lignes = [];
+  let courante = indent;
+  let vide = true;
+  for (const mot of mots) {
+    const prefixe = vide ? "" : " ";
+    if (!vide && (courante + prefixe + mot).length > largeur) {
+      lignes.push(courante);
+      courante = indentSuite + mot;
+    } else {
+      courante += prefixe + mot;
+      vide = false;
+    }
+  }
+  if (!vide) lignes.push(courante);
+  return lignes;
+}
+
+function notesEnTexte(md) {
+  const propre = (s) => s
+    // [texte](url) → « texte (url) », sauf quand le texte EST deja l'url : dans les
+    // .md le libelle est souvent le nom du fichier entoure de backticks, d'ou le
+    // nettoyage AVANT comparaison — sinon on ecrit « conception.md (conception.md) ».
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, t, u) =>
+      (t.replace(/`/g, "").trim() === u.trim() ? t : t + " (" + u + ")"))
+    .replace(/\*\*([^*]+)\*\*/g, "$1")                 // **gras**
+    .replace(/`([^`]+)`/g, "$1")                       // `code`
+    .replace(/^>\s?/, "");                             // citation
+  const sortie = [];
+  // Bloc en cours : une puce OU un paragraphe. Les deux s'etalent sur plusieurs lignes
+  // source et doivent etre rassembles avant d'etre re-enveloppes — sinon les retours a
+  // la ligne du Markdown se retrouvent tels quels dans le .txt, en plein milieu des
+  // phrases.
+  let bloc = null, puce = false;
+  const vider = () => {
+    if (bloc === null) return;
+    sortie.push(...(puce ? wrapText(propre(bloc), 78, "  - ", "    ")
+                         : wrapText(propre(bloc), 78, "", "")));
+    bloc = null; puce = false;
+  };
+  for (const brute of md.split(/\r?\n/)) {
+    const ligne = brute.trimEnd();
+    if (/^\s*-\s+/.test(ligne)) {                      // debut de puce
+      vider();
+      bloc = ligne.replace(/^\s*-\s+/, ""); puce = true;
+      continue;
+    }
+    if (/^#{1,2}\s/.test(ligne)) {                     // titre de document / de version
+      vider();
+      const t = propre(ligne.replace(/^#+\s*/, ""));
+      sortie.push("", t, "=".repeat(Math.min(t.length, 78)));
+      continue;
+    }
+    if (/^---+$/.test(ligne.trim())) { vider(); continue; }  // separateur : titres soulignes
+    if (!ligne.trim()) {                               // fin de bloc
+      vider();
+      if (sortie.length && sortie[sortie.length - 1] !== "") sortie.push("");
+      continue;
+    }
+    bloc = (bloc === null) ? ligne.trim() : bloc + " " + ligne.trim();
+  }
+  vider();
+  return sortie.join("\r\n").replace(/^\r\n/, "") + "\r\n";
+}
 
 function resolveTag() {
   const i = process.argv.indexOf("--tag");
@@ -67,6 +146,17 @@ if (bundleTag !== tag) {
 }
 if (!fs.existsSync(MANUEL)) fail("manuel PDF absent : " + MANUEL + " (node tools/build-docs.js)");
 
+// Meme raisonnement que pour le tag du bundle : livrer une archive « vX.Y » dont les
+// notes s'arretent a la version precedente est indetectable a l'usage — l'utilisateur
+// lit un fichier qui ne parle pas de ce qu'il vient d'installer. On refuse AVANT
+// d'ecrire quoi que ce soit, plutot que d'avertir dans un flot de sortie.
+if (!fs.existsSync(NOTES)) fail("notes de version absentes : " + NOTES);
+const notesMd = fs.readFileSync(NOTES, "utf8");
+if (!new RegExp("^##\\s+" + tag.replace(/\./g, "\\.") + "\\b", "m").test(notesMd)) {
+  fail("docs/release-notes.md ne contient aucune section « ## " + tag + " ».\n"
+     + "        Redigez les notes de cette version avant de fabriquer l'archive.");
+}
+
 // zip est fourni par le systeme (aucune dependance npm dans ce projet, cf. docs/conception.md).
 try {
   cp.execSync("command -v zip", { stdio: "ignore" });
@@ -84,6 +174,7 @@ fs.mkdirSync(stage, { recursive: true });
 
 fs.copyFileSync(BUNDLE, path.join(stage, "pertflow.html"));
 fs.copyFileSync(MANUEL, path.join(stage, "manuel-utilisateur.pdf"));
+fs.writeFileSync(path.join(stage, "NOTES-DE-VERSION.txt"), notesEnTexte(notesMd), "utf8");
 
 // Mot d'accueil : la premiere chose lue apres le dezippage. Il repond aux deux
 // questions du nouvel arrivant — comment on lance, et ou sont mes donnees.
@@ -101,7 +192,9 @@ fs.writeFileSync(path.join(stage, "LISEZ-MOI.txt"),
   + "  telechargements ; « Ouvrir » le recharge. Rangez-les ou vous voulez.\r\n"
   + "\r\n"
   + "DOCUMENTATION\r\n"
-  + "  « manuel-utilisateur.pdf » — prise en main, puis chaque fonction en detail.\r\n"
+  + "  « manuel-utilisateur.pdf »  — prise en main, puis chaque fonction en detail.\r\n"
+  + "  « NOTES-DE-VERSION.txt »    — ce qui a change dans cette version, et dans\r\n"
+  + "                                les precedentes (la plus recente en tete).\r\n"
   + "\r\n"
   + "Code source et versions : https://github.com/laguiche/pertflow\r\n",
   "utf8");

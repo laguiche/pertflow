@@ -46,19 +46,32 @@ pertflow/
 ├── css/style.css         # Styles globaux (thème sombre)
 ├── src/
 │   ├── nodes.js          # Types de nœuds PERT + rendu custom (LiteGraph)
-│   ├── pert_engine.js    # Calcul PERT, conversions dates↔unités, layout, chemin critique
-│   ├── import_excel.js   # Import des .xlsm legacy (fflate + DrawingML)
-│   ├── ui.js             # Toolbar, panneau, dialogues, menus, barre de statut, câblage
+│   ├── pert_engine.js    # Calcul PERT, conversions dates↔unités, layout, chemin critique,
+│   │                     #   estimation charge/coût
+│   ├── ui.js             # Toolbar, panneau, dialogues, menus, filtre, barre de statut, câblage
 │   ├── storage.js        # Sérialisation/chargement .pert
 │   ├── history.js        # Undo/Redo par snapshots
 │   ├── autosave.js       # Filet anti-crash (snapshot localStorage)
+│   ├── align.js          # Boîte d'alignement / distribution des nœuds sélectionnés
+│   ├── t0_marker.js      # Repère T0 + bande « travaux anticipés » (2 couches de rendu)
+│   ├── time_grid.js      # Trame calendaire de fond, optionnelle et d'intensité réglable
+│   ├── synthesis.js      # Fenêtre de synthèse (planification) + helpers de rendu partagés
+│   ├── suivi.js          # Fenêtre de suivi d'avancement — réutilise ces helpers
+│   ├── import.js         # Fenêtre d'import + registre des formats (même patron que l'export)
+│   ├── import_excel.js   # Import des .xlsm legacy CPERT (fflate + DrawingML)
+│   ├── import_pert.js    # Import/concaténation d'un .pert dans le planning courant
 │   ├── export.js         # Fenêtre d'export + PNG/PDF + helpers de téléchargement
 │   ├── export_csv.js     # Export CSV
 │   ├── export_xlsx.js    # Mini-writer XLSX générique (sur fflate)
 │   ├── export_gantt.js   # Gantt chargé (Excel) + MS Project (MSPDI XML)
 │   ├── export_microjalons.js  # Micro-jalonnement (Excel)
 │   └── link_routing.js   # Rendu des liens : styles + routage orthogonal (évitement)
-├── scripts/build-bundle.js   # Génère le fichier autonome dist/pertflow.html
+├── docs/                 # Manuel, conception, maintenance, notes de version (MD + HTML + PDF)
+├── tools/                # Suite de tests + captures d'écran (cf. tools/README.md)
+├── test_cases/           # Jeux d'essai — versionnés en LISTE BLANCHE (cf. tools/README.md)
+├── scripts/
+│   ├── build-bundle.js   # Génère le fichier autonome dist/pertflow.html
+│   └── make-release.js   # Fabrique l'archive de livraison (bundle + manuel + notes)
 └── dist/pertflow.html        # Livrable autonome (versionné)
 ```
 
@@ -193,6 +206,37 @@ LiteGraph fournit le canvas, le pan/zoom, la sélection, la sérialisation et le
 - **Gestion d'erreurs** : `showToast` / `showError` / `guardUI` + filet global — indispensable en
   `file://` où l'utilisateur n'a pas la console.
 
+### Filtre et recherche (`window.pertFilter`)
+
+Cinq natures de filtre — `group`, `color`, `responsible`, `progress` (qui ne « matchent » que des
+Activités) et `text` (nom **et** notes, sur les trois types de nœuds, insensible à la casse et aux
+accents). Un filtre **n'enlève rien** : il **estompe** les nœuds hors sélection sous un voile, pour
+que le planning reste lisible dans son ensemble.
+
+C'est un **état de vue** : jamais sérialisé dans le `.pert`, au même titre que l'onglet courant du
+panneau ou de la synthèse. Une recherche **remplace** le filtre courant (ils partagent une seule
+variable), d'où l'obligation de resynchroniser les marqueurs d'état de la liste — sans quoi l'IHM
+annonce un filtre qui n'est plus actif.
+
+### Fenêtres de rapport (`synthesis.js`, `suivi.js`)
+
+Le bouton **Synthèse** ouvre un menu à deux entrées, deux fenêtres au même patron :
+
+- **Synthèse de planification** — le planning **tel qu'il est prévu** : vue d'ensemble, jalons
+  entrants / sortants, agrégats par groupe (charge, coût, fin au plus tard), et un onglet
+  **Analyse**. Ses quatre onglets deviennent **quatre chapitres** à l'impression.
+- **Suivi d'avancement** — le même planning **confronté à la date du jour**. Il ne recalcule rien.
+  La date du point est surchargeable (`window.pertSuiviToday`) : sans cette couture, ni test ni
+  capture ne seraient reproductibles.
+
+Deux principes structurants. **L'onglet Analyse est fait pour s'enrichir** : un contrôle est un
+objet `{ id, title, hint, columns, rows }` poussé dans une liste, le rendu est générique ; un
+contrôle **sans anomalie n'est pas affiché** (une liste de choses à regarder, pas des cases vertes à
+faire défiler) et chaque ligne doit **mener au(x) nœud(s)** concerné(s). **La coquille de fenêtre est
+mutualisée** par des **classes** (`.synth-content`, `.synth-tabs`, `.synth-printing`) et non par les
+ids de la synthèse — deux fenêtres coexistant, une règle `@media print` qui ciblerait un id
+force-afficherait la fenêtre fermée sur le papier.
+
 ---
 
 ## 7. Import Excel legacy (`import_excel.js`)
@@ -252,3 +296,7 @@ injecte `window.PERTFLOW_BUILD = { date, tag }` (lu par la popup « À propos »
 | Snapshots pour l'undo **et** l'autosave | Un seul mécanisme robuste et exhaustif |
 | Autosave en `localStorage` | Seul stockage persistant possible en `file://` |
 | Layout manuel (jamais auto) | Ne jamais casser un placement à la main |
+| Filtre et onglets = **état de vue**, hors `.pert` | Un fichier décrit un planning, pas une session de travail |
+| Avancement **hors de tout calcul** | Le PERT reste l'objectif : le renseigner ne doit rien déplacer |
+| Charge : un **mode** de saisie, pas deux valeurs libres | Le mode dit l'invariant quand la durée bouge ; deux valeurs stockées sans lui divergeraient |
+| Filtre qui **estompe** au lieu de masquer | Garder le planning lisible dans son ensemble |

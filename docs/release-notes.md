@@ -11,7 +11,7 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
-## v0.22 — 31/07/2026 · Charge en ETP ou en heures
+## v0.22 — 01/08/2026 · Charge en ETP ou en heures
 - La charge d'une tâche peut désormais s'exprimer **en heures** autant qu'en **ETP**. Le panneau
   affiche un sélecteur **« Charge exprimée en »** puis **les deux valeurs côte à côte** : celle que
   vous saisissez, et celle qui en est déduite (grisée). Utile en **phase Offre**, où le chiffrage
