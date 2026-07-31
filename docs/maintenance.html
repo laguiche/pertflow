@@ -122,6 +122,29 @@ déploiement cible.</p>
 <li>Si le réglage a un effet visuel immédiat, l'appliquer dans <code>saveSettings</code> et au chargement.</li>
 </ol>
 <p><em>(Exemple récent : <code>meta.link_mode</code> en Session 10.)</em></p>
+<h3 id="une-propriete-de-nud">…une propriété de nœud</h3>
+<ol>
+<li>La déclarer dans <code>this.properties</code> du constructeur (<code>nodes.js</code>), <strong>avec sa valeur par défaut</strong>
+   et un commentaire disant à quoi elle sert.</li>
+<li><strong>Ne rien faire pour la sérialisation</strong> : <code>node.properties</code> est sérialisé nativement par
+   LiteGraph, et <code>configure()</code> <strong>fusionne</strong> les propriétés du fichier sur celles du nœud neuf —
+   un <code>.pert</code> antérieur récupère donc les défauts du constructeur. <strong>Aucune migration</strong> n'est
+   nécessaire, et il ne faut pas en écrire.</li>
+<li>L'exposer dans le panneau (<code>showProperties</code>, <code>ui.js</code>). Se demander si elle appartient à la
+   <strong>planification</strong> ou aux fonctions secondaires : voir la règle d'ordre du panneau au §7.</li>
+<li>Si sa valeur peut être <strong>déduite</strong> d'une autre (cas de la charge : ETP ⇄ heures), écrire un
+   <strong>accesseur</strong> dans <code>pert_engine.js</code> et faire passer <strong>tous</strong> les consommateurs par lui — jamais
+   <code>node.properties.x</code> en direct ailleurs. Sans quoi les exports et la synthèse liront une valeur
+   périmée sans que rien ne le signale.</li>
+</ol>
+<h3 id="une-colonne-a-un-export">…une colonne à un export</h3>
+<ul>
+<li><strong>En FIN de schéma, jamais intercalée.</strong> Les dépouillements utilisateurs (tableaux croisés,
+  formules) repèrent leurs colonnes par <strong>position</strong> : une insertion au milieu les casse tous en
+  silence. C'est la seule règle vraiment intangible du CSV.</li>
+<li>Côté test, <strong>repérer la colonne par son en-tête</strong>, jamais par un index figé — sinon le prochain
+  ajout fera échouer des tests sans rapport avec ce qu'ils protègent (c'est arrivé deux fois).</li>
+</ul>
 <h3 id="un-format-dexport">…un format d'export</h3>
 <ol>
 <li>Créer <code>src/export_&lt;format&gt;.js</code> qui produit le contenu (réutiliser <code>pertXlsxBuild</code> pour un
@@ -137,7 +160,7 @@ LiteGraph, l'intégrer au moteur si pertinent (<code>pert_engine.js</code>) et �
 <p><strong>Le mode d'emploi complet est dans <a href="../tools/README.md"><code>tools/README.md</code></a></strong> — prérequis,
 lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :</p>
 <pre><code class="language-bash">cd tools &amp;&amp; npm install &amp;&amp; npx playwright install chromium   # une fois
-npm test                                                     # 30 tests, ~90 s
+npm test                                                     # 31 tests, ~90 s
 </code></pre>
 <ul>
 <li><strong>Suite smoke</strong> : chaque test pilote l'application dans un vrai Chromium ouvert en <code>file://</code> —
@@ -148,8 +171,11 @@ npm test                                                     # 30 tests, ~90 s
   l'import CPERT est testé sur un classeur <strong>fabriqué</strong> par <code>tools/make-cpert-fixture.js</code>, conçu
   pour exercer chaque règle de lecture. Si vous disposez d'un vrai CPERT, le déposer ici ajoute une
   non-régression supplémentaire — cf. <code>tools/README.md</code>.</li>
-<li><strong>Captures d'écran</strong> : <code>doc-shots*.js</code> alimentent <code>docs/images/manuel/</code> (versionné),
-  <code>shots-*.js</code> produisent des captures de relecture dans <code>/tmp</code>, <code>screenshot.js</code> fait l'unitaire.</li>
+<li><strong>Captures d'écran</strong> : les <code>doc-shots*.js</code> (un par chantier illustré) alimentent
+  <code>docs/images/manuel/</code> (versionné), les <code>shots-*.js</code> produisent des captures de <strong>relecture</strong> dans
+  <code>/tmp</code>, <code>screenshot.js</code> fait l'unitaire. Un script de capture qui recadre le panneau doit viser
+  son <strong>dernier bloc</strong> (<code>lastElementChild</code>) et non un champ nommé : l'ordre des champs évolue, et
+  une capture qui coupe juste avant ce qu'elle illustre ne se voit pas au moment du build.</li>
 <li><strong><code>check-bundle.js</code></strong> vérifie le bundle livré, pas les sources — à lancer après un build.</li>
 </ul>
 <blockquote>
@@ -173,8 +199,10 @@ et un <strong>PDF</strong>. Ces sorties <code>docs/*.html</code> et <code>docs/*
 <hr />
 <h2 id="6-git-versionnage-et-rituel-de-fin-de-session">6. Git, versionnage et rituel de fin de session</h2>
 <ul>
-<li><strong>Branche par session</strong> (<code>session/N-...</code> ou <code>fix/...</code>), merge <strong>no-ff</strong> sur <code>main</code>, <strong>tag</strong> en
-  fin de session.</li>
+<li><strong>Branche par sujet</strong> — <code>evo/&lt;sujet&gt;</code> pour une évolution fonctionnelle, <code>fix/&lt;sujet&gt;</code> pour un
+  correctif, <code>chore/&lt;sujet&gt;</code> pour l'outillage ou la doc —, merge <strong>no-ff</strong> sur <code>main</code>, <strong>tag</strong> en
+  fin de session. Le sujet du merge s'écrit <code>merge &lt;branche&gt; → main (&lt;résumé&gt;, N/N)</code>, le <code>N/N</code>
+  étant le résultat de la suite de tests.</li>
 <li>⚠️ <strong>Numérotation des tags décalée</strong> : <code>vN ≠ SN</code> (la Session 2.5 et plusieurs lots de correctifs
   ont consommé des tags). Se fier à l'historique des tags, pas au numéro de session. Les
   correctifs successifs sur une session déjà taguée utilisent un <strong>schéma patch <code>vX.Y.Z</code></strong>.</li>
@@ -185,18 +213,38 @@ et un <strong>PDF</strong>. Ces sorties <code>docs/*.html</code> et <code>docs/*
 <h3 id="rituel-de-fin-de-session-obligatoire">Rituel de fin de session (obligatoire)</h3>
 <p>À chaque clôture, <strong>avant</strong> le commit final :</p>
 <ol>
-<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 30/30).</li>
-<li><strong>Mettre à jour la documentation</strong> touchée — les <code>.md</code> de <code>docs/</code>, leurs versions HTML/PDF
-   (<code>node tools/build-docs.js</code>) et les notes de version — <strong>avant</strong> le push.</li>
+<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 31/31).</li>
+<li><strong>Mettre à jour la documentation</strong> touchée — les <code>.md</code> de <code>docs/</code>, les <strong>captures</strong> qu'une
+   évolution d'IHM a périmées (<code>node tools/doc-shots-*.js</code>), les versions HTML/PDF
+   (<code>node tools/build-docs.js</code>) et <strong>les notes de version</strong> — <strong>avant</strong> le push.</li>
 <li><strong>Régénérer le bundle</strong> avec le tag de la session :
    <code>node scripts/build-bundle.js --tag vX.Y</code>, puis le vérifier : <code>node tools/check-bundle.js vX.Y</code>.</li>
 <li><strong>Committer + pousser le bundle</strong> (<code>dist/pertflow.html</code>, <strong>versionné</strong>) avec le reste.</li>
 <li>Le bundle embarque le bouton <strong>« À propos »</strong> (© Stéphane Guichard, licence MIT, date de
    génération et tag) : ces valeurs sont injectées par le build dans <code>window.PERTFLOW_BUILD</code> —
    <strong>ne jamais les coder en dur</strong>.</li>
+<li><strong>Publier la release GitHub</strong>, une fois le tag poussé — c'est ce qui met l'outil à disposition
+   sans avoir à récupérer tout le dépôt :</li>
 </ol>
+<p><code>bash
+   node scripts/make-release.js --tag vX.Y     # → dist/release/pertflow_vX_Y.zip
+   gh release create vX.Y dist/release/pertflow_vX_Y.zip \
+      --title "PertFlow vX.Y — &lt;titre des notes de version&gt;" \
+      --notes-file &lt;extrait de docs/release-notes.md pour cette version&gt;</code></p>
+<ul>
+<li>L'archive contient <strong>l'application, le manuel PDF, les notes de version et un LISEZ-MOI</strong> —
+     rien d'autre : c'est une livraison, pas un miroir du dépôt.</li>
+<li><code>make-release.js</code> <strong>refuse d'écrire</strong> si le bundle ne porte pas le tag demandé, ou si
+     <code>docs/release-notes.md</code> n'a pas de section pour cette version. Les deux erreurs seraient
+     indétectables à l'usage : le numéro affiché par « À propos » vient du bundle et non du nom
+     de l'archive, et des notes muettes sur la version installée ne se remarquent pas non plus.</li>
+<li><code>dist/release/</code> est <strong>gitignoré</strong> : l'archive doublerait le bundle, déjà versionné. Son
+     hébergement, c'est GitHub Releases.</li>
+<li>Le <strong>corps de la release reprend les notes de version</strong> : une seule rédaction, orientée
+     utilisateur, à un seul endroit — <code>docs/release-notes.md</code>, qui voyage aussi dans l'archive.</li>
+</ul>
 <p>Ordre : finaliser code/doc → suite verte → régénérer bundle (<code>--tag</code>) → committer (source +
-bundle) → pousser → merger sur <code>main</code> → taguer → pousser le tag.</p>
+bundle) → pousser → merger sur <code>main</code> → taguer → pousser le tag → <strong>archive + release GitHub</strong>.</p>
 <hr />
 <h2 id="7-points-de-vigilance-divers">7. Points de vigilance divers</h2>
 <ul>
@@ -213,7 +261,15 @@ bundle) → pousser → merger sur <code>main</code> → taguer → pousser le t
   (<code>&lt;datalist&gt;</code>, <code>&lt;option&gt;</code> colorées) se comportent différemment d'un navigateur à l'autre →
   privilégier des composants DOM/CSS maison (pattern déjà en place).</li>
 <li><strong>Le <code>.pert</code> doit rester rétro-compatible</strong> : toute nouvelle clé <code>meta</code> a une valeur par défaut
-  à la lecture (anciens fichiers).</li>
+  à la lecture (anciens fichiers). Pour une <strong>propriété de nœud</strong>, c'est acquis sans rien écrire —
+  LiteGraph fusionne les propriétés du fichier sur celles du nœud neuf — à condition que le
+  <strong>défaut du constructeur soit le comportement historique</strong> (règle appliquée pour <code>charge_mode</code>,
+  dont le défaut <code>"etp"</code> laisse les anciens plannings au coût inchangé).</li>
+<li><strong>Ordre des champs du panneau d'une Activité</strong> (décision utilisateur, 31/07/2026) : un PERT sert
+  d'abord à <strong>planifier</strong>. Viennent donc en tête libellé, durée, tâche anticipée, couleur, groupe,
+  responsable, notes ; puis l'intertitre <strong>« Suivi et coût »</strong> et, derrière lui, l'avancement et la
+  charge. <strong>Toute nouveauté hors planification se range sous l'intertitre</strong>, jamais au milieu du
+  haut de panneau. Un test vérifie l'ordre complet : sans lui, la décision se déferait en silence.</li>
 </ul>
 <hr />
 <h2 id="8-ou-trouver-quoi">8. Où trouver quoi</h2>
@@ -246,8 +302,24 @@ bundle) → pousser → merger sur <code>main</code> → taguer → pousser le t
 <td><code>src/pert_engine.js</code></td>
 </tr>
 <tr>
+<td>L'estimation de charge et de coût (ETP ⇄ heures)</td>
+<td><code>src/pert_engine.js</code> (bloc « Estimation de coût »)</td>
+</tr>
+<tr>
 <td>Le rendu des nœuds / liens</td>
 <td><code>src/nodes.js</code>, <code>src/link_routing.js</code></td>
+</tr>
+<tr>
+<td>Le panneau, les dialogues, le filtre, la barre de statut</td>
+<td><code>src/ui.js</code></td>
+</tr>
+<tr>
+<td>Les décors de fond (repère T0, trame calendaire)</td>
+<td><code>src/t0_marker.js</code>, <code>src/time_grid.js</code></td>
+</tr>
+<tr>
+<td>Les imports (CPERT <code>.xlsm</code>, <code>.pert</code>)</td>
+<td><code>src/import.js</code>, <code>import_excel.js</code>, <code>import_pert.js</code></td>
 </tr>
 <tr>
 <td>Les exports</td>
@@ -260,6 +332,10 @@ bundle) → pousser → merger sur <code>main</code> → taguer → pousser le t
 <tr>
 <td>Les fenêtres de rapport (synthèse, suivi d'avancement)</td>
 <td><code>src/synthesis.js</code>, <code>src/suivi.js</code></td>
+</tr>
+<tr>
+<td>La fabrication du bundle et de l'archive de livraison</td>
+<td><code>scripts/build-bundle.js</code>, <code>scripts/make-release.js</code></td>
 </tr>
 </tbody>
 </table></body></html>

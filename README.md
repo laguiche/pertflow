@@ -49,7 +49,7 @@ affiche et exporte. Elle demande, elle, une petite installation :
 
 ```bash
 cd tools && npm install && npx playwright install chromium
-npm test          # 29 tests, ~85 s
+npm test          # 31 tests, ~90 s
 ```
 
 Tout est détaillé dans [`tools/README.md`](tools/README.md) — y compris pourquoi aucun fichier
@@ -61,7 +61,7 @@ et justification des choix).
 
 ## Téléchargement
 
-La dernière version prête à l'emploi (application + manuel) est publiée dans
+La dernière version prête à l'emploi (application, manuel et notes de version) est publiée dans
 [Releases](https://github.com/laguiche/pertflow/releases) : télécharger l'archive,
 la dézipper, double-cliquer sur `pertflow.html`.
 
