@@ -94,7 +94,15 @@ déploiement cible.
 1. Créer `src/export_<format>.js` qui produit le contenu (réutiliser `pertXlsxBuild` pour un
    Excel, `pertScheduleModel` pour du temps/charge/liens) et télécharge via `pertDownloadBlob`.
 2. Appeler `pertRegisterExportFormat({ id, icon, label, desc, order, run })` en fin de fichier.
-3. Déclarer le `<script src>` dans `index.html`.
+3. Déclarer le `<script src>` dans `index.html`. Le bundle le reprend seul (`build-bundle.js`
+   inline tout `<script src>` qu'il y trouve) — rien à déclarer ailleurs.
+4. **Inscrire le format dans `tools/smoke-s9.js`**, à sa place dans la liste. Cette liste est
+   volontairement positionnelle : l'ordre d'apparition dans la fenêtre (champ `order`) n'est
+   vérifié que là.
+5. Si le format produit un **fichier binaire**, le test doit vérifier son contenu, pas seulement
+   ses premiers octets : un `.xlsx` à qui il manque une relation interne s'ouvre **sans erreur**,
+   sur un document vide. Relire le zip avec `fflate.unzipSync` **dans la page** (fflate y est déjà
+   chargé) plutôt que d'ajouter une dépendance à `tools/`.
 
 ### …un type de nœud
 

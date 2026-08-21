@@ -19,6 +19,7 @@ prouver qu'il n'a rien cassé.
 | **`playwright-core`** | pilotage du navigateur | `cd tools && npm install` |
 | **Chromium de Playwright** | le navigateur réellement piloté (~380 Mo dans `~/.cache/ms-playwright`, hors dépôt) | `npx playwright install chromium` |
 | **python3 + `markdown`** | **uniquement** pour `build-docs.js` (génération HTML/PDF de la doc) | `pip install markdown` |
+| **LibreOffice + poppler-utils** | **uniquement** pour `doc-shots-planning-directeur.js` : cette capture-là montre un **classeur produit**, il faut donc un tableur pour l'ouvrir et le photographier | paquets système |
 
 Le navigateur n'est **pas** le paquet `playwright` complet mais `playwright-core` + le binaire du
 cache : la même installation sert à toutes les sessions et n'alourdit pas le dépôt. `lib.js`
@@ -135,6 +136,14 @@ qu'après un build.
 
 `screenshot.js` accepte `--app` (défaut, UI complète) ou `--graph` (planning seul, fond blanc),
 `--xlsm <f>` pour importer d'abord un planning, `--no-fit`, `--scale N`.
+
+`doc-shots-planning-directeur.js` est le seul à sortir du navigateur : il exporte le classeur,
+le convertit avec LibreOffice puis recadre le PNG. Si LibreOffice manque, il s'arrête en le
+disant — l'image versionnée reste valable, elle n'est à refaire que si le canevas de l'export
+change. **Les captures décrochent en silence** : celles de `doc-shots.js` étaient restées à
+l'état d'avant la v0.22 (le panneau y figurait sans l'intertitre « Suivi et coût » ni
+l'avancement) et rien ne le signalait. Relancer le script concerné dès qu'une évolution touche
+un écran qu'il photographie.
 
 ---
 

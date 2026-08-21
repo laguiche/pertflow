@@ -40,9 +40,13 @@ function assert(cond, msg) { if (!cond) throw new Error('ECHEC: ' + msg); }
 
   // ── Fenetre ──────────────────────────────────────────────────────────────────
   console.log('Formats:', res.formats);
-  assert(res.formats.length === 6, '6 formats attendus, vu ' + res.formats.length);
+  // Liste VOLONTAIREMENT positionnelle : ce qui est teste ici, c'est justement l'ordre
+  // d'apparition des formats dans la fenetre (champ `order` de pertRegisterExportFormat),
+  // que rien d'autre ne verifie. Un format ajoute doit donc etre inscrit ici, a sa place —
+  // c'est le prix a payer pour que l'ordre reste un contrat.
+  assert(res.formats.length === 7, '7 formats attendus, vu ' + res.formats.length);
   const expected = ['Image PNG', 'Document PDF', 'Données CSV', 'Gantt chargé (Excel)',
-    'Micro-jalonnement (Excel)', 'Gantt MS Project (XML)'];
+    'Micro-jalonnement (Excel)', 'Planning directeur (Excel)', 'Gantt MS Project (XML)'];
   expected.forEach((label, i) => assert(res.formats[i] === label, 'format[' + i + '] = ' + res.formats[i]));
 
   // ── CSV ──────────────────────────────────────────────────────────────────────
