@@ -150,7 +150,15 @@ déploiement cible.</p>
 <li>Créer <code>src/export_&lt;format&gt;.js</code> qui produit le contenu (réutiliser <code>pertXlsxBuild</code> pour un
    Excel, <code>pertScheduleModel</code> pour du temps/charge/liens) et télécharge via <code>pertDownloadBlob</code>.</li>
 <li>Appeler <code>pertRegisterExportFormat({ id, icon, label, desc, order, run })</code> en fin de fichier.</li>
-<li>Déclarer le <code>&lt;script src&gt;</code> dans <code>index.html</code>.</li>
+<li>Déclarer le <code>&lt;script src&gt;</code> dans <code>index.html</code>. Le bundle le reprend seul (<code>build-bundle.js</code>
+   inline tout <code>&lt;script src&gt;</code> qu'il y trouve) — rien à déclarer ailleurs.</li>
+<li><strong>Inscrire le format dans <code>tools/smoke-s9.js</code></strong>, à sa place dans la liste. Cette liste est
+   volontairement positionnelle : l'ordre d'apparition dans la fenêtre (champ <code>order</code>) n'est
+   vérifié que là.</li>
+<li>Si le format produit un <strong>fichier binaire</strong>, le test doit vérifier son contenu, pas seulement
+   ses premiers octets : un <code>.xlsx</code> à qui il manque une relation interne s'ouvre <strong>sans erreur</strong>,
+   sur un document vide. Relire le zip avec <code>fflate.unzipSync</code> <strong>dans la page</strong> (fflate y est déjà
+   chargé) plutôt que d'ajouter une dépendance à <code>tools/</code>.</li>
 </ol>
 <h3 id="un-type-de-nud">…un type de nœud</h3>
 <p>Définir le type dans <code>nodes.js</code> (rendu custom, <code>title_mode</code>, slots), l'enregistrer auprès de

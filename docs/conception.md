@@ -65,6 +65,7 @@ pertflow/
 │   ├── export_xlsx.js    # Mini-writer XLSX générique (sur fflate)
 │   ├── export_gantt.js   # Gantt chargé (Excel) + MS Project (MSPDI XML)
 │   ├── export_microjalons.js  # Micro-jalonnement (Excel)
+│   ├── export_planning_directeur.js  # Planning directeur (Excel) : canevas calendaire + formes
 │   └── link_routing.js   # Rendu des liens : styles + routage orthogonal (évitement)
 ├── docs/                 # Manuel, conception, maintenance, notes de version (MD + HTML + PDF)
 ├── tools/                # Suite de tests + captures d'écran (cf. tools/README.md)
@@ -263,12 +264,43 @@ Un **seul bouton** ouvre une fenêtre listant les formats (liste data-driven
 - **CSV** : dump brut, séparateur `;`, décimales `,`, BOM UTF-8.
 - **XLSX** : un `.xlsx` est un **ZIP de XML** → **mini-writer maison sur fflate**
   (`export_xlsx.js`, `pertXlsxBuild`) : cellules texte/nombre/date/formule, styles (formats date,
-  `0.00`, fills de couleur, gras) dédupliqués, `sharedStrings`. **Pas de SheetJS** (Apache-2.0,
-  exclu par « MIT uniquement »).
+  `0.00`, fills, polices, bordures, alignements) dédupliqués, `sharedStrings`, hauteurs de ligne,
+  cellules fusionnées, panneaux figés, mise en page — et **formes flottantes DrawingML**
+  (`shapes`, ancrage `twoCellAnchor`). **Pas de SheetJS** (Apache-2.0, exclu par « MIT
+  uniquement »). Tout ce qui a été ajouté en v0.23 est **optionnel** : un appelant qui ne passe
+  que `{ name, cols, rows }` produit le classeur d'avant, octet pour octet.
+  > L'ordre des éléments d'une `<worksheet>` est **imposé par le schéma OOXML** (`sheetPr`,
+  > `sheetViews`, `sheetFormatPr`, `cols`, `sheetData`, `mergeCells`, `printOptions`,
+  > `pageMargins`, `pageSetup`, `drawing`). Excel refuse d'ouvrir un classeur qui s'en écarte
+  > **sans dire lequel** est en cause : la séquence est écrite une fois pour toutes dans
+  > `pertXlsxBuild`, ne pas y insérer un élément « au plus commode ».
 - **Gantt chargé** et **MS Project (MSPDI XML)** partagent `pertScheduleModel()` (tri groupes par
   ES précoce, classement jalons entrée/sortie, colonnes de périodes, liens). Aucune bibliothèque
   `.mpp` native n'existant côté navigateur (MIT/offline), MS Project est produit en **MSPDI XML**
   écrit à la main.
+- **Planning directeur** (`export_planning_directeur.js`, v0.23) : transposition du PERT sur un
+  canevas calendaire (une colonne = un mois, en-tête années/trimestres/mois, zébrage, panneaux
+  figés, paysage). Trois règles de cadrage le gouvernent, décidées avec l'utilisateur et à ne pas
+  défaire sans nouvel arbitrage :
+  1. **Abscisse = les dates** (ES → EF, cible pour un jalon) ; **ordonnée = le canvas**
+     (`pos[1]` du nœud, à l'échelle près). Aucun regroupement, aucun tri, aucun ré-empilement.
+     Le `x` du canvas ne sert qu'aux **Labels**, qui n'ont pas de date : leur abscisse passe par
+     une régression `x → position en mois` ajustée sur les nœuds datés (`pertPdLabelXFit`).
+  2. Les **colonnes B et C restent vides**, mises en forme, à remplir par l'utilisateur : le
+     canevas a deux niveaux de nomenclature là où PertFlow n'a que le groupe.
+  3. **Aucun lien** tracé ; **légende** des couleurs en haut à gauche.
+
+  Les **bandes** (`bands`) sont une *lecture* de l'agencement, pas une réorganisation : les nœuds
+  dont les boîtes se chevauchent verticalement partagent une ligne de classeur, le vide entre deux
+  bandes est partagé par moitié. Le plafond `PERT_PD_MAX_GAP_PT` ne borne que **cette marge** —
+  plafonner la hauteur totale comprimerait le contenu et ferait se recouvrir deux nœuds distincts
+  d'une même bande.
+
+  > **Pourquoi les barres ne sont pas des cellules colorées** (contrairement au Gantt chargé) : une
+  > tâche démarre au milieu d'un mois. La coloration de cellule oblige à arrondir à la colonne ;
+  > l'ancrage `twoCellAnchor` place la forme à `(colonne, décalage dans la colonne)` et rend la
+  > date exacte. Corollaire précieux : une mauvaise estimation de la largeur rendue d'une colonne
+  > ne fausse que la fraction interne, elle **ne se cumule pas** le long de la grille.
 - Téléchargements via `pertDownloadBlob` (objet URL, fonctionne en `file://`).
 
 ---

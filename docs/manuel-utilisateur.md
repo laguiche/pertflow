@@ -731,7 +731,7 @@ plantage, un **dialogue au démarrage** vous propose de **restaurer** votre trav
 
 ![La fenêtre d'export](images/manuel/fenetre-export.png)
 
-Le bouton **⬇ Exporter** ouvre une fenêtre proposant **six formats** :
+Le bouton **⬇ Exporter** ouvre une fenêtre proposant **sept formats** :
 
 | Format | Usage |
 |---|---|
@@ -740,6 +740,7 @@ Le bouton **⬇ Exporter** ouvre une fenêtre proposant **six formats** :
 | **Données CSV** | Tableau brut (séparateur « ; »), un nœud par ligne, pour un tableur. |
 | **Gantt chargé (Excel)** | Diagramme de charge : l'ETP par période, coloré par groupe, avec une ligne de total. |
 | **Micro-jalonnement (Excel)** | Une ligne par jalon/tâche pour le suivi ; les jalons majeurs sont marqués **GOLDEN** (DOTD/COTD) ou **SILVER** (Ingénierie). |
+| **Planning directeur (Excel)** | Vue calendaire pluriannuelle à présenter en revue de projet (voir ci-dessous). |
 | **Gantt MS Project (XML)** | Fichier importable dans MS Project (tâches, jalons, charge et **liens de dépendance**). |
 
 Les exports **PNG** et **PDF** produisent le planning seul, sur fond blanc (indépendamment du
@@ -749,6 +750,47 @@ zoom courant à l'écran) :
 
 > Comme pour la sauvegarde, les fichiers exportés arrivent dans votre dossier **Téléchargements**
 > (contrainte du mode `file://`).
+
+### Le planning directeur
+
+C'est le document qu'on projette en **revue de projet** : le planning vu de haut, sur un axe
+calendaire, sans les chiffres. Il ne remplace pas le Gantt chargé — il ne dit rien de la charge
+ni des coûts — il dit **quoi, quand, et dans quel ordre**.
+
+![Le planning directeur exporté](images/manuel/planning-directeur.png)
+
+Ce que vous obtenez :
+
+- **Une colonne par mois**, surmontée des trimestres et des années. La grille couvre **exactement
+  la durée réelle de votre projet** — pas une année de plus. Le trait pointillé marque le
+  changement d'année.
+- **Vos tâches en barres** et **vos jalons en losanges**, à leur couleur de groupe. Ce ne sont pas
+  des cellules coloriées mais de véritables **formes dessinées** : dans Excel, vous pouvez les
+  déplacer, les retailler, en ajouter, changer un libellé.
+- Une **légende** des couleurs en haut à gauche.
+
+Deux principes de placement, à connaître pour ne pas être surpris :
+
+| | D'où vient la position |
+|---|---|
+| **Horizontalement** | Des **dates calculées** : une barre commence à sa date au plus tôt et finit à sa date de fin. Un jalon se place sur sa **date-cible** si vous en avez saisi une, sinon sur sa date calculée. C'est ce qui garantit que l'en-tête calendaire dit vrai. |
+| **Verticalement** | De **votre planning** : la hauteur de chaque nœud sur le canvas est reprise telle quelle. Rien n'est retrié, rien n'est réempilé, rien n'est regroupé. Le document sort **agencé comme vous l'avez composé**. |
+
+> **Les deux colonnes de gauche sont volontairement vides.** Le modèle de planning directeur a
+> deux niveaux de nomenclature (un poste, puis une ligne) là où PertFlow n'a qu'un seul
+> regroupement, le groupe. Plutôt que de vous imposer une hiérarchie, l'export livre ces deux
+> colonnes **déjà mises en forme** (fond, bordures, centrage, retour à la ligne) : vous y saisissez
+> votre propre nomenclature après l'export, et vous fusionnez les cellules à votre guise.
+
+Deux autres choix assumés : les **liens de dépendance ne sont pas tracés** (sur un planning un peu
+fourni, la toile de flèches rend le document illisible — ils restent lisibles dans PertFlow et dans
+l'export MS Project), et les **notes libres** (nœuds Label) sont reportées en fond, à leur place.
+
+Le classeur s'ouvre prêt à être imprimé : colonnes de gauche et en-tête **figés** au défilement,
+orientation **paysage**, ajustement en largeur.
+
+> Astuce : si votre PERT est rangé « en vrac », lancez d'abord **⟳ Réorganiser → Axe du temps
+> seul** avant d'exporter. La position verticale que vous voyez à l'écran est celle qui sortira.
 
 ---
 

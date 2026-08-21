@@ -11,6 +11,28 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
+## v0.23 — 21/08/2026 · Export « Planning directeur »
+- Nouvel export Excel : le **planning directeur**, la vue qu'on projette en **revue de projet**.
+  Une colonne par mois, surmontée des trimestres et des années, sur **exactement la durée réelle
+  de votre projet** ; vos tâches en barres et vos jalons en losanges, à leur couleur de groupe,
+  avec une légende.
+- Ce ne sont pas des cellules coloriées mais de **vraies formes dessinées** : une fois dans Excel,
+  vous les déplacez, les retaillez, en ajoutez, changez un libellé. Le document est fait pour être
+  retouché, pas seulement lu.
+- **Votre agencement est respecté.** La position verticale de chaque tâche est celle que vous lui
+  avez donnée dans PertFlow : rien n'est retrié, réempilé ni regroupé. Horizontalement, en
+  revanche, tout est recalé sur les **dates calculées** — c'est ce qui garantit qu'une barre tombe
+  bien sous son mois. (Un jalon se place sur sa date-cible si vous en avez saisi une.)
+- Les **deux colonnes de gauche sont livrées vides mais mises en forme** : vous y saisissez votre
+  propre nomenclature (poste, lot, système…) après l'export, et fusionnez les cellules à votre
+  guise. PertFlow n'a qu'un niveau de regroupement, il ne vous en impose pas un second.
+- Le classeur s'ouvre prêt à imprimer : colonnes de gauche et en-tête **figés**, **paysage**,
+  ajustement en largeur. Les liens de dépendance n'y sont volontairement pas tracés (illisibles
+  dès qu'un planning s'étoffe) ; ils restent dans l'export MS Project.
+- Cette version emporte aussi ce qui attendait depuis le 1er août : les **notes de version voyagent
+  avec l'archive** de livraison, en texte brut lisible au Bloc-notes, et la documentation de
+  reprise (`conception.md`, `maintenance.md`) a été remise à jour.
+
 ## v0.22 — 01/08/2026 · Charge en ETP ou en heures
 - La charge d'une tâche peut désormais s'exprimer **en heures** autant qu'en **ETP**. Le panneau
   affiche un sélecteur **« Charge exprimée en »** puis **les deux valeurs côte à côte** : celle que

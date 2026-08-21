@@ -1947,7 +1947,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"01/08/2026","tag":"v0.22"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"21/08/2026","tag":"v0.23"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -41163,7 +41163,7 @@ if (window.pertRegisterExportFormat) {
 </script>
   <script>
 /* src/export_xlsx.js */
-// ─── Mini-writer XLSX (sur fflate) — Session 9 ──────────────────────────────────
+// ─── Mini-writer XLSX (sur fflate) — Session 9, etendu v0.23 ────────────────────
 //
 // Un .xlsx est un ZIP de fichiers XML (Office Open XML). On le fabrique a la main
 // avec fflate (lib/fflate.min.js, MIT, deja present pour l'import) — AUCUNE
@@ -41173,18 +41173,37 @@ if (window.pertRegisterExportFormat) {
 // formule, formats de nombre et de date, remplissage (fills) de couleur, gras,
 // largeurs de colonnes, plusieurs feuilles.
 //
+// v0.23 — l'export « Planning directeur » a demande un cran de plus : le canevas
+// vise (cf. test_cases/Planning_directeur.xlsx) repose sur des bordures, des
+// cellules fusionnees, des hauteurs de ligne, des panneaux figes, une mise en page
+// paysage… et surtout sur des FORMES flottantes (DrawingML) — les barres de taches
+// n'y sont pas des cellules colorees mais des rectangles arrondis poses au-dessus
+// de la grille. Tout ce qui a ete ajoute est OPTIONNEL : un appelant qui ne passe
+// que { name, cols, rows } produit exactement le meme classeur qu'avant.
+//
 // API :
 //   pertXlsxText(v, style?)     cellule texte (partagee via sharedStrings)
 //   pertXlsxNum(v, style?)      cellule nombre
 //   pertXlsxDate(dateObj,style?) cellule date (serial Excel + format date)
 //   pertXlsxFormula(f, style?)  cellule formule (ex. "SUM(D2:D12)")  — sans '='
 //   null / undefined            cellule vide
-//   style = { fmt, bold, fill } ; fmt ∈ {null,"num2","date-mmm-yy","date-d-mmm-yy"}
-//                                 fill = "#RRGGBB" ou null ; bold = booleen
+//   style = { fmt, bold, fill, size, color, italic, halign, valign, wrap, border }
+//       fmt    ∈ {null,"num2","date-mmm-yy","date-d-mmm-yy"}
+//       fill   = "#RRGGBB" ou null
+//       color  = "#RRGGBB" (couleur du texte) ; size = corps en points
+//       halign ∈ {"left","center","right"} ; valign ∈ {"top","center","bottom"}
+//       border = { l, r, t, b }, chaque cote "style#RRGGBB"
+//                (style ∈ thin|medium|thick|hair|dotted|dashed), ex. "medium#FFFFFF"
 //   pertXlsxBuild(sheets) → Uint8Array (zip)
-//     sheets = [{ name, cols?, rows }]
-//       cols = [{ width }]   (largeurs de colonnes, optionnel)
-//       rows = [[cell, cell, ...], ...]
+//     sheets = [{ name, cols?, rows, rowHeights?, merges?, freeze?, gridLines?,
+//                 defaultRowHeight?, page?, shapes? }]
+//       cols        = [{ width }]        largeurs de colonnes
+//       rowHeights  = [pt|null, ...]     hauteur par ligne (index = ligne 0-based)
+//       merges      = ["A1:C1", ...]     plages fusionnees
+//       freeze      = { col, row }       nb de colonnes/lignes figees
+//       gridLines   = false              masque le quadrillage a l'ecran
+//       page        = { orientation, paperSize, scale, fitToPage, centered }
+//       shapes      = [forme, ...]       cf. pertXlsxShape ci-dessous
 //
 // Contrainte file:// : pur JS, telechargement via pertDownloadBlob.
 
@@ -41226,6 +41245,34 @@ function pertXlsxArgb(hex) {
   return "FF" + String(hex || "").replace(/^#/, "").toUpperCase();
 }
 
+// Couleur "#RRGGBB" → "RRGGBB" (DrawingML n'utilise pas la composante alpha ici).
+function pertXlsxRgb(hex) {
+  return String(hex || "").replace(/^#/, "").toUpperCase();
+}
+
+// Unites de mesure OOXML. Les formes se positionnent en EMU (English Metric Unit) :
+// 914400 EMU par pouce, donc 12700 par point et 9525 par pixel a 96 dpi. On expose
+// les deux conversions : les hauteurs de ligne se declarent en POINTS (donc exactes
+// en EMU), les largeurs de colonne se rendent en PIXELS (approximation, cf. le
+// commentaire de pertXlsxColWidthPx).
+const PERT_XLSX_EMU_PER_PT = 12700;
+const PERT_XLSX_EMU_PER_PX = 9525;
+function pertXlsxPtToEmu(pt) { return Math.round(pt * PERT_XLSX_EMU_PER_PT); }
+function pertXlsxPxToEmu(px) { return Math.round(px * PERT_XLSX_EMU_PER_PX); }
+
+// Largeur de colonne Excel (en « caracteres ») → largeur rendue en pixels, formule
+// OOXML pour la police par defaut (Calibri 11 → MDW = 7 px).
+//
+// ATTENTION : cette conversion n'est fiable que si le poste rend bien la police par
+// defaut a 7 px de chasse — ce qui n'est pas garanti. C'est sans consequence ICI
+// parce qu'une forme s'ancre en (indice de colonne + decalage DANS la colonne) :
+// une erreur d'estimation ne decale jamais que la fraction interne, elle ne
+// s'accumule pas de colonne en colonne. Ne pas s'en servir pour additionner des
+// largeurs sur toute une feuille, ou l'erreur, elle, se cumulerait.
+function pertXlsxColWidthPx(chars) {
+  return Math.floor(((256 * chars + Math.floor(128 / 7)) / 256) * 7);
+}
+
 // numFmtId par nom de format ; les >=164 sont des formats custom declares dans styles.xml.
 const PERT_XLSX_NUMFMT = {
   "num2": 2,               // builtin "0.00"
@@ -41237,15 +41284,96 @@ const PERT_XLSX_CUSTOM_FMT = [
   { id: 165, code: "d\\-mmm\\-yy" },
 ];
 
-// Cle canonique d'un style (pour dedup en cellXfs).
+// Cle canonique d'une police / d'une bordure / d'un style (pour dedup dans styles.xml).
+function pertXlsxFontKey(st) {
+  if (!st) return "11|0|0|";
+  return (st.size || 11) + "|" + (st.bold ? 1 : 0) + "|" + (st.italic ? 1 : 0) + "|" + (st.color || "");
+}
+function pertXlsxBorderKey(b) {
+  if (!b) return "";
+  return ["l", "r", "t", "b"].map(k => b[k] || "").join("|");
+}
 function pertXlsxStyleKey(st) {
   if (!st) return "";
-  return (st.fmt || "") + "|" + (st.bold ? "1" : "0") + "|" + (st.fill || "");
+  return (st.fmt || "") + "|" + pertXlsxFontKey(st) + "|" + (st.fill || "")
+    + "|" + (st.halign || "") + "|" + (st.valign || "") + "|" + (st.wrap ? "1" : "0")
+    + "|" + pertXlsxBorderKey(st.border);
 }
 
-// Construit le classeur complet et renvoie le zip (Uint8Array).
+// ── Formes flottantes (DrawingML) ───────────────────────────────────────────────
+//
+// Une forme s'ancre sur DEUX cellules (twoCellAnchor) : coin haut-gauche et coin
+// bas-droit, chacun exprime en (colonne, decalage EMU dans la colonne, ligne,
+// decalage EMU dans la ligne). C'est ce que fait Excel lui-meme quand on dessine
+// un rectangle sur une feuille, et c'est ce qui permet de placer une barre de Gantt
+// AU MILIEU d'un mois sans decouper la grille.
+//
+//   forme = {
+//     kind: "roundRect" | "rect" | "diamond" | "ellipse" | "line" | "text",
+//     from: { col, colOff, row, rowOff },   // EMU pour les decalages
+//     to:   { col, colOff, row, rowOff },
+//     fill: "#RRGGBB" | null,               // null = transparent
+//     line: "#RRGGBB" | null,               // null = sans contour
+//     lineW: points (defaut 0.75),
+//     text, textColor, textSize, bold, align ("l"|"ctr"|"r"), wrap (defaut true),
+//     name: nom affiche dans le volet de selection d'Excel
+//   }
+// "text" est un rectangle sans fond ni contour : le libelle d'un jalon pose a cote
+// de son losange, une zone de commentaire… (aucune geometrie propre a inventer).
+function pertXlsxShapeXml(sh, id) {
+  const kind = sh.kind || "rect";
+  const geom = (kind === "text") ? "rect" : kind;
+  const anchor = (pt, tag) =>
+    `<xdr:${tag}><xdr:col>${pt.col}</xdr:col><xdr:colOff>${Math.round(pt.colOff || 0)}</xdr:colOff>`
+    + `<xdr:row>${pt.row}</xdr:row><xdr:rowOff>${Math.round(pt.rowOff || 0)}</xdr:rowOff></xdr:${tag}>`;
+
+  const fill = (kind === "text" || !sh.fill)
+    ? "<a:noFill/>"
+    : `<a:solidFill><a:srgbClr val="${pertXlsxRgb(sh.fill)}"/></a:solidFill>`;
+  const line = sh.line
+    ? `<a:ln w="${pertXlsxPtToEmu(sh.lineW == null ? 0.75 : sh.lineW)}">`
+      + `<a:solidFill><a:srgbClr val="${pertXlsxRgb(sh.line)}"/></a:solidFill></a:ln>`
+    : "<a:ln><a:noFill/></a:ln>";
+
+  // Le texte est centre verticalement (anchor="ctr") et deborde en « clip » plutot
+  // que de pousser la forme : une barre de tache garde la largeur de sa duree, meme
+  // si son libelle est trop long — c'est la duree qui porte l'information.
+  let body = "";
+  if (sh.text) {
+    const rPr = `<a:rPr lang="fr-FR" sz="${Math.round((sh.textSize || 7) * 100)}"`
+      + (sh.bold ? ' b="1"' : "")
+      + `><a:solidFill><a:srgbClr val="${pertXlsxRgb(sh.textColor || "#000000")}"/></a:solidFill></a:rPr>`;
+    body = `<a:p><a:pPr algn="${sh.align || "ctr"}"/><a:r>${rPr}`
+      + `<a:t>${pertXlsxEsc(sh.text)}</a:t></a:r></a:p>`;
+  } else {
+    body = "<a:p><a:endParaRPr lang=\"fr-FR\"/></a:p>";
+  }
+  const wrap = (sh.wrap === false) ? "none" : "square";
+  const txBody = `<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" wrap="${wrap}"`
+    + ` lIns="18000" tIns="0" rIns="18000" bIns="0" rtlCol="0" anchor="ctr"/><a:lstStyle/>${body}</xdr:txBody>`;
+
+  return "<xdr:twoCellAnchor>"
+    + anchor(sh.from, "from") + anchor(sh.to, "to")
+    + `<xdr:sp macro="" textlink="">`
+    + `<xdr:nvSpPr><xdr:cNvPr id="${id}" name="${pertXlsxEsc(sh.name || ("Forme " + id))}"/>`
+    + `<xdr:cNvSpPr/></xdr:nvSpPr>`
+    + `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></a:xfrm>`
+    + `<a:prstGeom prst="${geom}"><a:avLst/></a:prstGeom>${fill}${line}</xdr:spPr>`
+    + txBody
+    + `</xdr:sp><xdr:clientData/></xdr:twoCellAnchor>`;
+}
+
+function pertXlsxDrawingXml(shapes) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"`
+    + ` xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">`
+    // id 1 est reserve : Excel numerote les formes a partir de 2 dans ses propres fichiers.
+    + shapes.map((sh, i) => pertXlsxShapeXml(sh, i + 2)).join("")
+    + `</xdr:wsDr>`;
+}
+
 function pertXlsxBuild(sheets) {
-  // ── 1) Collecte des sharedStrings, des styles et des fills ──────────────────
+  // ── 1) Collecte des sharedStrings, des styles, fills, polices et bordures ───
   const strMap = new Map();       // texte → index
   const strList = [];
   function internStr(s) {
@@ -41261,30 +41389,83 @@ function pertXlsxBuild(sheets) {
     const id = nextFillId++; fillMap.set(argb, id); return id;
   }
 
+  // Police 0 = Calibri 11 par defaut ; police 1 = la meme en gras (les deux etaient
+  // les seules avant v0.23, on les conserve en tete pour ne rien deplacer).
+  const fontMap = new Map();
+  const fontList = [];
+  function internFont(st) {
+    const key = pertXlsxFontKey(st);
+    if (fontMap.has(key)) return fontMap.get(key);
+    const i = fontList.length;
+    fontList.push({ size: (st && st.size) || 11, bold: !!(st && st.bold),
+                    italic: !!(st && st.italic), color: (st && st.color) || null });
+    fontMap.set(key, i);
+    return i;
+  }
+  internFont(null);            // 0 : normal
+  internFont({ bold: true });  // 1 : gras
+
+  const borderMap = new Map();
+  const borderList = [];
+  function internBorder(b) {
+    const key = pertXlsxBorderKey(b);
+    if (borderMap.has(key)) return borderMap.get(key);
+    const i = borderList.length;
+    borderList.push(b || null);
+    borderMap.set(key, i);
+    return i;
+  }
+  internBorder(null);          // 0 : sans bordure
+
   const xfMap = new Map();        // cle style → index cellXfs
-  const xfList = [];              // { numFmtId, fontId, fillId }
+  const xfList = [];              // { numFmtId, fontId, fillId, borderId, align }
   xfMap.set("", 0);
-  xfList.push({ numFmtId: 0, fontId: 0, fillId: 0 }); // style par defaut (index 0)
+  xfList.push({ numFmtId: 0, fontId: 0, fillId: 0, borderId: 0, align: null }); // style par defaut
   function internStyle(st) {
     const key = pertXlsxStyleKey(st);
     if (xfMap.has(key)) return xfMap.get(key);
     const numFmtId = st && st.fmt ? (PERT_XLSX_NUMFMT[st.fmt] || 0) : 0;
-    const fontId = st && st.bold ? 1 : 0;
+    const fontId = internFont(st);
     const fillId = st && st.fill ? internFill(st.fill) : 0;
+    const borderId = st && st.border ? internBorder(st.border) : 0;
+    const align = (st && (st.halign || st.valign || st.wrap))
+      ? { h: st.halign || null, v: st.valign || null, wrap: !!st.wrap } : null;
     const i = xfList.length;
-    xfList.push({ numFmtId, fontId, fillId });
+    xfList.push({ numFmtId, fontId, fillId, borderId, align });
     xfMap.set(key, i);
     return i;
   }
 
   // ── 2) Emission des feuilles (references string/style resolues ici) ─────────
+  //
+  // L'ORDRE des elements d'une <worksheet> est impose par le schema OOXML
+  // (sheetPr, sheetViews, sheetFormatPr, cols, sheetData, mergeCells, printOptions,
+  // pageMargins, pageSetup, drawing). Excel refuse d'ouvrir un classeur qui s'en
+  // ecarte, sans indiquer lequel des elements est en cause — d'ou cette sequence
+  // ecrite une fois pour toutes, dans cet ordre-la.
   const sheetXmls = sheets.map(sheet => {
+    const page = sheet.page || null;
+    const sheetPr = (page && page.fitToPage)
+      ? `<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>` : "";
+
+    let view = `<sheetView${sheet.gridLines === false ? ' showGridLines="0"' : ""} workbookViewId="0">`;
+    if (sheet.freeze && (sheet.freeze.col || sheet.freeze.row)) {
+      const fc = sheet.freeze.col || 0, fr = sheet.freeze.row || 0;
+      view += `<pane${fc ? ` xSplit="${fc}"` : ""}${fr ? ` ySplit="${fr}"` : ""}`
+        + ` topLeftCell="${pertXlsxColLetter(fc)}${fr + 1}" activePane="bottomRight" state="frozen"/>`;
+    }
+    view += "</sheetView>";
+    const sheetViews = `<sheetViews>${view}</sheetViews>`;
+    const fmtPr = `<sheetFormatPr defaultRowHeight="${sheet.defaultRowHeight || 14}"/>`;
+
     let cols = "";
     if (sheet.cols && sheet.cols.length) {
       cols = "<cols>" + sheet.cols.map((c, i) =>
         `<col min="${i + 1}" max="${i + 1}" width="${c.width || 10}" customWidth="1"/>`
       ).join("") + "</cols>";
     }
+
+    const heights = sheet.rowHeights || [];
     let body = "";
     (sheet.rows || []).forEach((row, r) => {
       const rn = r + 1;
@@ -41306,20 +41487,53 @@ function pertXlsxBuild(sheets) {
           cells += `<c r="${ref}"${sAttr}><f>${pertXlsxEsc(cell.v)}</f></c>`;
         }
       });
-      body += `<row r="${rn}">${cells}</row>`;
+      const h = heights[r];
+      const hAttr = (h == null) ? "" : ` ht="${h}" customHeight="1"`;
+      body += `<row r="${rn}"${hAttr}>${cells}</row>`;
     });
+
+    const merges = (sheet.merges && sheet.merges.length)
+      ? `<mergeCells count="${sheet.merges.length}">`
+        + sheet.merges.map(m => `<mergeCell ref="${m}"/>`).join("") + "</mergeCells>"
+      : "";
+
+    let pageXml = "";
+    if (page) {
+      if (page.centered) pageXml += `<printOptions horizontalCentered="1" verticalCentered="1"/>`;
+      pageXml += `<pageMargins left="0.25" right="0.25" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>`;
+      const attrs = [];
+      if (page.paperSize) attrs.push(`paperSize="${page.paperSize}"`);
+      if (page.scale && !page.fitToPage) attrs.push(`scale="${page.scale}"`);
+      if (page.fitToPage) { attrs.push('fitToWidth="1"'); attrs.push('fitToHeight="0"'); }
+      attrs.push(`orientation="${page.orientation || "portrait"}"`);
+      pageXml += `<pageSetup ${attrs.join(" ")}/>`;
+    } else {
+      pageXml = `<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>`;
+    }
+
+    const drawing = (sheet.shapes && sheet.shapes.length) ? `<drawing r:id="rId1"/>` : "";
+
     return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
-      + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
-      + cols + `<sheetData>${body}</sheetData></worksheet>`;
+      + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"`
+      + ` xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`
+      + sheetPr + sheetViews + fmtPr + cols
+      + `<sheetData>${body}</sheetData>`
+      + merges + pageXml + drawing
+      + `</worksheet>`;
   });
 
-  // ── 3) styles.xml (numFmts custom + 2 fonts + fills + cellXfs) ──────────────
+  // ── 3) styles.xml (numFmts custom + polices + fills + bordures + cellXfs) ────
   const numFmtsXml = "<numFmts count=\"" + PERT_XLSX_CUSTOM_FMT.length + "\">"
     + PERT_XLSX_CUSTOM_FMT.map(f => `<numFmt numFmtId="${f.id}" formatCode="${f.code}"/>`).join("")
     + "</numFmts>";
-  const fontsXml = '<fonts count="2">'
-    + '<font><sz val="11"/><name val="Calibri"/></font>'
-    + '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>';
+  const fontsXml = '<fonts count="' + fontList.length + '">'
+    + fontList.map(f =>
+        "<font>" + (f.bold ? "<b/>" : "") + (f.italic ? "<i/>" : "")
+        + `<sz val="${f.size}"/>`
+        + (f.color ? `<color rgb="${pertXlsxArgb(f.color)}"/>` : "")
+        + '<name val="Calibri"/></font>'
+      ).join("")
+    + "</fonts>";
   // fills : 0 none, 1 gray125 (reserves Excel), puis les solides collectes.
   const solidFills = Array.from(fillMap.entries()).sort((a, b) => a[1] - b[1]);
   const fillsXml = '<fills count="' + (2 + solidFills.length) + '">'
@@ -41329,20 +41543,35 @@ function pertXlsxBuild(sheets) {
         `<fill><patternFill patternType="solid"><fgColor rgb="${argb}"/><bgColor indexed="64"/></patternFill></fill>`
       ).join("")
     + '</fills>';
+  const side = (spec, tag) => {
+    if (!spec) return `<${tag}/>`;
+    const [style, color] = String(spec).split("#");
+    return `<${tag} style="${style}">${color ? `<color rgb="${pertXlsxArgb(color)}"/>` : ""}</${tag}>`;
+  };
+  const bordersXml = '<borders count="' + borderList.length + '">'
+    + borderList.map(b => "<border>" + side(b && b.l, "left") + side(b && b.r, "right")
+        + side(b && b.t, "top") + side(b && b.b, "bottom") + "<diagonal/></border>").join("")
+    + "</borders>";
   const cellXfsXml = '<cellXfs count="' + xfList.length + '">'
     + xfList.map(xf => {
         const attrs = [`numFmtId="${xf.numFmtId}"`, `fontId="${xf.fontId}"`,
-                       `fillId="${xf.fillId}"`, 'borderId="0"', 'xfId="0"'];
+                       `fillId="${xf.fillId}"`, `borderId="${xf.borderId}"`, 'xfId="0"'];
         if (xf.numFmtId) attrs.push('applyNumberFormat="1"');
         if (xf.fontId) attrs.push('applyFont="1"');
         if (xf.fillId) attrs.push('applyFill="1"');
-        return "<xf " + attrs.join(" ") + "/>";
+        if (xf.borderId) attrs.push('applyBorder="1"');
+        if (!xf.align) return "<xf " + attrs.join(" ") + "/>";
+        attrs.push('applyAlignment="1"');
+        const a = [];
+        if (xf.align.h) a.push(`horizontal="${xf.align.h}"`);
+        if (xf.align.v) a.push(`vertical="${xf.align.v}"`);
+        if (xf.align.wrap) a.push('wrapText="1"');
+        return "<xf " + attrs.join(" ") + `><alignment ${a.join(" ")}/></xf>`;
       }).join("")
     + '</cellXfs>';
   const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
     + `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
-    + numFmtsXml + fontsXml + fillsXml
-    + '<borders count="1"><border/></borders>'
+    + numFmtsXml + fontsXml + fillsXml + bordersXml
     + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
     + cellXfsXml
     + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
@@ -41377,6 +41606,11 @@ function pertXlsxBuild(sheets) {
     + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>`
     + `</Relationships>`;
 
+  // Une feuille porteuse de formes ajoute trois choses au paquet : la partie
+  // drawingN.xml, la relation sheetN → drawingN, et le type de contenu associe.
+  const drawingSheets = [];
+  sheets.forEach((s, i) => { if (s.shapes && s.shapes.length) drawingSheets.push(i); });
+
   const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
     + `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`
     + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`
@@ -41384,6 +41618,9 @@ function pertXlsxBuild(sheets) {
     + `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`
     + sheets.map((s, i) =>
         `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+      ).join("")
+    + drawingSheets.map((si, k) =>
+        `<Override PartName="/xl/drawings/drawing${k + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`
       ).join("")
     + `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`
     + `<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>`
@@ -41400,6 +41637,15 @@ function pertXlsxBuild(sheets) {
     "xl/sharedStrings.xml": S(sstXml),
   };
   sheetXmls.forEach((xml, i) => { files[`xl/worksheets/sheet${i + 1}.xml`] = S(xml); });
+  drawingSheets.forEach((si, k) => {
+    files[`xl/drawings/drawing${k + 1}.xml`] = S(pertXlsxDrawingXml(sheets[si].shapes));
+    files[`xl/worksheets/_rels/sheet${si + 1}.xml.rels`] = S(
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+      + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
+      + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${k + 1}.xml"/>`
+      + `</Relationships>`
+    );
+  });
   return fflate.zipSync(files, { level: 6 });
 }
 
@@ -41409,6 +41655,9 @@ window.pertXlsxDate = pertXlsxDate;
 window.pertXlsxFormula = pertXlsxFormula;
 window.pertXlsxColLetter = pertXlsxColLetter;
 window.pertXlsxBuild = pertXlsxBuild;
+window.pertXlsxPtToEmu = pertXlsxPtToEmu;
+window.pertXlsxPxToEmu = pertXlsxPxToEmu;
+window.pertXlsxColWidthPx = pertXlsxColWidthPx;
 
 </script>
   <script>
@@ -41887,6 +42136,553 @@ if (window.pertRegisterExportFormat) {
     id: "microjalons", icon: "🎯", label: "Micro-jalonnement (Excel)", order: 50,
     desc: "Une ligne par jalon/tâche pour le suivi (jalons majeurs GOLDEN/SILVER).",
     run: () => pertExportMicroJalons(),
+  });
+}
+
+</script>
+  <script>
+/* src/export_planning_directeur.js */
+// ─── Export « Planning directeur » (Excel) — v0.23 ──────────────────────────────
+//
+// Transpose le PERT sur le CANEVAS d'un planning directeur pluriannuel (cf. le
+// modele fourni par l'utilisateur : en-tete annees / trimestres / initiales de mois,
+// une colonne par mois, zebrage mensuel, pointilles au changement d'annee, panneaux
+// figes, paysage). Ce n'est pas un tableau de chiffres : c'est un document de
+// communication, celui qu'on projette en revue de projet.
+//
+// TROIS DECISIONS DE CADRAGE (utilisateur, 21/08/2026) — ne pas les defaire sans
+// nouvel arbitrage, elles ont chacune une consequence sur tout le reste du module :
+//
+//  1. « On ne change pas les (x, y) des taches et jalons : on respecte
+//     scrupuleusement l'agencement du PERT. » Aucun regroupement en voies, aucun
+//     tri, aucun empilement recalcule. L'ORDONNEE d'une forme est celle du nœud sur
+//     le canvas, a l'echelle pres. L'ABSCISSE, elle, vient des DATES (ES → EF) et
+//     non du x du canvas : l'axe horizontal du canevas est calendaire, une barre
+//     doit tomber sous son mois — sinon l'en-tete mentirait. Le x du canvas ne sert
+//     donc qu'aux nœuds Label, qui n'ont aucune date (cf. pertPdLabelXFit).
+//
+//  2. Les DEUX COLONNES DE GAUCHE sont laissees VIDES, a remplir par l'utilisateur
+//     apres l'export. PertFlow n'a qu'un seul niveau de regroupement (le groupe) la
+//     ou le canevas en a deux (« Poste » puis voie) ; plutot que d'inventer une
+//     hierarchie, on livre les colonnes mises en forme (fond, bordures, centrage,
+//     retour a la ligne) et l'utilisateur y saisit sa propre nomenclature.
+//
+//  3. AUCUN lien de dependance n'est trace (illisible des que le planning grossit),
+//     et une LEGENDE des couleurs est posee en haut a gauche, comme sur le modele.
+//
+// Les barres ne sont PAS des cellules colorees (contrairement au « Gantt chargé »
+// de la S9) mais des FORMES flottantes DrawingML — c'est ce que fait le modele, et
+// c'est la seule facon de placer une barre au milieu d'un mois sans decouper la
+// grille. Le mini-writer maison a ete etendu pour cela (cf. export_xlsx.js).
+
+// ── Geometrie du canevas (valeurs relevees sur le modele) ───────────────────────
+const PERT_PD_COL_A_W      = 2.18;    // colonne A : marge etroite
+const PERT_PD_COL_LABEL_W  = 17.82;   // colonnes B et C : nomenclature utilisateur
+const PERT_PD_COL_MONTH_W  = 4.453;   // une colonne = un mois
+const PERT_PD_COL0         = 3;       // colonne D = premier mois de la grille
+const PERT_PD_ROW0         = 4;       // ligne 5 = premiere bande de contenu
+const PERT_PD_HEAD_HEIGHTS = [14.5, 20, 21.75, 20];  // marge, annees, trimestres, mois
+
+// Hauteur d'une barre de tache et cote d'un losange de jalon, en points. Fixes (et
+// non proportionnels a la hauteur du nœud) : un nœud PERT fait 60 a 100 px de haut,
+// une barre de planning directeur en fait ~14 pt. Ce qui est conserve, c'est la
+// POSITION du centre — donc l'agencement vertical — pas l'encombrement du nœud.
+const PERT_PD_BAR_PT       = 14;
+const PERT_PD_MS_PT        = 11;
+const PERT_PD_MIN_BAR_MON  = 0.30;    // largeur plancher d'une barre, en mois
+
+// Deux nœuds distants de moins de ce seuil (px canvas) appartiennent a la meme
+// bande, donc a la meme ligne du classeur. Au-dela, la ligne change.
+const PERT_PD_BAND_GAP_PX  = 6;
+
+// Echelle verticale : on vise une hauteur de corps a peu pres tenable sur une page,
+// bornee des deux cotes. Sans borne haute un petit planning serait etire jusqu'au
+// ridicule ; sans borne basse un gros planning ecraserait ses barres les unes sur
+// les autres. La hauteur de ligne est de toute facon plafonnee au plancher
+// PERT_PD_MIN_ROW_PT, qui garantit qu'une barre tient dans sa ligne.
+const PERT_PD_TARGET_PT    = 480;
+const PERT_PD_SCALE_MIN    = 0.10;
+const PERT_PD_SCALE_MAX    = 0.60;
+const PERT_PD_MIN_ROW_PT   = PERT_PD_BAR_PT + 4;
+// Marge maximale (en points, repartie de part et d'autre) laissee autour du contenu
+// d'une bande. La hauteur d'une bande est dictee par le VIDE qui l'entoure sur le
+// canvas, pas par son contenu : sans plafond, un planning aere sort avec des lignes de
+// 100 pt pour une barre de 14. Mais le plafond ne porte QUE sur cette marge — plafonner
+// la hauteur totale comprimerait le contenu lui-meme, et deux nœuds distincts d'une
+// meme bande finiraient l'un sur l'autre (constate sur un planning dense).
+const PERT_PD_MAX_GAP_PT   = 24;
+
+// Garde-fou : au-dela, la grille est tronquee (un classeur de 30 ans de colonnes est
+// deja hors de propos pour un planning directeur).
+const PERT_PD_MAX_MONTHS   = 360;
+
+// Palette du canevas (relevee dans le modele).
+const PERT_PD_COLORS = {
+  head:       "#5DBFD4",   // bandeau annees / trimestres / mois
+  headText:   "#FFFFFF",
+  poste:      "#5DBFD4",   // colonne B (niveau superieur, a remplir)
+  laneA:      "#D2E8EF",   // colonne C, bandes paires
+  laneB:      "#EAF4F7",   // colonne C, bandes impaires
+  monthOdd:   "#D9D9D9",   // zebrage mensuel
+  monthEven:  "#FFFFFF",
+  white:      "#FFFFFF",
+  msOk:       "#FFFF00",   // losange de jalon (jaune du modele)
+  msMissed:   "#FF0000",   // jalon dont la cible n'est pas tenue
+  legendBg:   "#FFF9E6",
+  legendLine: "#E8A33D",
+};
+
+const PERT_PD_MONTH_LETTERS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+const PERT_PD_QUARTERS = ["1er Tri.", "2ème Tri.", "3ème Tri.", "4ème Tri."];
+
+// Noir ou blanc selon la clarte du fond : un libelle blanc sur une barre jaune est
+// illisible, et l'utilisateur choisit librement la couleur de ses groupes.
+function pertPdTextOn(hex) {
+  const h = String(hex || "").replace(/^#/, "");
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return "#000000";
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#000000" : "#FFFFFF";
+}
+
+// Assombrit une couleur (contour d'une barre : la meme teinte en plus soutenu tient
+// mieux qu'un noir uniforme, qui salit les barres claires).
+function pertPdDarken(hex, factor) {
+  const h = String(hex || "").replace(/^#/, "");
+  const v = [0, 2, 4].map(i => {
+    const c = parseInt(h.slice(i, i + 2), 16);
+    return isNaN(c) ? 0 : Math.max(0, Math.min(255, Math.round(c * factor)));
+  });
+  return "#" + v.map(c => c.toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+
+function pertPdDaysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+
+// ── Modele ──────────────────────────────────────────────────────────────────────
+//
+// Rassemble tout ce dont le rendu a besoin : les elements a dessiner (avec leur
+// ordonnee canvas et leurs dates), l'etendue de la grille en mois, et le decoupage
+// en bandes qui donne les lignes du classeur.
+function pertPlanningDirecteurModel() {
+  const graph = window.pertGraph;
+  if (!graph || !graph._nodes || !graph._nodes.length) return null;
+  if (!window.pertMeta || !window.pertMeta.t0) return { error: "no_t0" };
+  if (window.pertRecalc) pertRecalc();
+
+  const items = [];
+  graph._nodes.forEach(n => {
+    if (!n || !n.pos || !n.size) return;
+    const base = {
+      node: n,
+      top: n.pos[1], bottom: n.pos[1] + n.size[1],
+      cy: n.pos[1] + n.size[1] / 2,
+      x: n.pos[0], w: n.size[0],
+    };
+    if (n.type === "pert/activity") {
+      if (n.es == null || n.ef == null) return;
+      items.push(Object.assign(base, { kind: "act", start: n.es, end: n.ef }));
+    } else if (n.type === "pert/milestone") {
+      // Meme regle d'affichage que le Gantt et la synthese : un jalon se lit sur sa
+      // CIBLE quand elle est saisie, sinon sur son EF calcule (cf. pertScheduleModel).
+      const due = pertMilestoneDueOffset(n);
+      const off = (due != null) ? due : (n.ef != null ? n.ef : 0);
+      items.push(Object.assign(base, { kind: "ms", start: off, end: off }));
+    } else if (n.type === "pert/label") {
+      items.push(Object.assign(base, { kind: "lab" }));
+    }
+  });
+
+  const dated = items.filter(i => i.kind !== "lab");
+  if (!dated.length) return null;
+
+  // Etendue calendaire reelle du planning, arrondie aux mois entiers qui la portent.
+  let minD = null, maxD = null;
+  dated.forEach(i => {
+    const a = pertOffsetToDate(i.start), b = pertOffsetToDate(i.end);
+    if (a && (!minD || a < minD)) minD = a;
+    if (b && (!maxD || b > maxD)) maxD = b;
+    if (a && (!maxD || a > maxD)) maxD = a;
+  });
+  if (!minD || !maxD) return null;
+
+  const y0 = minD.getFullYear(), m0 = minD.getMonth();
+  let nMonths = (maxD.getFullYear() - y0) * 12 + (maxD.getMonth() - m0) + 1;
+  let truncated = false;
+  if (nMonths > PERT_PD_MAX_MONTHS) { nMonths = PERT_PD_MAX_MONTHS; truncated = true; }
+
+  // Position d'une date sur l'axe, en mois fractionnaires depuis l'origine de la
+  // grille. La fraction est la part du mois ecoulee : une tache qui demarre le 15
+  // mars commence a la moitie de la colonne de mars.
+  const monthPos = (d) => {
+    if (!d) return 0;
+    const whole = (d.getFullYear() - y0) * 12 + (d.getMonth() - m0);
+    return whole + (d.getDate() - 1) / pertPdDaysInMonth(d.getFullYear(), d.getMonth());
+  };
+  const posOf = (offset) => monthPos(pertOffsetToDate(offset));
+
+  // ── Bandes : le decoupage vertical du canvas en lignes de classeur ────────────
+  // Une bande regroupe les nœuds dont les boites se chevauchent verticalement (a
+  // PERT_PD_BAND_GAP_PX pres). C'est une LECTURE de l'agencement existant, pas une
+  // reorganisation : rien n'est deplace, on decide seulement ou couper les lignes.
+  const sorted = items.slice().sort((a, b) => a.top - b.top);
+  const bands = [];
+  let cur = null;
+  sorted.forEach(it => {
+    if (!cur || it.top > cur.bottom + PERT_PD_BAND_GAP_PX) {
+      cur = { top: it.top, bottom: it.bottom, items: [] };
+      bands.push(cur);
+    }
+    cur.bottom = Math.max(cur.bottom, it.bottom);
+    cur.items.push(it);
+  });
+
+  // Frontieres de lignes : le vide entre deux bandes est partage par moitie entre
+  // elles, de sorte que les lignes pavent tout le canvas sans trou ni recouvrement.
+  // L'ordonnee relative d'un nœud DANS sa ligne reste donc exactement celle qu'il a
+  // sur le canvas.
+  bands.forEach((b, i) => {
+    const prev = bands[i - 1], next = bands[i + 1];
+    b.rowTop = prev ? (prev.bottom + b.top) / 2 : b.top - 10;
+    b.rowBottom = next ? (b.bottom + next.top) / 2 : b.bottom + 10;
+  });
+
+  const totalPx = bands.length ? (bands[bands.length - 1].rowBottom - bands[0].rowTop) : 1;
+  const scaleY = Math.max(PERT_PD_SCALE_MIN,
+                   Math.min(PERT_PD_SCALE_MAX, PERT_PD_TARGET_PT / Math.max(1, totalPx)));
+  // Hauteur d'une ligne = contenu a l'echelle EXACTE + marges plafonnees. Le surplus
+  // eventuel (bande plus courte que le plancher) est reparti de part et d'autre, pour
+  // que le contenu reste centre dans sa ligne.
+  bands.forEach(b => {
+    const contentPt = (b.bottom - b.top) * scaleY;
+    b.padTopPt = Math.min((b.top - b.rowTop) * scaleY, PERT_PD_MAX_GAP_PT / 2);
+    const padBot = Math.min((b.rowBottom - b.bottom) * scaleY, PERT_PD_MAX_GAP_PT / 2);
+    const naturel = b.padTopPt + contentPt + padBot;
+    b.heightPt = Math.max(PERT_PD_MIN_ROW_PT, naturel);
+    b.padTopPt += (b.heightPt - naturel) / 2;
+  });
+
+  return { items, bands, y0, m0, nMonths, truncated, monthPos, posOf, scaleY };
+}
+
+// Place les nœuds Label, qui n'ont AUCUNE date, sur l'axe calendaire.
+//
+// Leur abscisse ne peut venir que du canvas : on ajuste (moindres carres) la relation
+// x_canvas → position en mois sur les taches et jalons, dont on connait les deux, puis
+// on l'applique aux Labels. Sur un PERT range selon l'axe du temps — le cas nominal,
+// c'est ce que produit la reorganisation « axe temps seul » — l'ajustement est exact
+// et le Label retombe pile ou son auteur l'avait mis. Sur un PERT range autrement, il
+// atterrit au mieux : c'est le seul rattachement disponible, faute de date.
+function pertPdLabelXFit(model) {
+  const pts = model.items.filter(i => i.kind !== "lab")
+    .map(i => ({ x: i.x + i.w / 2, p: (model.posOf(i.start) + model.posOf(i.end)) / 2 }));
+  if (pts.length < 2) return () => 0;
+  const n = pts.length;
+  const mx = pts.reduce((s, q) => s + q.x, 0) / n;
+  const mp = pts.reduce((s, q) => s + q.p, 0) / n;
+  let num = 0, den = 0;
+  pts.forEach(q => { num += (q.x - mx) * (q.p - mp); den += (q.x - mx) * (q.x - mx); });
+  if (den < 1e-9) return () => mp;                   // tous les nœuds sur la meme verticale
+  const a = num / den, b = mp - a * mx;
+  return (x) => a * x + b;
+}
+
+// ── Construction du classeur ────────────────────────────────────────────────────
+function pertBuildPlanningDirecteurXlsx(model) {
+  const { bands, y0, m0, nMonths } = model;
+
+  // Conversions : une colonne de mois et une ligne mesurent respectivement tant de
+  // pixels et tant de points ; les formes s'ancrent en (cellule + decalage EMU).
+  const MONTH_PX = pertXlsxColWidthPx(PERT_PD_COL_MONTH_W);
+  const MONTH_EMU = pertXlsxPxToEmu(MONTH_PX);
+  const MONTH_PT = MONTH_PX * 0.75;                  // 96 dpi → points
+  const LABEL_PX = pertXlsxColWidthPx(PERT_PD_COL_LABEL_W);
+
+  const nCols = PERT_PD_COL0 + nMonths;
+  const monthOfCol = (i) => (m0 + i) % 12 < 0 ? ((m0 + i) % 12 + 12) % 12 : (m0 + i) % 12;
+  const yearOfCol = (i) => y0 + Math.floor((m0 + i) / 12);
+
+  // ── Styles ───────────────────────────────────────────────────────────────────
+  // Separateurs blancs du modele. Verticaux en « medium » : ce sont eux qui detachent
+  // les mois les uns des autres, c'est le quadrillage utile. Horizontaux en « thin » :
+  // deux bordures medium se cumulent a chaque frontiere de ligne et decoupent les
+  // colonnes grises en tronçons, ce qui casse la lecture d'une colonne de mois.
+  const WB = "medium#FFFFFF", WT = "thin#FFFFFF";
+  const frame = (right) => ({ l: WB, r: right || WB, t: WT, b: WT });
+  const head = (size) => ({
+    fill: PERT_PD_COLORS.head, color: PERT_PD_COLORS.headText, bold: true, size: size,
+    halign: "center", valign: "center", wrap: true, border: frame(),
+  });
+  const HEAD_YEAR = head(11), HEAD_QUARTER = head(10), HEAD_MONTH = head(9);
+
+  // Cellule de corps : zebrage mensuel + trait pointille de part et d'autre du
+  // changement d'annee (pose des DEUX cotes de la frontiere, sinon la bordure de la
+  // cellule voisine peut le recouvrir selon la version d'Excel).
+  const bodyStyle = (i) => {
+    const mo = monthOfCol(i);
+    const b = frame();
+    if (mo === 11) b.r = "dotted#000000";
+    if (mo === 0)  b.l = "dotted#000000";
+    // Le modele grise janvier, mars, mai… : ce sont les mois d'indice PAIR (0-based).
+    return { fill: (mo % 2 === 0) ? PERT_PD_COLORS.monthOdd : PERT_PD_COLORS.monthEven, border: b };
+  };
+  // Colonnes B et C : vides, mais mises en forme pour que la saisie de l'utilisateur
+  // tombe deja centree, coupee et cadree comme sur le modele.
+  const laneStyle = (bandIdx, col) => ({
+    fill: col === 1 ? PERT_PD_COLORS.poste
+                    : (bandIdx % 2 ? PERT_PD_COLORS.laneB : PERT_PD_COLORS.laneA),
+    size: 10, halign: "center", valign: "center", wrap: true, border: frame(),
+  });
+
+  // ── Cellules ─────────────────────────────────────────────────────────────────
+  const rows = [];
+  const merges = [];
+  const rowHeights = PERT_PD_HEAD_HEIGHTS.slice();
+  for (let r = 0; r < PERT_PD_ROW0; r++) rows.push([]);
+
+  // Lignes annees / trimestres : une valeur en tete de bloc, le style sur toute son
+  // etendue (une fusion dont les cellules internes n'ont pas le style laisse des
+  // trous blancs dans le bandeau).
+  const emitBlocks = (rowIdx, keyOf, labelOf, style) => {
+    let start = 0;
+    for (let i = 1; i <= nMonths; i++) {
+      if (i === nMonths || keyOf(i) !== keyOf(start)) {
+        for (let k = start; k < i; k++) {
+          rows[rowIdx][PERT_PD_COL0 + k] = pertXlsxText(k === start ? labelOf(start) : "", style);
+        }
+        if (i - start > 1) {
+          merges.push(pertXlsxColLetter(PERT_PD_COL0 + start) + (rowIdx + 1) + ":"
+                    + pertXlsxColLetter(PERT_PD_COL0 + i - 1) + (rowIdx + 1));
+        }
+        start = i;
+      }
+    }
+  };
+  emitBlocks(1, (i) => yearOfCol(i), (i) => String(yearOfCol(i)), HEAD_YEAR);
+  emitBlocks(2, (i) => yearOfCol(i) + "-" + Math.floor(monthOfCol(i) / 3),
+                (i) => PERT_PD_QUARTERS[Math.floor(monthOfCol(i) / 3)], HEAD_QUARTER);
+  for (let i = 0; i < nMonths; i++) {
+    rows[3][PERT_PD_COL0 + i] = pertXlsxText(PERT_PD_MONTH_LETTERS[monthOfCol(i)], HEAD_MONTH);
+  }
+
+  bands.forEach((b, bi) => {
+    const r = PERT_PD_ROW0 + bi;
+    const row = [];
+    row[1] = pertXlsxText("", laneStyle(bi, 1));
+    row[2] = pertXlsxText("", laneStyle(bi, 2));
+    for (let i = 0; i < nMonths; i++) row[PERT_PD_COL0 + i] = pertXlsxText("", bodyStyle(i));
+    rows.push(row);
+    rowHeights.push(Math.round(b.heightPt * 100) / 100);
+  });
+
+  // ── Ancrages ─────────────────────────────────────────────────────────────────
+  // Une forme se pose en (colonne, decalage dans la colonne) et (ligne, decalage dans
+  // la ligne). Consequence importante : une erreur d'estimation de la largeur rendue
+  // d'une colonne ne decale que la fraction interne — elle ne se CUMULE pas le long
+  // de la grille, contrairement a un placement en coordonnees absolues.
+  const xAnchor = (mp) => {
+    const c = Math.max(0, Math.min(nMonths - 1e-6, mp));
+    const col = Math.floor(c);
+    return { col: PERT_PD_COL0 + col, colOff: Math.round((c - col) * MONTH_EMU) };
+  };
+  const cumY = [];
+  let acc = 0;
+  rowHeights.forEach(h => { cumY.push(acc); acc += h; });
+  const yAnchor = (absPt) => {
+    let y = Math.max(0, Math.min(acc - 0.01, absPt)), r = 0;
+    while (r < rowHeights.length - 1 && y >= rowHeights[r]) { y -= rowHeights[r]; r++; }
+    return { row: r, rowOff: pertXlsxPtToEmu(y) };
+  };
+  // Ordonnee absolue (en points depuis le haut de la feuille) du centre d'un nœud :
+  // le haut de sa ligne, sa marge, puis sa position DANS la bande a l'echelle exacte —
+  // c'est ce dernier terme qui preserve l'agencement vertical du canvas.
+  const centerPt = (band, bandIdx, cy) =>
+    cumY[PERT_PD_ROW0 + bandIdx] + band.padTopPt + (cy - band.top) * model.scaleY;
+
+  // ── Formes ───────────────────────────────────────────────────────────────────
+  // Trois plans de profondeur : l'ordre d'emission EST l'ordre de dessin. Les notes
+  // (Labels) tapissent le fond, les barres viennent dessus, les jalons en dernier — un
+  // losange ne doit jamais disparaitre sous une barre qui le chevauche, c'est le repere
+  // que l'œil cherche en premier sur un planning directeur.
+  const fond = [], barres = [], jalons = [];
+  const labelX = pertPdLabelXFit(model);
+
+  bands.forEach((band, bi) => {
+    band.items.forEach(it => {
+      const shapes = it.kind === "lab" ? fond : (it.kind === "act" ? barres : jalons);
+      const cPt = centerPt(band, bi, it.cy);
+      const n = it.node;
+
+      if (it.kind === "act") {
+        let x1 = model.posOf(it.start), x2 = model.posOf(it.end);
+        if (x2 - x1 < PERT_PD_MIN_BAR_MON) x2 = x1 + PERT_PD_MIN_BAR_MON;
+        const fill = pertGanttColor(n);
+        shapes.push({
+          kind: "roundRect",
+          from: Object.assign(xAnchor(x1), yAnchor(cPt - PERT_PD_BAR_PT / 2)),
+          to:   Object.assign(xAnchor(x2), yAnchor(cPt + PERT_PD_BAR_PT / 2)),
+          fill, line: pertPdDarken(fill, 0.6), lineW: 0.75,
+          text: (n.properties && n.properties.label) || "",
+          textColor: pertPdTextOn(fill), textSize: 7, bold: true, align: "ctr",
+          name: "Tache " + ((n.properties && n.properties.label) || n.id),
+        });
+        return;
+      }
+
+      if (it.kind === "ms") {
+        const halfMon = (PERT_PD_MS_PT / MONTH_PT) / 2;
+        // Un jalon pose sur le tout premier (ou tout dernier) jour de la grille verrait
+        // la moitie de son losange rognee par le bord : on le rentre d'une demi-largeur.
+        const mp = Math.max(halfMon, Math.min(nMonths - halfMon, model.posOf(it.start)));
+        const fill = n.target_missed ? PERT_PD_COLORS.msMissed : PERT_PD_COLORS.msOk;
+        shapes.push({
+          kind: "diamond",
+          from: Object.assign(xAnchor(mp - halfMon), yAnchor(cPt - PERT_PD_MS_PT / 2)),
+          to:   Object.assign(xAnchor(mp + halfMon), yAnchor(cPt + PERT_PD_MS_PT / 2)),
+          fill, line: "#000000", lineW: 0.75,
+          name: "Jalon " + ((n.properties && n.properties.label) || n.id),
+        });
+        // Le libelle vit dans une forme SEPAREE, posee a droite du losange : ecrit
+        // dedans il serait illisible (un losange de 11 pt n'a pas de place utile).
+        const txt = (n.properties && n.properties.label) || "";
+        if (txt) {
+          const wMon = Math.max(1, (txt.length * 4.2 + 6) / MONTH_PT);
+          shapes.push({
+            kind: "text",
+            from: Object.assign(xAnchor(mp + halfMon), yAnchor(cPt - PERT_PD_MS_PT / 2)),
+            to:   Object.assign(xAnchor(mp + halfMon + wMon), yAnchor(cPt + PERT_PD_MS_PT / 2)),
+            text: txt, textColor: "#000000", textSize: 7, bold: true, align: "l", wrap: false,
+            name: "Libelle jalon " + txt,
+          });
+        }
+        return;
+      }
+
+      // Label : boite de texte, couleurs et graisse reprises du nœud.
+      const p = n.properties || {};
+      const x1 = labelX(it.x), x2 = labelX(it.x + it.w);
+      // Hauteur de la boite : celle du nœud Label, a l'echelle verticale du document,
+      // bornee pour qu'une note tres haute n'ecrase pas la bande.
+      const hPt = Math.max(10, Math.min(48, (it.bottom - it.top) * model.scaleY));
+      shapes.push({
+        kind: "rect",
+        from: Object.assign(xAnchor(x1), yAnchor(cPt - hPt / 2)),
+        to:   Object.assign(xAnchor(Math.max(x2, x1 + PERT_PD_MIN_BAR_MON)), yAnchor(cPt + hPt / 2)),
+        fill: p.bg_color || null, line: null,
+        text: p.text || "", textColor: p.text_color || "#444444", textSize: 8,
+        bold: !!p.bold,
+        align: p.text_align === "center" ? "ctr" : (p.text_align === "right" ? "r" : "l"),
+        name: "Note",
+      });
+    });
+  });
+  const shapes = fond.concat(barres, jalons);
+
+  // ── Legende (haut a gauche, sur les colonnes B et C) ─────────────────────────
+  const legend = [];
+  const seen = new Set();
+  model.items.forEach(it => {
+    if (it.kind !== "act") return;
+    const g = ((it.node.properties && it.node.properties.group) || "").trim();
+    const key = g || "(sans groupe)";
+    if (seen.has(key)) return;
+    seen.add(key);
+    legend.push({ label: key, color: pertGanttColor(it.node), diamond: false });
+  });
+  legend.sort((a, b) => a.label.localeCompare(b.label, "fr"));
+  if (model.items.some(i => i.kind === "ms")) {
+    legend.push({ label: "Jalon", color: PERT_PD_COLORS.msOk, diamond: true });
+  }
+  if (model.items.some(i => i.kind === "ms" && i.node.target_missed)) {
+    legend.push({ label: "Jalon : cible non tenue", color: PERT_PD_COLORS.msMissed, diamond: true });
+  }
+
+  if (legend.length) {
+    // Deux colonnes des que la liste depasse cinq entrees, pour rester dans la
+    // hauteur du bandeau d'en-tete.
+    const twoCols = legend.length > 5;
+    const nRows = twoCols ? Math.ceil(legend.length / 2) : legend.length;
+    const PAD = 3, TITLE_PT = 9, LINE_PT = 9, SW_PX = 16;
+    const boxW = 2 * LABEL_PX - 4;
+    const colW = twoCols ? (boxW - 2 * PAD) / 2 : boxW - 2 * PAD;
+    const boxH = PAD + TITLE_PT + nRows * LINE_PT + PAD;
+    // Abscisse en pixels depuis le bord gauche de la colonne B → (colonne, decalage).
+    const lx = (px) => {
+      const c = Math.max(0, Math.min(2 * LABEL_PX - 1, px));
+      return { col: 1 + Math.floor(c / LABEL_PX), colOff: pertXlsxPxToEmu(c % LABEL_PX) };
+    };
+    shapes.push({
+      kind: "rect",
+      from: Object.assign(lx(2), yAnchor(2)),
+      to:   Object.assign(lx(2 + boxW), yAnchor(2 + boxH)),
+      fill: PERT_PD_COLORS.legendBg, line: PERT_PD_COLORS.legendLine, lineW: 1,
+      name: "Legende",
+    });
+    shapes.push({
+      kind: "text",
+      from: Object.assign(lx(2 + PAD), yAnchor(2 + PAD)),
+      to:   Object.assign(lx(2 + boxW - PAD), yAnchor(2 + PAD + TITLE_PT)),
+      text: "Légende :", textColor: "#000000", textSize: 8, bold: true, align: "l", wrap: false,
+      name: "Legende titre",
+    });
+    legend.forEach((e, i) => {
+      const c = twoCols && i >= nRows ? 1 : 0;
+      const r = twoCols ? (i % nRows) : i;
+      const x = 2 + PAD + c * (colW + PAD * 0);
+      const y = 2 + PAD + TITLE_PT + r * LINE_PT;
+      shapes.push({
+        kind: e.diamond ? "diamond" : "rect",
+        from: Object.assign(lx(x), yAnchor(y + 1)),
+        to:   Object.assign(lx(x + SW_PX), yAnchor(y + LINE_PT - 1)),
+        fill: e.color, line: "#666666", lineW: 0.5,
+        name: "Legende pastille " + e.label,
+      });
+      shapes.push({
+        kind: "text",
+        from: Object.assign(lx(x + SW_PX + 2), yAnchor(y)),
+        to:   Object.assign(lx(x + colW), yAnchor(y + LINE_PT)),
+        text: e.label, textColor: "#000000", textSize: 7, align: "l", wrap: false,
+        name: "Legende texte " + e.label,
+      });
+    });
+  }
+
+  // ── Feuille ──────────────────────────────────────────────────────────────────
+  const cols = [{ width: PERT_PD_COL_A_W }, { width: PERT_PD_COL_LABEL_W }, { width: PERT_PD_COL_LABEL_W }];
+  for (let i = 0; i < nMonths; i++) cols.push({ width: PERT_PD_COL_MONTH_W });
+
+  return pertXlsxBuild([{
+    name: "Planning directeur",
+    cols, rows, rowHeights, merges, shapes,
+    gridLines: false,
+    defaultRowHeight: 14,
+    // Colonnes A→C et les quatre lignes d'en-tete restent visibles au defilement :
+    // sur cinq ans de colonnes, sans cela on ne sait plus quel mois on lit.
+    freeze: { col: PERT_PD_COL0, row: PERT_PD_ROW0 },
+    page: { orientation: "landscape", paperSize: 8, fitToPage: true, centered: true },
+  }]);
+}
+
+function pertExportPlanningDirecteur() {
+  const model = pertPlanningDirecteurModel();
+  if (!model) { showToast("Rien a exporter (planning vide ou sans dates)"); return; }
+  if (model.error === "no_t0") { showToast("Definissez d'abord la date T0 (Parametres)"); return; }
+  const data = pertBuildPlanningDirecteurXlsx(model);
+  const name = (window.pertProjectFilename ? pertProjectFilename() : "pertflow") + "_planning_directeur.xlsx";
+  pertDownloadBlob(data, name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  showToast(model.truncated
+    ? "Planning directeur : " + name + " (grille tronquee a " + PERT_PD_MAX_MONTHS + " mois)"
+    : "Planning directeur : " + name);
+}
+
+window.pertPlanningDirecteurModel = pertPlanningDirecteurModel;
+window.pertBuildPlanningDirecteurXlsx = pertBuildPlanningDirecteurXlsx;
+window.pertExportPlanningDirecteur = pertExportPlanningDirecteur;
+
+if (window.pertRegisterExportFormat) {
+  pertRegisterExportFormat({
+    id: "planning-directeur", icon: "🗺", label: "Planning directeur (Excel)", order: 50,
+    desc: "Vue calendaire pluriannuelle (annees / trimestres / mois), barres et jalons dessines, "
+        + "agencement du PERT conserve. Colonnes de nomenclature a remplir apres l'export.",
+    run: () => pertExportPlanningDirecteur(),
   });
 }
 

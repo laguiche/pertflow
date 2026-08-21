@@ -129,6 +129,7 @@ contrainte <code>file://</code> l'impose.</p>
 │   ├── export_xlsx.js    # Mini-writer XLSX générique (sur fflate)
 │   ├── export_gantt.js   # Gantt chargé (Excel) + MS Project (MSPDI XML)
 │   ├── export_microjalons.js  # Micro-jalonnement (Excel)
+│   ├── export_planning_directeur.js  # Planning directeur (Excel) : canevas calendaire + formes
 │   └── link_routing.js   # Rendu des liens : styles + routage orthogonal (évitement)
 ├── docs/                 # Manuel, conception, maintenance, notes de version (MD + HTML + PDF)
 ├── tools/                # Suite de tests + captures d'écran (cf. tools/README.md)
@@ -302,14 +303,47 @@ de configuration : feuille cible, T0, unité). Traitement 100 % <code>file://</c
 <li><strong>CSV</strong> : dump brut, séparateur <code>;</code>, décimales <code>,</code>, BOM UTF-8.</li>
 <li><strong>XLSX</strong> : un <code>.xlsx</code> est un <strong>ZIP de XML</strong> → <strong>mini-writer maison sur fflate</strong>
   (<code>export_xlsx.js</code>, <code>pertXlsxBuild</code>) : cellules texte/nombre/date/formule, styles (formats date,
-  <code>0.00</code>, fills de couleur, gras) dédupliqués, <code>sharedStrings</code>. <strong>Pas de SheetJS</strong> (Apache-2.0,
-  exclu par « MIT uniquement »).</li>
+  <code>0.00</code>, fills, polices, bordures, alignements) dédupliqués, <code>sharedStrings</code>, hauteurs de ligne,
+  cellules fusionnées, panneaux figés, mise en page — et <strong>formes flottantes DrawingML</strong>
+  (<code>shapes</code>, ancrage <code>twoCellAnchor</code>). <strong>Pas de SheetJS</strong> (Apache-2.0, exclu par « MIT
+  uniquement »). Tout ce qui a été ajouté en v0.23 est <strong>optionnel</strong> : un appelant qui ne passe
+  que <code>{ name, cols, rows }</code> produit le classeur d'avant, octet pour octet.<blockquote>
+<p>L'ordre des éléments d'une <code>&lt;worksheet&gt;</code> est <strong>imposé par le schéma OOXML</strong> (<code>sheetPr</code>,
+<code>sheetViews</code>, <code>sheetFormatPr</code>, <code>cols</code>, <code>sheetData</code>, <code>mergeCells</code>, <code>printOptions</code>,
+<code>pageMargins</code>, <code>pageSetup</code>, <code>drawing</code>). Excel refuse d'ouvrir un classeur qui s'en écarte
+<strong>sans dire lequel</strong> est en cause : la séquence est écrite une fois pour toutes dans
+<code>pertXlsxBuild</code>, ne pas y insérer un élément « au plus commode ».</p>
+</blockquote>
+</li>
 <li><strong>Gantt chargé</strong> et <strong>MS Project (MSPDI XML)</strong> partagent <code>pertScheduleModel()</code> (tri groupes par
   ES précoce, classement jalons entrée/sortie, colonnes de périodes, liens). Aucune bibliothèque
   <code>.mpp</code> native n'existant côté navigateur (MIT/offline), MS Project est produit en <strong>MSPDI XML</strong>
   écrit à la main.</li>
-<li>Téléchargements via <code>pertDownloadBlob</code> (objet URL, fonctionne en <code>file://</code>).</li>
+<li><strong>Planning directeur</strong> (<code>export_planning_directeur.js</code>, v0.23) : transposition du PERT sur un
+  canevas calendaire (une colonne = un mois, en-tête années/trimestres/mois, zébrage, panneaux
+  figés, paysage). Trois règles de cadrage le gouvernent, décidées avec l'utilisateur et à ne pas
+  défaire sans nouvel arbitrage :
+  1. <strong>Abscisse = les dates</strong> (ES → EF, cible pour un jalon) ; <strong>ordonnée = le canvas</strong>
+     (<code>pos[1]</code> du nœud, à l'échelle près). Aucun regroupement, aucun tri, aucun ré-empilement.
+     Le <code>x</code> du canvas ne sert qu'aux <strong>Labels</strong>, qui n'ont pas de date : leur abscisse passe par
+     une régression <code>x → position en mois</code> ajustée sur les nœuds datés (<code>pertPdLabelXFit</code>).
+  2. Les <strong>colonnes B et C restent vides</strong>, mises en forme, à remplir par l'utilisateur : le
+     canevas a deux niveaux de nomenclature là où PertFlow n'a que le groupe.
+  3. <strong>Aucun lien</strong> tracé ; <strong>légende</strong> des couleurs en haut à gauche.</li>
 </ul>
+<p>Les <strong>bandes</strong> (<code>bands</code>) sont une <em>lecture</em> de l'agencement, pas une réorganisation : les nœuds
+  dont les boîtes se chevauchent verticalement partagent une ligne de classeur, le vide entre deux
+  bandes est partagé par moitié. Le plafond <code>PERT_PD_MAX_GAP_PT</code> ne borne que <strong>cette marge</strong> —
+  plafonner la hauteur totale comprimerait le contenu et ferait se recouvrir deux nœuds distincts
+  d'une même bande.</p>
+<blockquote>
+<p><strong>Pourquoi les barres ne sont pas des cellules colorées</strong> (contrairement au Gantt chargé) : une
+tâche démarre au milieu d'un mois. La coloration de cellule oblige à arrondir à la colonne ;
+l'ancrage <code>twoCellAnchor</code> place la forme à <code>(colonne, décalage dans la colonne)</code> et rend la
+date exacte. Corollaire précieux : une mauvaise estimation de la largeur rendue d'une colonne
+ne fausse que la fraction interne, elle <strong>ne se cumule pas</strong> le long de la grille.
+- Téléchargements via <code>pertDownloadBlob</code> (objet URL, fonctionne en <code>file://</code>).</p>
+</blockquote>
 <hr />
 <h2 id="9-packaging-scriptsbuild-bundlejs">9. Packaging (<code>scripts/build-bundle.js</code>)</h2>
 <p>Le développement se fait sur la structure <code>index.html</code> + <code>src/</code> + <code>lib/</code>. Un <strong>script Node natif
