@@ -741,7 +741,7 @@ Le bouton **⬇ Exporter** ouvre une fenêtre proposant **sept formats** :
 | **Gantt chargé (Excel)** | Diagramme de charge : l'ETP par période, coloré par groupe, avec une ligne de total. |
 | **Micro-jalonnement (Excel)** | Une ligne par jalon/tâche pour le suivi ; les jalons majeurs sont marqués **GOLDEN** (DOTD/COTD) ou **SILVER** (Ingénierie). |
 | **Planning directeur (Excel)** | Vue calendaire pluriannuelle à présenter en revue de projet (voir ci-dessous). |
-| **Gantt MS Project (XML)** | Fichier importable dans MS Project (tâches, jalons, charge et **liens de dépendance**). |
+| **Gantt MS Project (XML)** | Fichier importable dans MS Project (tâches, jalons, charge, **liens de dépendance** et **échéances**). |
 
 Les exports **PNG** et **PDF** produisent le planning seul, sur fond blanc (indépendamment du
 zoom courant à l'écran) :
@@ -750,6 +750,39 @@ zoom courant à l'écran) :
 
 > Comme pour la sauvegarde, les fichiers exportés arrivent dans votre dossier **Téléchargements**
 > (contrainte du mode `file://`).
+
+### Ce que chaque export suppose
+
+Un export n'est jamais une simple photographie : il transpose votre planning dans le vocabulaire
+d'un autre outil, et chaque transposition repose sur des conventions. Les voici, pour ne pas être
+surpris à la relecture du fichier produit.
+
+**Vrai pour tous les exports :**
+
+- Le planning est **recalculé juste avant l'export** : ce qui sort est à jour, même si vous venez
+  de modifier une durée.
+- Les nœuds **Label** ne sont pas des données de planning : ils sont **absents** des exports de
+  données (CSV, Gantt chargé, micro-jalonnement, MS Project). Seuls l'image, le PDF et le planning
+  directeur les montrent.
+- Une **date T0 est obligatoire** pour tous les exports de données : sans elle aucune date ne peut
+  être calculée, et l'export refuse de partir (« Définissez d'abord la date T0 »).
+- Les durées sortent dans l'**unité du projet**, et un « jour » reste un **jour ouvré** (les jours
+  fériés, eux, comptent comme ouvrés — voir le chapitre 4).
+- Le **filtre** ne retire rien des exports de données : c'est toujours le planning **complet** qui
+  est exporté. En revanche il **se voit** sur l'image et le PDF, où les nœuds estompés le restent —
+  levez-le avant d'exporter une image.
+
+**Propre à chaque format :**
+
+| Format | Conventions et hypothèses |
+|---|---|
+| **Image PNG** | Le planning **entier**, quels que soient le zoom et le cadrage à l'écran, sur fond blanc. |
+| **Document PDF** | Même rendu, ajusté sur **une seule page A4** (orientation choisie selon la forme du planning) : un planning très étendu sort donc en petit. |
+| **Données CSV** | Une ligne par Activité et par Jalon. Séparateur « ; », décimales à la virgule, encodage marqué pour Excel FR. Le **schéma de colonnes est figé** : les colonnes nouvelles sont toujours ajoutées **en fin de ligne**, jamais intercalées, pour ne pas casser les dépouillements existants. Le coût est en k€ ; l'ETP est rempli même quand la charge est saisie en heures (il est alors déduit). |
+| **Gantt chargé (Excel)** | Une colonne **par période** dans l'unité du projet, de la première à la dernière période occupée (les travaux anticipés avant T0 sont inclus). La cellule vaut l'**ETP** de la tâche sur chaque période où elle est active, à la couleur du groupe (sinon celle du nœud). Un jalon vaut 0 dans la colonne de sa date. Au-delà de 400 colonnes le tableau est **tronqué**, avec un avertissement. |
+| **Micro-jalonnement (Excel)** | Reprend la structure d'un modèle de suivi : seules les colonnes **déductibles du planning** sont remplies. *Statut*, *Replan*, *Écart*, *Date réalisée* et les *Filtres* restent volontairement **vides**, à vous de les tenir. *Date baseline* = la date-cible si vous en avez saisi une, sinon la date calculée ; *Date prévue* = la date calculée. Un jalon est **GOLDEN** s'il porte le tag DOTD ou COTD, **SILVER** s'il porte Ingénierie. |
+| **Planning directeur (Excel)** | Voir ci-dessous : abscisse calendaire, ordonnée reprise du canvas, deux colonnes de nomenclature livrées vides, aucun lien tracé. |
+| **Gantt MS Project (XML)** | Voir plus bas : MS Project **replanifie** à l'import, ce qui commande toute la façon dont le fichier est écrit. |
 
 ### Le planning directeur
 
@@ -791,6 +824,49 @@ orientation **paysage**, ajustement en largeur.
 
 > Astuce : si votre PERT est rangé « en vrac », lancez d'abord **⟳ Réorganiser → Axe du temps
 > seul** avant d'exporter. La position verticale que vous voyez à l'écran est celle qui sortira.
+
+### L'export MS Project
+
+Le fichier produit est un **XML au format MSPDI**, celui que MS Project sait ouvrir nativement
+(*Fichier → Ouvrir*, en choisissant le type **XML**). Ce n'est pas un `.mpp` : PertFlow ne sait pas
+écrire le format binaire de MS Project, et n'a pas à le savoir — MSPDI est fait pour ça.
+
+Y sont transmis : une tâche par Activité et par Jalon (toutes au même niveau, sans hiérarchie de
+lots), les **liens de dépendance** (fin → début), la **durée** et la **charge** converties en
+heures, les dates, et les **échéances** des jalons.
+
+> **La clé de lecture : MS Project ne recopie pas vos dates, il replanifie.** À l'import, il
+> recalcule le planning à partir des liens, exactement comme PertFlow le fait de son côté. Une date
+> de début écrite dans le fichier n'est donc respectée que si elle est **accompagnée d'une
+> contrainte**. Tout ce qui suit découle de là.
+
+| Point | Ce que fait l'export |
+|---|---|
+| **Jalon d'entrée** (aucun prédécesseur, une date-cible) | Sa cible devient sa **date de début**, épinglée par une contrainte « Début au plus tôt ». Sans cet épinglage, MS Project ramènerait tous ces jalons au début du projet. |
+| **Tâche sans prédécesseur** | Même traitement : sa date est épinglée. |
+| **Tâche anticipée** (planifiée au plus tard) | Épinglée elle aussi, sinon MS Project la collerait au plus tôt derrière son prédécesseur et l'anticipation disparaîtrait du planning importé. |
+| **Toutes les autres tâches** | **Aucune contrainte** : leur date est déduite de l'amont, et on laisse MS Project la recalculer. C'est le comportement sain — vous pourrez allonger une tâche dans MS Project et voir la suite se décaler. |
+| **Date-cible d'un jalon de sortie** | Devient une **échéance** (champ *Échéance* / *Deadline*) : MS Project affiche le repère sur le Gantt et signale le dépassement. C'est l'équivalent exact de la « tenue de cible » de PertFlow. Peu importe que vous l'ayez saisie en date ou en « T0 + X » : elle est convertie en date. |
+| **Date-cible d'un jalon d'entrée** | **Pas** d'échéance. Sa date est une donnée d'entrée qu'on subit (une livraison fournisseur), pas un engagement à tenir — le moteur de PertFlow ne la traite pas non plus comme telle. |
+| **Durées et charges** | Converties en heures avec vos paramètres *heures par jour* et *heures par mois* (*Paramètres → Coûts*) ; une semaine vaut 5 jours ouvrés. |
+| **Ce qui n'est pas transmis** | Les ressources nommées, le calendrier des jours fériés, les notes, l'avancement et la mise en forme du diagramme. |
+
+#### Retrouver vos couleurs de groupe dans MS Project
+
+Le format MSPDI décrit un **projet** — des tâches, des dates, des liens, des charges — jamais
+l'**apparence** de ses barres : la couleur d'un Gantt appartient au fichier `.mpp` et ne voyage pas
+dans le XML. Aucun outil ne peut donc vous rendre vos couleurs automatiquement à l'import.
+
+L'export fait le maximum : il joint à chaque tâche deux **champs personnalisés**, que vous
+retrouverez dans MS Project sous les noms **Groupe** (le lot métier) et **Couleur PertFlow** (le
+code de la couleur, par exemple `#8844AA`). De quoi recolorier en quelques clics :
+
+1. Affichez la colonne : clic droit sur un en-tête de colonne → *Insérer une colonne* → **Groupe**.
+2. Regroupez ou triez sur cette colonne pour rassembler les tâches d'un même lot.
+3. Sélectionnez les tâches du lot, puis *Format* → **Barre…** et choisissez la couleur indiquée
+   par le champ *Couleur PertFlow*.
+
+(Les libellés exacts varient un peu d'une version de MS Project à l'autre.)
 
 ---
 

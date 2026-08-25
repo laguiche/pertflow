@@ -1947,7 +1947,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"25/08/2026","tag":"v0.23.1"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"26/08/2026","tag":"v0.23.2"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -41904,6 +41904,35 @@ window.pertExportGanttExcel = pertExportGanttExcel;
 // pertDurationToHours (coherent avec l'estimation de cout et le calendrier standard
 // 8 h/j de MS Project). Les activites sont auto-planifiees a partir de Start + Duration ;
 // on fournit aussi Finish pour information.
+//
+// PIEGE CENTRAL, a l'origine de deux anomalies remontees par les utilisateurs
+// (25/08/2026) : MS Project ne se contente PAS de relire le <Start> qu'on lui donne,
+// il REPLANIFIE a l'import. Une tache auto-planifiee est par defaut « des que
+// possible » ; le <Start> d'une tache sans predecesseur est donc ecrase par le debut
+// du projet -- c'est ainsi que les jalons d'ENTREE se retrouvaient empiles sur T0
+// alors que le XML portait bien leur date-cible. Deux consequences durables :
+//   - une date de debut ne « tient » que si elle est accompagnee d'une CONTRAINTE
+//     (ConstraintType/ConstraintDate) -- cf. `pinned` dans pertBuildMSPDI ;
+//   - inversement, sur une tache qui a des predecesseurs, le <Start> ecrit est de
+//     toute facon recalcule : y placer la date-cible d'un jalon de sortie n'avait
+//     aucun effet visible. La cible d'un jalon de sortie est une ECHEANCE, elle se
+//     declare dans <Deadline> (repere d'echeance + alerte de depassement cote MS
+//     Project), ce qui reproduit exactement la « tenue de cible » de PertFlow.
+//
+// Ce que MSPDI ne sait PAS transporter : la mise en forme du diagramme. Le format
+// decrit un projet (taches, dates, liens, charges), jamais l'apparence de ses barres --
+// celle-ci vit dans les « styles des barres », propres au fichier .mpp. La couleur de
+// groupe part donc dans des CHAMPS PERSONNALISES (ExtendedAttribute), a partir
+// desquels l'utilisateur cree un style de barre en deux clics (cf. manuel, section 11).
+
+// Identifiants MSPDI standards des champs personnalises Texte1 / Texte2 des taches.
+const PERT_MSP_FIELD_GROUP = 188743731;  // Texte1 → nom du groupe
+const PERT_MSP_FIELD_COLOR = 188743734;  // Texte2 → couleur de groupe, en #RRGGBB
+
+// Types de contrainte MSPDI utilises. 0 = « Des que possible » (defaut : MS Project
+// deduit la date de l'amont), 4 = « Debut au plus tot » (epingle la date fournie).
+const PERT_MSP_CONSTRAINT_ASAP = 0;
+const PERT_MSP_CONSTRAINT_SNET = 4;
 
 function pertMspXmlEsc(s) {
   return String(s == null ? "" : s)
@@ -41936,9 +41965,13 @@ function pertBuildMSPDI(model) {
   // Predecesseurs par nœud (id cible → [uid sources]) depuis les liens du modele.
   const predsByTarget = {};
   model.links.forEach(l => {
-    if (!predsByTarget[l.to]) predsByTarget[l.to] = [];
-    if (uidOf.has(l.from)) predsByTarget[l.to].push(uidOf.get(l.from));
+    if (!uidOf.has(l.from)) return;   // n'ouvrir l'entree que pour un vrai predecesseur :
+    if (!predsByTarget[l.to]) predsByTarget[l.to] = [];  // hasPreds() en depend
+    predsByTarget[l.to].push(uidOf.get(l.from));
   });
+  // Une tache a-t-elle un amont ? Determine a la fois sa date de debut (deduite ou
+  // epinglee) et le sens de sa date-cible (donnee d'entree ou echeance a tenir).
+  const hasPreds = (n) => (predsByTarget[n.id] || []).length > 0;
 
   const tasksXml = ordered.map((n, i) => {
     const uid = i + 1;
@@ -41950,8 +41983,29 @@ function pertBuildMSPDI(model) {
     const workH = isAct ? pertActivityHours(n) : 0;
     // Un jalon (ou une activite de duree nulle) est un Milestone.
     const isMilestone = !isAct || durH <= 0;
-    const startOff = isAct ? n.es : model.msOffset(n);
-    const finishOff = isAct ? n.ef : model.msOffset(n);
+
+    // Date de debut ECRITE dans le fichier. Pour un jalon : son EF calcule des lors
+    // qu'il a un amont (MS Project le recalculerait de toute facon), sa date-cible
+    // sinon -- c'est le cas du jalon d'ENTREE, dont la cible EST la date de debut de
+    // la chaine (bug n°1). model.msOffset retombe sur l'EF en l'absence de cible.
+    const startOff = isAct ? n.es : (hasPreds(n) ? n.ef : model.msOffset(n));
+    const finishOff = isAct ? n.ef : startOff;
+
+    // Epinglage (cf. PIEGE CENTRAL en tete de chapitre) : sans contrainte, MS Project
+    // ramene au debut du projet toute tache dont l'amont ne dicte pas la date. Deux
+    // familles sont concernees -- les taches sans predecesseur (jalons d'entree en
+    // premier lieu), et les taches ANTICIPEES, que PertFlow planifie au plus tard
+    // alors que MS Project les collerait au plus tot derriere leur predecesseur.
+    const pinned = !hasPreds(n) || (isAct && n.properties.anticipated === true);
+
+    // Cible d'un jalon de SORTIE → <Deadline> (bug n°2) : MS Project trace le repere
+    // d'echeance et signale le depassement, ce qui reproduit la « tenue de cible » de
+    // PertFlow. Volontairement AUCUNE deadline sur un jalon d'entree : sa cible est
+    // une donnee d'entree, pas une echeance a tenir -- elle ne borne meme pas son LF
+    // dans le moteur (cf. pert_engine.js). La saisie en date ou en « T0+X » est
+    // indifferente ici : pertMilestoneDueOffset rend un offset, converti en date
+    // calendaire comme n'importe quelle autre.
+    const deadlineOff = (!isAct && hasPreds(n)) ? pertMilestoneDueOffset(n) : null;
 
     let x = "<Task>";
     x += "<UID>" + uid + "</UID>";
@@ -41967,9 +42021,22 @@ function pertBuildMSPDI(model) {
     x += "<DurationFormat>7</DurationFormat>";  // 7 = jours (affichage)
     x += "<Milestone>" + (isMilestone ? 1 : 0) + "</Milestone>";
     x += "<Work>" + pertMspHours(workH) + "</Work>";
+    x += "<ConstraintType>" + (pinned ? PERT_MSP_CONSTRAINT_SNET : PERT_MSP_CONSTRAINT_ASAP) + "</ConstraintType>";
+    if (pinned) x += "<ConstraintDate>" + pertMspDate(startOff) + "</ConstraintDate>";
+    // Echeance posee en FIN de journee : un jalon arrivant le jour meme (date ecrite
+    // a 8 h) doit compter comme tenu, seul un debordement au jour suivant alerte.
+    if (deadlineOff !== null) x += "<Deadline>" + pertMspDate(deadlineOff, 17) + "</Deadline>";
     (predsByTarget[n.id] || []).forEach(puid => {
       x += "<PredecessorLink><PredecessorUID>" + puid + "</PredecessorUID><Type>1</Type></PredecessorLink>";
     });
+    // Champs personnalises : seules les Activites portent un groupe et une couleur.
+    if (isAct) {
+      const grp = (n.properties.group || "").trim();
+      if (grp) x += "<ExtendedAttribute><FieldID>" + PERT_MSP_FIELD_GROUP + "</FieldID>"
+                 + "<Value>" + pertMspXmlEsc(grp) + "</Value></ExtendedAttribute>";
+      x += "<ExtendedAttribute><FieldID>" + PERT_MSP_FIELD_COLOR + "</FieldID>"
+         + "<Value>" + pertMspXmlEsc(pertGanttColor(n)) + "</Value></ExtendedAttribute>";
+    }
     x += "</Task>";
     return x;
   }).join("");
@@ -41983,6 +42050,14 @@ function pertBuildMSPDI(model) {
     // travaux sont ANTICIPES : declarer T0 alors que des taches demarrent avant rendrait
     // le fichier incoherent a l'import (taches anterieures au debut du projet).
     + `<StartDate>` + pertMspDate(Math.min(0, model.firstCol || 0)) + `</StartDate>`
+    // Declaration des champs personnalises. Elle DOIT preceder <Tasks> : comme pour
+    // OOXML, l'ordre des elements est impose par le schema MSPDI.
+    + `<ExtendedAttributes>`
+    +   `<ExtendedAttribute><FieldID>${PERT_MSP_FIELD_GROUP}</FieldID>`
+    +     `<FieldName>Text1</FieldName><Alias>Groupe</Alias></ExtendedAttribute>`
+    +   `<ExtendedAttribute><FieldID>${PERT_MSP_FIELD_COLOR}</FieldID>`
+    +     `<FieldName>Text2</FieldName><Alias>Couleur PertFlow</Alias></ExtendedAttribute>`
+    + `</ExtendedAttributes>`
     + `<Tasks>` + tasksXml + `</Tasks>`
     + `</Project>`;
 }
@@ -42009,7 +42084,7 @@ if (window.pertRegisterExportFormat) {
   });
   pertRegisterExportFormat({
     id: "msproject", icon: "🗓", label: "Gantt MS Project (XML)", order: 60,
-    desc: "Fichier MSPDI importable dans MS Project (tâches, jalons, charge, liens).",
+    desc: "Fichier MSPDI importable dans MS Project (tâches, jalons, charge, liens, échéances).",
     run: () => pertExportMSProject(),
   });
 }

@@ -318,7 +318,21 @@ de configuration : feuille cible, T0, unité). Traitement 100 % <code>file://</c
 <li><strong>Gantt chargé</strong> et <strong>MS Project (MSPDI XML)</strong> partagent <code>pertScheduleModel()</code> (tri groupes par
   ES précoce, classement jalons entrée/sortie, colonnes de périodes, liens). Aucune bibliothèque
   <code>.mpp</code> native n'existant côté navigateur (MIT/offline), MS Project est produit en <strong>MSPDI XML</strong>
-  écrit à la main.</li>
+  écrit à la main.<blockquote>
+<p><strong>MS Project REPLANIFIE à l'import</strong> — il ne relit pas les dates fournies. Une tâche
+auto-planifiée est « dès que possible » : le <code>&lt;Start&gt;</code> d'une tâche <strong>sans prédécesseur</strong> est
+écrasé par le début du projet (c'est ainsi que les jalons d'entrée s'empilaient sur T0), et
+celui d'une tâche <strong>avec</strong> prédécesseurs est de toute façon recalculé. D'où les deux règles de
+v0.23.2 : une date ne « tient » qu'accompagnée d'une <strong>contrainte</strong> (SNET) — posée sur les
+tâches sans prédécesseur et sur les tâches anticipées, les seules dont l'amont ne dicte pas la
+date — et la cible d'un jalon de <strong>sortie</strong> part dans <code>&lt;Deadline&gt;</code>, pas dans <code>&lt;Start&gt;</code> (celle
+d'un jalon d'<strong>entrée</strong> reste une donnée d'entrée : aucune deadline, cf. son LF non borné).
+Corollaire : <strong>MSPDI ne transporte aucune mise en forme</strong> (la couleur des barres vit dans le
+<code>.mpp</code>) → groupe et couleur partent en <strong>champs personnalisés</strong> <code>ExtendedAttribute</code>
+(Texte1/Texte2), déclarés <strong>avant</strong> <code>&lt;Tasks&gt;</code> — l'ordre des éléments y est imposé comme en
+OOXML.</p>
+</blockquote>
+</li>
 <li><strong>Planning directeur</strong> (<code>export_planning_directeur.js</code>, v0.23) : transposition du PERT sur un
   canevas calendaire (une colonne = un mois, en-tête années/trimestres/mois, zébrage, panneaux
   figés, paysage). Trois règles de cadrage le gouvernent, décidées avec l'utilisateur et à ne pas

@@ -278,6 +278,18 @@ Un **seul bouton** ouvre une fenêtre listant les formats (liste data-driven
   ES précoce, classement jalons entrée/sortie, colonnes de périodes, liens). Aucune bibliothèque
   `.mpp` native n'existant côté navigateur (MIT/offline), MS Project est produit en **MSPDI XML**
   écrit à la main.
+  > **MS Project REPLANIFIE à l'import** — il ne relit pas les dates fournies. Une tâche
+  > auto-planifiée est « dès que possible » : le `<Start>` d'une tâche **sans prédécesseur** est
+  > écrasé par le début du projet (c'est ainsi que les jalons d'entrée s'empilaient sur T0), et
+  > celui d'une tâche **avec** prédécesseurs est de toute façon recalculé. D'où les deux règles de
+  > v0.23.2 : une date ne « tient » qu'accompagnée d'une **contrainte** (SNET) — posée sur les
+  > tâches sans prédécesseur et sur les tâches anticipées, les seules dont l'amont ne dicte pas la
+  > date — et la cible d'un jalon de **sortie** part dans `<Deadline>`, pas dans `<Start>` (celle
+  > d'un jalon d'**entrée** reste une donnée d'entrée : aucune deadline, cf. son LF non borné).
+  > Corollaire : **MSPDI ne transporte aucune mise en forme** (la couleur des barres vit dans le
+  > `.mpp`) → groupe et couleur partent en **champs personnalisés** `ExtendedAttribute`
+  > (Texte1/Texte2), déclarés **avant** `<Tasks>` — l'ordre des éléments y est imposé comme en
+  > OOXML.
 - **Planning directeur** (`export_planning_directeur.js`, v0.23) : transposition du PERT sur un
   canevas calendaire (une colonne = un mois, en-tête années/trimestres/mois, zébrage, panneaux
   figés, paysage). Trois règles de cadrage le gouvernent, décidées avec l'utilisateur et à ne pas

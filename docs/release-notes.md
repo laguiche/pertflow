@@ -11,6 +11,33 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
+## v0.23.2 — 25/08/2026 · Export MS Project : dates, échéances et couleurs
+Trois évolutions de l'export **Gantt MS Project (XML)**, toutes issues de retours d'utilisateurs.
+Le fil conducteur : MS Project **replanifie** à l'import, il ne recopie pas les dates du fichier —
+il fallait donc lui parler dans son vocabulaire.
+
+- **Correctif — les jalons d'entrée ne s'écrasent plus sur T0.** Un jalon d'entrée (une livraison
+  fournisseur, un déblocage de budget…) partait bien avec sa date-cible dans le fichier, mais MS
+  Project la remplaçait par le début du projet : faute de contrainte, il planifie « dès que
+  possible » toute tâche sans prédécesseur. Sa date est désormais **épinglée** (contrainte « Début
+  au plus tôt »), et arrive donc là où vous l'avez placée. Les **tâches anticipées** bénéficient du
+  même épinglage — sans lui, MS Project les collait au plus tôt derrière leur prédécesseur et
+  l'anticipation disparaissait du planning importé.
+- **Correctif — la date-cible d'un jalon de sortie devient une échéance.** Elle part maintenant
+  dans le champ **Échéance** de MS Project, qui affiche le repère sur le Gantt et signale le
+  dépassement : l'équivalent exact de la « tenue de cible » de PertFlow. Le jalon, lui, se place
+  sur sa **date calculée**. Que la cible ait été saisie en date ou en « T0 + X » ne change rien,
+  elle est convertie. Un jalon d'**entrée** n'en reçoit pas : sa date est une donnée d'entrée,
+  pas un engagement à tenir.
+- **Nouveau — le groupe et la couleur voyagent avec le fichier.** Le format MSPDI ne sait pas
+  transporter l'apparence d'un Gantt (elle appartient au fichier `.mpp`) : aucun outil ne peut
+  restituer vos couleurs automatiquement. Chaque tâche emporte donc deux **champs personnalisés**,
+  **Groupe** et **Couleur PertFlow**, à partir desquels recolorier vos barres par lot en quelques
+  clics — la marche à suivre est dans le manuel, chapitre 11.
+- **Manuel** : le chapitre *Exporter le planning* rappelle désormais, format par format, les
+  **conventions et hypothèses** de chaque export (ce qui est transmis, ce qui ne l'est pas, ce qui
+  reste à votre charge), et une section entière est consacrée à l'export MS Project.
+
 ## v0.23.1 — 25/08/2026 · Correctif export MS Project
 - Correctif ciblé : un libellé de tâche ou de jalon contenant un **retour à la ligne** rendait le
   fichier **MS Project (MSPDI XML)** non conforme, empêchant son import. Les retours à la ligne
