@@ -11,6 +11,12 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
+## v0.23.1 — 25/08/2026 · Correctif export MS Project
+- Correctif ciblé : un libellé de tâche ou de jalon contenant un **retour à la ligne** rendait le
+  fichier **MS Project (MSPDI XML)** non conforme, empêchant son import. Les retours à la ligne
+  sont désormais remplacés par un espace dans le fichier exporté.
+- Aucun autre changement.
+
 ## v0.23 — 21/08/2026 · Export « Planning directeur »
 - Nouvel export Excel : le **planning directeur**, la vue qu'on projette en **revue de projet**.
   Une colonne par mois, surmontée des trimestres et des années, sur **exactement la durée réelle

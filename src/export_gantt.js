@@ -243,6 +243,7 @@ window.pertExportGanttExcel = pertExportGanttExcel;
 
 function pertMspXmlEsc(s) {
   return String(s == null ? "" : s)
+    .replace(/\r\n|\r|\n/g, " ")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }

@@ -1947,7 +1947,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"21/08/2026","tag":"v0.23"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"25/08/2026","tag":"v0.23.1"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -41907,6 +41907,7 @@ window.pertExportGanttExcel = pertExportGanttExcel;
 
 function pertMspXmlEsc(s) {
   return String(s == null ? "" : s)
+    .replace(/\r\n|\r|\n/g, " ")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
