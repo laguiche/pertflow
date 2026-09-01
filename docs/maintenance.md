@@ -47,7 +47,8 @@ déploiement cible.
 | Rafraîchir le canvas | `LGraphCanvas.setDirty(fg, bg)` ; **`setDirtyCanvas` est sur le graphe / le nœud**, pas sur le canvas. |
 | Slots d'entrée dynamiques des nœuds | Connecter deux liens au **même** slot 0 **remplace** le premier. En test, viser des slots successifs ou isoler. |
 | Liens du nœud sélectionné forcés en blanc | LiteGraph met `#FFF` via `highlighted_links` → on le vide dans notre `onDrawBackground` pour que nos couleurs de lien priment. |
-| Surcharger un comportement | Surcharger sur **l'instance** `LGraphCanvas` (`renderLink`, `getMenuOptions`, `getNodeMenuOptions`) plutôt que patcher `lib/litegraph.js`. |
+| Surcharger un comportement | Surcharger sur **l'instance** `LGraphCanvas` (`renderLink`, `getMenuOptions`, `getNodeMenuOptions`) plutôt que patcher `lib/litegraph.core.js`. |
+| Build de LiteGraph | Toujours `litegraph.core.js`. Le build complet embarque ~156 types de nœuds (réseau, webcam, MIDI) qu'**un `.pert` peut instancier** — un fichier forgé ouvrait une connexion sortante. Ne pas y revenir. |
 | Rendu hors-écran (export) | Penser à `graph.detachCanvas(tmp)` après coup (sinon le canvas temporaire reste dans `list_of_graphcanvas`). |
 | `<datalist>` natif | Inadapté au « choisir parmi les valeurs existantes » (masqué par `autocomplete=off` sous Firefox ; filtré par la valeur courante sous Edge/Chrome). Utiliser le **menu déroulant custom** (`buildCombobox`). |
 
@@ -118,7 +119,7 @@ lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :
 
 ```bash
 cd tools && npm install && npx playwright install chromium   # une fois
-npm test                                                     # 31 tests, ~90 s
+npm test                                                     # 34 tests, ~95 s
 ```
 
 - **Suite smoke** : chaque test pilote l'application dans un vrai Chromium ouvert en `file://` —
@@ -172,17 +173,34 @@ et un **PDF**. Ces sorties `docs/*.html` et `docs/*.pdf` sont **versionnées** (
 
 À chaque clôture, **avant** le commit final :
 
-1. **Faire passer la suite** : `cd tools && npm test` (attendu : 31/31).
-2. **Mettre à jour la documentation** touchée — les `.md` de `docs/`, les **captures** qu'une
+1. **Régénérer le bundle** avec le tag de la session, **en premier** :
+   `node scripts/build-bundle.js --tag vX.Y`, puis le vérifier : `node tools/check-bundle.js vX.Y`.
+   L'ordre a changé le 01/09/2026 : deux contrôles portent désormais sur le **bundle** et non sur
+   les sources (`smoke-securite.js`, `audit-securite.js`) — les lancer avant de le régénérer
+   reviendrait à valider le fichier de la version précédente.
+2. **Faire passer la suite** : `cd tools && npm test` (attendu : 34/34).
+3. **Mettre à jour la documentation** touchée — les `.md` de `docs/`, les **captures** qu'une
    évolution d'IHM a périmées (`node tools/doc-shots-*.js`), les versions HTML/PDF
    (`node tools/build-docs.js`) et **les notes de version** — **avant** le push.
-3. **Régénérer le bundle** avec le tag de la session :
-   `node scripts/build-bundle.js --tag vX.Y`, puis le vérifier : `node tools/check-bundle.js vX.Y`.
-4. **Committer + pousser le bundle** (`dist/pertflow.html`, **versionné**) avec le reste.
-5. Le bundle embarque le bouton **« À propos »** (© Stéphane Guichard, licence MIT, date de
+4. **Passer l'audit de sécurité** et en produire le rapport :
+
+   ```bash
+   node tools/audit-securite.js        # → dist/audit/audit-securite-vX.Y.html et .pdf
+   ```
+
+   - Il **sort en erreur (code 1) sur un constat bloquant** : dans ce cas la version ne part pas.
+     Les constats mineurs (bibliothèque en retard d'une version, contrôle non vérifié faute de
+     réseau) figurent au rapport sans bloquer — c'est leur place.
+   - Le rapport n'entre **ni dans le dépôt** (`dist/audit/` est gitignoré) **ni dans l'archive** :
+     c'est un document de travail daté, remis à une DSI qui le demande, pas une certification qui
+     accompagnerait le produit. Il se régénère à l'identique par la commande ci-dessus.
+   - Sans accès réseau : `--hors-ligne` (provenance et vulnérabilités rendues « non vérifiées »,
+     et le rapport le dit — il ne fait jamais passer un contrôle sauté pour un contrôle réussi).
+5. **Committer + pousser le bundle** (`dist/pertflow.html`, **versionné**) avec le reste.
+6. Le bundle embarque le bouton **« À propos »** (© Stéphane Guichard, licence MIT, date de
    génération et tag) : ces valeurs sont injectées par le build dans `window.PERTFLOW_BUILD` —
    **ne jamais les coder en dur**.
-6. **Publier la release GitHub**, une fois le tag poussé — c'est ce qui met l'outil à disposition
+7. **Publier la release GitHub**, une fois le tag poussé — c'est ce qui met l'outil à disposition
    sans avoir à récupérer tout le dépôt :
 
    ```bash
@@ -192,8 +210,9 @@ et un **PDF**. Ces sorties `docs/*.html` et `docs/*.pdf` sont **versionnées** (
       --notes-file <extrait de docs/release-notes.md pour cette version>
    ```
 
-   - L'archive contient **l'application, le manuel PDF, les notes de version et un LISEZ-MOI** —
-     rien d'autre : c'est une livraison, pas un miroir du dépôt.
+   - L'archive contient **l'application, le manuel PDF, les notes de version, les licences des
+     bibliothèques tierces et un LISEZ-MOI** — rien d'autre : c'est une livraison, pas un miroir
+     du dépôt, et pas davantage un dossier d'audit.
    - `make-release.js` **refuse d'écrire** si le bundle ne porte pas le tag demandé, ou si
      `docs/release-notes.md` n'a pas de section pour cette version. Les deux erreurs seraient
      indétectables à l'usage : le numéro affiché par « À propos » vient du bundle et non du nom
@@ -253,3 +272,5 @@ bundle) → pousser → merger sur `main` → taguer → pousser le tag → **ar
 | La sérialisation / l'undo / l'autosave | `src/storage.js`, `history.js`, `autosave.js` |
 | Les fenêtres de rapport (synthèse, suivi d'avancement) | `src/synthesis.js`, `src/suivi.js` |
 | La fabrication du bundle et de l'archive de livraison | `scripts/build-bundle.js`, `scripts/make-release.js` |
+| La politique de sécurité (CSP) et les crédits de licence | `scripts/build-bundle.js` — injectés au build, **absents des sources** |
+| L'audit de sécurité et sa non-régression | `tools/audit-securite.js` (rapport), `tools/smoke-securite.js` (garde-fou) |

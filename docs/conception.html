@@ -71,9 +71,9 @@ Deux contraintes dictent toute l'architecture :</p>
 <tbody>
 <tr>
 <td>Canvas / graphe</td>
-<td><strong>LiteGraph.js</strong></td>
+<td><strong>LiteGraph.js</strong> (build « core »)</td>
 <td>MIT</td>
-<td><code>lib/litegraph.js</code> + <code>.css</code></td>
+<td><code>lib/litegraph.core.js</code> + <code>.css</code></td>
 </tr>
 <tr>
 <td>Export PDF</td>
@@ -103,10 +103,22 @@ Deux contraintes dictent toute l'architecture :</p>
 </table>
 <p>Aucun framework (React/Vue…), aucun bundler au sens classique : la simplicité prime, et la
 contrainte <code>file://</code> l'impose.</p>
+<blockquote>
+<p><strong>LiteGraph : le build « core », jamais le build complet.</strong> L'éditeur publie deux fichiers.
+<code>build/litegraph.js</code> embarque, en plus du canevas, une bibliothèque de ~156 types de nœuds
+(audio, MIDI, webcam, <code>network/websocket</code>, <code>network/httprequest</code>…) dont PertFlow n'utilise
+rien — il définit ses propres nœuds. Or <strong>ouvrir un <code>.pert</code> instancie tout type déclaré dans
+le fichier</strong> : un planning forgé y posait un nœud WebSocket et ouvrait une connexion sortante
+à l'ouverture (audit du 01/09/2026, constat C-01 — reproduit et corrigé). <code>litegraph.core.js</code>
+ne contient aucun de ces nœuds : un type inconnu devient un nœud vide, sans comportement, et
+le planning s'ouvre normalement. <strong>Ne pas revenir au build complet</strong> ; <code>tools/smoke-securite.js</code>
+refuse la suite si cela arrive.</p>
+</blockquote>
 <h3 id="structure-des-fichiers">Structure des fichiers</h3>
 <pre><code>pertflow/
 ├── index.html            # Point d'entrée : DOM + &lt;script src&gt; de tout le code
-├── lib/                  # Bibliothèques locales (LiteGraph, jsPDF, fflate)
+├── lib/                  # Bibliothèques locales (LiteGraph « core », jsPDF, fflate)
+│   └── LICENCES-TIERCES.txt  # Licences MIT des 3 libs — part dans l'archive de livraison
 ├── css/style.css         # Styles globaux (thème sombre)
 ├── src/
 │   ├── nodes.js          # Types de nœuds PERT + rendu custom (LiteGraph)
@@ -136,8 +148,11 @@ contrainte <code>file://</code> l'impose.</p>
 ├── test_cases/           # Jeux d'essai — versionnés en LISTE BLANCHE (cf. tools/README.md)
 ├── scripts/
 │   ├── build-bundle.js   # Génère le fichier autonome dist/pertflow.html
-│   └── make-release.js   # Fabrique l'archive de livraison (bundle + manuel + notes)
-└── dist/pertflow.html        # Livrable autonome (versionné)
+│   └── make-release.js   # Fabrique l'archive de livraison (bundle + manuel + notes + licences)
+└── dist/
+    ├── pertflow.html     # Livrable autonome (versionné)
+    ├── release/          # Archives de livraison — GITIGNORÉ (hébergées par GitHub Releases)
+    └── audit/            # Rapports d'audit de sécurité — GITIGNORÉ (cf. §9)
 </code></pre>
 <p>L'<strong>ordre de chargement</strong> des <code>&lt;script&gt;</code> dans <code>index.html</code> matérialise les dépendances (chaque
 module s'appuie sur les globales définies avant lui ; <code>ui.js</code> est chargé en dernier et fait le
@@ -365,6 +380,47 @@ sans dépendance</strong> produit le <strong>livrable autonome</strong> <code>di
 <code>&lt;link&gt;</code>/<code>&lt;script&gt;</code> (avec garde-fou : échec s'il reste une référence <code>lib/</code>/<code>src/</code>/<code>css/</code>). Il
 injecte <code>window.PERTFLOW_BUILD = { date, tag }</code> (lu par la popup « À propos »). Le bundle est
 <strong>versionné</strong> et régénéré en fin de session.</p>
+<h3 id="ce-que-le-bundle-porte-en-plus-des-sources">Ce que le bundle porte en plus des sources</h3>
+<p>Deux choses n'existent <strong>que</strong> dans le bundle, injectées au build — c'est délibéré, car c'est le
+bundle qui circule :</p>
+<table>
+<thead>
+<tr>
+<th>Injection</th>
+<th>Pourquoi pas dans <code>index.html</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>Content-Security-Policy</code></strong> (<code>default-src 'none'</code>, <code>connect-src 'none'</code>…)</td>
+<td>En développement les scripts sont des fichiers séparés chargés en <code>file://</code>, que <code>script-src 'unsafe-inline'</code> bloquerait : l'application ne démarrerait plus. Dans le bundle tout est en ligne.</td>
+</tr>
+<tr>
+<td><strong>Crédits et licences</strong> des trois bibliothèques</td>
+<td>La licence MIT impose de faire voyager la mention de copyright avec les copies ; c'est le fichier distribué qui est une copie.</td>
+</tr>
+</tbody>
+</table>
+<p>La CSP est la <strong>seconde barrière</strong> du constat C-01 (cf. §2) : le build « core » supprime le code
+fautif, <code>connect-src 'none'</code> en interdit l'effet — y compris pour du code à venir. Les deux sont
+indépendantes à dessein. Une CSP échoue en <strong>silence</strong> côté utilisateur (fonction morte, aucune
+erreur visible) : le contrôle qui l'attrape est <code>tools/smoke-securite.js</code>, qui produit un export
+réel et exige zéro violation.</p>
+<p>Les deux injections sont ancrées sur le <code>&lt;meta charset&gt;</code> d'<code>index.html</code>. Un remaniement du <code>&lt;head&gt;</code>
+les rendrait sans effet <strong>sans rien casser</strong> — d'où un garde-fou qui <strong>refuse d'écrire le bundle</strong>
+si l'ancre a disparu (comme les deux refus de <code>make-release.js</code>).</p>
+<h3 id="audit-de-securite-rejouable-toolsaudit-securitejs">Audit de sécurité rejouable (<code>tools/audit-securite.js</code>)</h3>
+<p><code>node tools/audit-securite.js</code> refait, sur le fichier du jour, les contrôles du dossier remis à une
+DSI : empreintes, <strong>provenance comparée aux paquets npm officiels</strong> (la version de chaque
+bibliothèque est <em>déduite de son empreinte</em>, jamais lue dans un numéro déclaré), vulnérabilités
+connues (base OSV), inventaire des API à effet de bord, reproductibilité du bundle depuis ses
+sources, et <strong>comportement observé</strong> dans un vrai navigateur (planning forgé + parcours complet).
+Sortie : <code>dist/audit/audit-securite-&lt;tag&gt;.html</code> et <code>.pdf</code>, <strong>gitignorés</strong> et absents de l'archive —
+document de travail daté, remis sur demande, pas une certification qui accompagnerait le produit.</p>
+<p>Deux règles y sont structurantes : <strong>les contrôles réseau ne font jamais échouer l'audit</strong> (un
+poste verrouillé n'a pas accès à npm — ils rendent « non vérifié », et le rapport le dit), et
+<strong>aucun attendu n'est codé en dur</strong> (un attendu recopié d'une version antérieure ferait passer
+pour vérifié ce qui ne l'est plus).</p>
 <hr />
 <h2 id="10-recapitulatif-des-choix-et-de-leurs-raisons">10. Récapitulatif des choix et de leurs raisons</h2>
 <table>
@@ -426,6 +482,14 @@ injecte <code>window.PERTFLOW_BUILD = { date, tag }</code> (lu par la popup « �
 <tr>
 <td>Filtre qui <strong>estompe</strong> au lieu de masquer</td>
 <td>Garder le planning lisible dans son ensemble</td>
+</tr>
+<tr>
+<td>LiteGraph en build <strong>« core »</strong></td>
+<td>Un <code>.pert</code> ne doit pouvoir instancier que les 3 types de PertFlow</td>
+</tr>
+<tr>
+<td>CSP injectée <strong>au build</strong>, pas dans les sources</td>
+<td>Le bundle est ce qui circule ; en <code>file://</code> la même règle casserait le mode développement</td>
 </tr>
 </tbody>
 </table></body></html>

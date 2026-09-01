@@ -11,6 +11,30 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
+## v0.24 — 01/09/2026 · Version sécurisée
+Aucune fonction ne change : **cette version se comporte exactement comme la précédente**. Ce qui
+change, c'est ce que le fichier contient — et ce qu'on peut en prouver. Elle répond aux questions
+que posent les services informatiques avant d'autoriser un outil sur leur réseau, et c'est
+désormais **la version à diffuser** en entreprise : les précédentes restent fonctionnelles, mais
+elles n'apportent pas ces garanties.
+
+- **Le fichier est plus léger d'un quart** (2 041 → 1 475 Ko). La bibliothèque graphique embarquée
+  est passée à sa version « cœur » : PertFlow n'utilisait que le canevas, mais emportait avec lui
+  une centaine de briques inutilisées (audio, MIDI, webcam, réseau…). Elles ne sont plus là.
+- **L'application ne peut plus, techniquement, communiquer avec l'extérieur.** Une règle de
+  sécurité inscrite en tête du fichier demande au navigateur d'interdire toute sortie réseau. Ce
+  n'était déjà pas le comportement de PertFlow ; c'est désormais le navigateur qui le garantit,
+  et cela se lit en clair dans le fichier — un argument vérifiable à présenter à une DSI.
+- **Un planning reçu d'un tiers ne peut plus rien déclencher.** Un fichier `.pert` est une
+  description de planning, et rien d'autre : il ne peut plus faire exécuter au logiciel autre
+  chose que l'affichage de vos tâches et de vos jalons.
+- **Les licences des bibliothèques libres utilisées** accompagnent maintenant la livraison
+  (`LICENCES-TIERCES.txt` dans l'archive), et leurs auteurs sont crédités dans le fichier lui-même.
+- **Pour votre service informatique** : le dépôt contient de quoi refaire les vérifications
+  (`node tools/audit-securite.js`) — nomenclature des bibliothèques, empreintes, comparaison avec
+  les paquets officiels publiés, vulnérabilités connues, et observation du logiciel en marche. Le
+  rapport produit est remis sur demande.
+
 ## v0.23.2 — 25/08/2026 · Export MS Project : dates, échéances et couleurs
 Trois évolutions de l'export **Gantt MS Project (XML)**, toutes issues de retours d'utilisateurs.
 Le fil conducteur : MS Project **replanifie** à l'import, il ne recopie pas les dates du fichier —

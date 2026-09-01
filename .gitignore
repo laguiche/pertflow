@@ -54,3 +54,11 @@ test_cases/*
 # Archives de livraison : regenerables (scripts/make-release.js) et hebergees par les
 # « Releases » GitHub. Les versionner ferait un doublon du bundle, deja suivi.
 dist/release/
+
+# Rapports d'audit de securite (tools/audit-securite.js) : NI dans le depot, NI dans
+# l'archive de livraison (decision utilisateur du 01/09/2026). C'est un document de
+# travail, date, produit a la demande et remis a une DSI qui le reclame. Le verser au
+# depot le figerait a la version du jour et le perimerait en silence ; le mettre dans
+# l'archive le ferait passer pour une certification accompagnant le produit, ce qu'il
+# n'est pas. Il se REGENERE : node tools/audit-securite.js
+dist/audit/

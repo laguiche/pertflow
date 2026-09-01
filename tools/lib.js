@@ -29,6 +29,13 @@ const CPERT_REEL = process.env.PERTFLOW_CPERT || path.join(EXEMPLES, 'C_PERT_exe
 
 function cpertReelPresent() { return fs.existsSync(CPERT_REEL); }
 
+// Le bundle : le fichier qui CIRCULE reellement. Presque tous les tests visent
+// index.html (les sources, ou l'on debogue) ; deux sujets ne se verifient que sur le
+// bundle, parce qu'ils n'existent que la -- la politique de securite et les mentions
+// de licence, injectees par scripts/build-bundle.js. Cf. smoke-securite.js et
+// audit-securite.js.
+const BUNDLE = path.join(ROOT, 'dist', 'pertflow.html');
+
 // Localise le binaire Chromium de Playwright (derniere version chromium-<n> presente).
 function findChromium() {
   const base = path.join(process.env.HOME, '.cache', 'ms-playwright');
@@ -60,6 +67,17 @@ async function launch(opts = {}) {
 // Ouvre index.html en file:// et attend l'initialisation de l'app.
 async function openApp(page) {
   await page.goto('file://' + path.join(ROOT, 'index.html'));
+  await page.waitForFunction(() => window.pertGraph != null);
+  await page.waitForTimeout(300);
+}
+
+// Ouvre le BUNDLE en file:// et attend l'initialisation. Meme attente que openApp :
+// le bundle n'est que index.html avec tout en ligne, il s'initialise pareil.
+async function openBundle(page) {
+  if (!fs.existsSync(BUNDLE)) {
+    throw new Error('Bundle absent : ' + BUNDLE + '\n  → node scripts/build-bundle.js --tag vX.Y');
+  }
+  await page.goto('file://' + BUNDLE);
   await page.waitForFunction(() => window.pertGraph != null);
   await page.waitForTimeout(300);
 }
@@ -140,6 +158,6 @@ async function openSynthesisMenu(page, quoi) {
   await page.waitForSelector(dialog + '[style*="flex"]');
 }
 
-module.exports = { ROOT, EXEMPLES, CPERT, CPERT_REEL, cpertReelPresent,
-                   findChromium, launch, openApp, importXlsm, importPert,
+module.exports = { ROOT, EXEMPLES, CPERT, CPERT_REEL, BUNDLE, cpertReelPresent,
+                   findChromium, launch, openApp, openBundle, importXlsm, importPert,
                    pickImportFormat, resolveUnitDialog, openSynthesisMenu };
