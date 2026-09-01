@@ -28,7 +28,7 @@ Deux contraintes dictent toute l'architecture :
 
 | Besoin | Choix | Licence | Fichier |
 |---|---|---|---|
-| Canvas / graphe | **LiteGraph.js** | MIT | `lib/litegraph.js` + `.css` |
+| Canvas / graphe | **LiteGraph.js** (build « core ») | MIT | `lib/litegraph.core.js` + `.css` |
 | Export PDF | **jsPDF** | MIT | `lib/jspdf.umd.min.js` |
 | Zip/dézip (import & export Excel) | **fflate** | MIT | `lib/fflate.min.js` |
 | Export PNG | API Canvas2D native | — | — |
@@ -37,12 +37,23 @@ Deux contraintes dictent toute l'architecture :
 Aucun framework (React/Vue…), aucun bundler au sens classique : la simplicité prime, et la
 contrainte `file://` l'impose.
 
+> **LiteGraph : le build « core », jamais le build complet.** L'éditeur publie deux fichiers.
+> `build/litegraph.js` embarque, en plus du canevas, une bibliothèque de ~156 types de nœuds
+> (audio, MIDI, webcam, `network/websocket`, `network/httprequest`…) dont PertFlow n'utilise
+> rien — il définit ses propres nœuds. Or **ouvrir un `.pert` instancie tout type déclaré dans
+> le fichier** : un planning forgé y posait un nœud WebSocket et ouvrait une connexion sortante
+> à l'ouverture (audit du 01/09/2026, constat C-01 — reproduit et corrigé). `litegraph.core.js`
+> ne contient aucun de ces nœuds : un type inconnu devient un nœud vide, sans comportement, et
+> le planning s'ouvre normalement. **Ne pas revenir au build complet** ; `tools/smoke-securite.js`
+> refuse la suite si cela arrive.
+
 ### Structure des fichiers
 
 ```
 pertflow/
 ├── index.html            # Point d'entrée : DOM + <script src> de tout le code
-├── lib/                  # Bibliothèques locales (LiteGraph, jsPDF, fflate)
+├── lib/                  # Bibliothèques locales (LiteGraph « core », jsPDF, fflate)
+│   └── LICENCES-TIERCES.txt  # Licences MIT des 3 libs — part dans l'archive de livraison
 ├── css/style.css         # Styles globaux (thème sombre)
 ├── src/
 │   ├── nodes.js          # Types de nœuds PERT + rendu custom (LiteGraph)
@@ -72,8 +83,11 @@ pertflow/
 ├── test_cases/           # Jeux d'essai — versionnés en LISTE BLANCHE (cf. tools/README.md)
 ├── scripts/
 │   ├── build-bundle.js   # Génère le fichier autonome dist/pertflow.html
-│   └── make-release.js   # Fabrique l'archive de livraison (bundle + manuel + notes)
-└── dist/pertflow.html        # Livrable autonome (versionné)
+│   └── make-release.js   # Fabrique l'archive de livraison (bundle + manuel + notes + licences)
+└── dist/
+    ├── pertflow.html     # Livrable autonome (versionné)
+    ├── release/          # Archives de livraison — GITIGNORÉ (hébergées par GitHub Releases)
+    └── audit/            # Rapports d'audit de sécurité — GITIGNORÉ (cf. §9)
 ```
 
 L'**ordre de chargement** des `<script>` dans `index.html` matérialise les dépendances (chaque
@@ -325,6 +339,41 @@ sans dépendance** produit le **livrable autonome** `dist/pertflow.html` en **in
 injecte `window.PERTFLOW_BUILD = { date, tag }` (lu par la popup « À propos »). Le bundle est
 **versionné** et régénéré en fin de session.
 
+### Ce que le bundle porte en plus des sources
+
+Deux choses n'existent **que** dans le bundle, injectées au build — c'est délibéré, car c'est le
+bundle qui circule :
+
+| Injection | Pourquoi pas dans `index.html` |
+|---|---|
+| **`Content-Security-Policy`** (`default-src 'none'`, `connect-src 'none'`…) | En développement les scripts sont des fichiers séparés chargés en `file://`, que `script-src 'unsafe-inline'` bloquerait : l'application ne démarrerait plus. Dans le bundle tout est en ligne. |
+| **Crédits et licences** des trois bibliothèques | La licence MIT impose de faire voyager la mention de copyright avec les copies ; c'est le fichier distribué qui est une copie. |
+
+La CSP est la **seconde barrière** du constat C-01 (cf. §2) : le build « core » supprime le code
+fautif, `connect-src 'none'` en interdit l'effet — y compris pour du code à venir. Les deux sont
+indépendantes à dessein. Une CSP échoue en **silence** côté utilisateur (fonction morte, aucune
+erreur visible) : le contrôle qui l'attrape est `tools/smoke-securite.js`, qui produit un export
+réel et exige zéro violation.
+
+Les deux injections sont ancrées sur le `<meta charset>` d'`index.html`. Un remaniement du `<head>`
+les rendrait sans effet **sans rien casser** — d'où un garde-fou qui **refuse d'écrire le bundle**
+si l'ancre a disparu (comme les deux refus de `make-release.js`).
+
+### Audit de sécurité rejouable (`tools/audit-securite.js`)
+
+`node tools/audit-securite.js` refait, sur le fichier du jour, les contrôles du dossier remis à une
+DSI : empreintes, **provenance comparée aux paquets npm officiels** (la version de chaque
+bibliothèque est *déduite de son empreinte*, jamais lue dans un numéro déclaré), vulnérabilités
+connues (base OSV), inventaire des API à effet de bord, reproductibilité du bundle depuis ses
+sources, et **comportement observé** dans un vrai navigateur (planning forgé + parcours complet).
+Sortie : `dist/audit/audit-securite-<tag>.html` et `.pdf`, **gitignorés** et absents de l'archive —
+document de travail daté, remis sur demande, pas une certification qui accompagnerait le produit.
+
+Deux règles y sont structurantes : **les contrôles réseau ne font jamais échouer l'audit** (un
+poste verrouillé n'a pas accès à npm — ils rendent « non vérifié », et le rapport le dit), et
+**aucun attendu n'est codé en dur** (un attendu recopié d'une version antérieure ferait passer
+pour vérifié ce qui ne l'est plus).
+
 ---
 
 ## 10. Récapitulatif des choix et de leurs raisons
@@ -344,3 +393,5 @@ injecte `window.PERTFLOW_BUILD = { date, tag }` (lu par la popup « À propos »
 | Avancement **hors de tout calcul** | Le PERT reste l'objectif : le renseigner ne doit rien déplacer |
 | Charge : un **mode** de saisie, pas deux valeurs libres | Le mode dit l'invariant quand la durée bouge ; deux valeurs stockées sans lui divergeraient |
 | Filtre qui **estompe** au lieu de masquer | Garder le planning lisible dans son ensemble |
+| LiteGraph en build **« core »** | Un `.pert` ne doit pouvoir instancier que les 3 types de PertFlow |
+| CSP injectée **au build**, pas dans les sources | Le bundle est ce qui circule ; en `file://` la même règle casserait le mode développement |

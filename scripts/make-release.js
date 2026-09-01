@@ -31,6 +31,12 @@ const ROOT = path.resolve(__dirname, "..");
 const BUNDLE = path.join(ROOT, "dist", "pertflow.html");
 const MANUEL = path.join(ROOT, "docs", "manuel-utilisateur.pdf");
 const NOTES = path.join(ROOT, "docs", "release-notes.md");
+// Licences des bibliotheques embarquees (audit du 01/09/2026, constat C-03). La
+// licence MIT impose de faire voyager la mention de copyright AVEC les copies : le
+// bundle en porte un resume en tete, l'archive le texte integral. C'est aussi la
+// piece que reclame une DSI quand elle instruit un dossier logiciel — d'ou sa place
+// dans la livraison, et non dans le seul depot.
+const LICENCES = path.join(ROOT, "lib", "LICENCES-TIERCES.txt");
 const OUT_DIR = path.join(ROOT, "dist", "release");
 
 // ─── Notes de version : Markdown → texte brut lisible au Bloc-notes ─────────────
@@ -174,6 +180,7 @@ fs.mkdirSync(stage, { recursive: true });
 
 fs.copyFileSync(BUNDLE, path.join(stage, "pertflow.html"));
 fs.copyFileSync(MANUEL, path.join(stage, "manuel-utilisateur.pdf"));
+fs.copyFileSync(LICENCES, path.join(stage, "LICENCES-TIERCES.txt"));
 fs.writeFileSync(path.join(stage, "NOTES-DE-VERSION.txt"), notesEnTexte(notesMd), "utf8");
 
 // Mot d'accueil : la premiere chose lue apres le dezippage. Il repond aux deux
@@ -195,6 +202,8 @@ fs.writeFileSync(path.join(stage, "LISEZ-MOI.txt"),
   + "  « manuel-utilisateur.pdf »  — prise en main, puis chaque fonction en detail.\r\n"
   + "  « NOTES-DE-VERSION.txt »    — ce qui a change dans cette version, et dans\r\n"
   + "                                les precedentes (la plus recente en tete).\r\n"
+  + "  « LICENCES-TIERCES.txt »    — les trois bibliotheques libres embarquees dans\r\n"
+  + "                                l'application, et le texte de leur licence.\r\n"
   + "\r\n"
   + "Code source et versions : https://github.com/laguiche/pertflow\r\n",
   "utf8");

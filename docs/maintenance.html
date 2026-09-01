@@ -98,7 +98,11 @@ déploiement cible.</p>
 </tr>
 <tr>
 <td>Surcharger un comportement</td>
-<td>Surcharger sur <strong>l'instance</strong> <code>LGraphCanvas</code> (<code>renderLink</code>, <code>getMenuOptions</code>, <code>getNodeMenuOptions</code>) plutôt que patcher <code>lib/litegraph.js</code>.</td>
+<td>Surcharger sur <strong>l'instance</strong> <code>LGraphCanvas</code> (<code>renderLink</code>, <code>getMenuOptions</code>, <code>getNodeMenuOptions</code>) plutôt que patcher <code>lib/litegraph.core.js</code>.</td>
+</tr>
+<tr>
+<td>Build de LiteGraph</td>
+<td>Toujours <code>litegraph.core.js</code>. Le build complet embarque ~156 types de nœuds (réseau, webcam, MIDI) qu'<strong>un <code>.pert</code> peut instancier</strong> — un fichier forgé ouvrait une connexion sortante. Ne pas y revenir.</td>
 </tr>
 <tr>
 <td>Rendu hors-écran (export)</td>
@@ -168,7 +172,7 @@ LiteGraph, l'intégrer au moteur si pertinent (<code>pert_engine.js</code>) et �
 <p><strong>Le mode d'emploi complet est dans <a href="../tools/README.md"><code>tools/README.md</code></a></strong> — prérequis,
 lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :</p>
 <pre><code class="language-bash">cd tools &amp;&amp; npm install &amp;&amp; npx playwright install chromium   # une fois
-npm test                                                     # 31 tests, ~90 s
+npm test                                                     # 34 tests, ~95 s
 </code></pre>
 <ul>
 <li><strong>Suite smoke</strong> : chaque test pilote l'application dans un vrai Chromium ouvert en <code>file://</code> —
@@ -221,27 +225,44 @@ et un <strong>PDF</strong>. Ces sorties <code>docs/*.html</code> et <code>docs/*
 <h3 id="rituel-de-fin-de-session-obligatoire">Rituel de fin de session (obligatoire)</h3>
 <p>À chaque clôture, <strong>avant</strong> le commit final :</p>
 <ol>
-<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 31/31).</li>
+<li><strong>Régénérer le bundle</strong> avec le tag de la session, <strong>en premier</strong> :
+   <code>node scripts/build-bundle.js --tag vX.Y</code>, puis le vérifier : <code>node tools/check-bundle.js vX.Y</code>.
+   L'ordre a changé le 01/09/2026 : deux contrôles portent désormais sur le <strong>bundle</strong> et non sur
+   les sources (<code>smoke-securite.js</code>, <code>audit-securite.js</code>) — les lancer avant de le régénérer
+   reviendrait à valider le fichier de la version précédente.</li>
+<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 34/34).</li>
 <li><strong>Mettre à jour la documentation</strong> touchée — les <code>.md</code> de <code>docs/</code>, les <strong>captures</strong> qu'une
    évolution d'IHM a périmées (<code>node tools/doc-shots-*.js</code>), les versions HTML/PDF
    (<code>node tools/build-docs.js</code>) et <strong>les notes de version</strong> — <strong>avant</strong> le push.</li>
-<li><strong>Régénérer le bundle</strong> avec le tag de la session :
-   <code>node scripts/build-bundle.js --tag vX.Y</code>, puis le vérifier : <code>node tools/check-bundle.js vX.Y</code>.</li>
-<li><strong>Committer + pousser le bundle</strong> (<code>dist/pertflow.html</code>, <strong>versionné</strong>) avec le reste.</li>
-<li>Le bundle embarque le bouton <strong>« À propos »</strong> (© Stéphane Guichard, licence MIT, date de
-   génération et tag) : ces valeurs sont injectées par le build dans <code>window.PERTFLOW_BUILD</code> —
-   <strong>ne jamais les coder en dur</strong>.</li>
-<li><strong>Publier la release GitHub</strong>, une fois le tag poussé — c'est ce qui met l'outil à disposition
-   sans avoir à récupérer tout le dépôt :</li>
+<li><strong>Passer l'audit de sécurité</strong> et en produire le rapport :</li>
 </ol>
+<p><code>bash
+   node tools/audit-securite.js        # → dist/audit/audit-securite-vX.Y.html et .pdf</code></p>
+<ul>
+<li>Il <strong>sort en erreur (code 1) sur un constat bloquant</strong> : dans ce cas la version ne part pas.
+     Les constats mineurs (bibliothèque en retard d'une version, contrôle non vérifié faute de
+     réseau) figurent au rapport sans bloquer — c'est leur place.</li>
+<li>Le rapport n'entre <strong>ni dans le dépôt</strong> (<code>dist/audit/</code> est gitignoré) <strong>ni dans l'archive</strong> :
+     c'est un document de travail daté, remis à une DSI qui le demande, pas une certification qui
+     accompagnerait le produit. Il se régénère à l'identique par la commande ci-dessus.</li>
+<li>Sans accès réseau : <code>--hors-ligne</code> (provenance et vulnérabilités rendues « non vérifiées »,
+     et le rapport le dit — il ne fait jamais passer un contrôle sauté pour un contrôle réussi).
+5. <strong>Committer + pousser le bundle</strong> (<code>dist/pertflow.html</code>, <strong>versionné</strong>) avec le reste.
+6. Le bundle embarque le bouton <strong>« À propos »</strong> (© Stéphane Guichard, licence MIT, date de
+   génération et tag) : ces valeurs sont injectées par le build dans <code>window.PERTFLOW_BUILD</code> —
+   <strong>ne jamais les coder en dur</strong>.
+7. <strong>Publier la release GitHub</strong>, une fois le tag poussé — c'est ce qui met l'outil à disposition
+   sans avoir à récupérer tout le dépôt :</li>
+</ul>
 <p><code>bash
    node scripts/make-release.js --tag vX.Y     # → dist/release/pertflow_vX_Y.zip
    gh release create vX.Y dist/release/pertflow_vX_Y.zip \
       --title "PertFlow vX.Y — &lt;titre des notes de version&gt;" \
       --notes-file &lt;extrait de docs/release-notes.md pour cette version&gt;</code></p>
 <ul>
-<li>L'archive contient <strong>l'application, le manuel PDF, les notes de version et un LISEZ-MOI</strong> —
-     rien d'autre : c'est une livraison, pas un miroir du dépôt.</li>
+<li>L'archive contient <strong>l'application, le manuel PDF, les notes de version, les licences des
+     bibliothèques tierces et un LISEZ-MOI</strong> — rien d'autre : c'est une livraison, pas un miroir
+     du dépôt, et pas davantage un dossier d'audit.</li>
 <li><code>make-release.js</code> <strong>refuse d'écrire</strong> si le bundle ne porte pas le tag demandé, ou si
      <code>docs/release-notes.md</code> n'a pas de section pour cette version. Les deux erreurs seraient
      indétectables à l'usage : le numéro affiché par « À propos » vient du bundle et non du nom
@@ -344,6 +365,14 @@ bundle) → pousser → merger sur <code>main</code> → taguer → pousser le t
 <tr>
 <td>La fabrication du bundle et de l'archive de livraison</td>
 <td><code>scripts/build-bundle.js</code>, <code>scripts/make-release.js</code></td>
+</tr>
+<tr>
+<td>La politique de sécurité (CSP) et les crédits de licence</td>
+<td><code>scripts/build-bundle.js</code> — injectés au build, <strong>absents des sources</strong></td>
+</tr>
+<tr>
+<td>L'audit de sécurité et sa non-régression</td>
+<td><code>tools/audit-securite.js</code> (rapport), <code>tools/smoke-securite.js</code> (garde-fou)</td>
 </tr>
 </tbody>
 </table></body></html>

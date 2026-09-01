@@ -37,7 +37,7 @@ cd tools && npm install && npx playwright install chromium && npm test
 
 ```bash
 cd tools
-npm test                        # toute la suite (31 tests, ~90 s)
+npm test                        # toute la suite (34 tests, ~95 s)
 node run-smokes.js -v           # idem, en affichant la sortie de chaque test
 node run-smokes.js import s9    # seulement les tests dont le nom contient "import" ou "s9"
 node smoke-suivi.js             # un test isolé (c'est ainsi qu'on débogue)
@@ -122,6 +122,52 @@ node tools/check-bundle.js v0.21.1     # le tag attendu est comparé à celui in
 
 Hors de `run-smokes.js` à dessein : ce test porte sur un artefact **construit**, il n'a de sens
 qu'après un build.
+
+---
+
+## 4 bis. Sécurité : le garde-fou et l'audit
+
+Deux outils, deux rôles distincts — ne pas les confondre.
+
+**`smoke-securite.js`** est dans la suite (c'est un `smoke*.js`) et **fait échouer `npm test`**
+quand une protection saute. Il vise le **bundle**, où vivent la politique de sécurité et les
+mentions de licence : *régénérer le bundle avant de lancer la suite*, sinon il valide le fichier
+de la version précédente. Ce qu'il protège :
+
+- le build **« core »** de LiteGraph (le build complet embarque ~156 types de nœuds, dont
+  `network/websocket`, qu'un `.pert` peut instancier) ;
+- la **CSP** du bundle, `connect-src 'none'` en tête, et l'absence d'`unsafe-eval` ;
+- les **crédits de licence** des trois bibliothèques ;
+- et surtout le **scénario complet** : un `.pert` forgé est ouvert par le bouton « Ouvrir », et
+  le test échoue si la moindre connexion sort. C'est la seule vérification qui prouve quelque
+  chose — les autres décrivent le fichier, celle-ci décrit le logiciel en marche.
+
+Une régression ici serait **invisible à l'usage** : l'application marcherait exactement pareil.
+
+**`audit-securite.js`** ne fait pas échouer la suite : il **décrit**, et produit le document à
+remettre à un service informatique.
+
+```bash
+node tools/audit-securite.js               # rapport HTML + PDF dans dist/audit/
+node tools/audit-securite.js --hors-ligne  # sans accès npm/OSV
+node tools/audit-securite.js --sans-pdf    # console + HTML seulement
+```
+
+Il recalcule les empreintes, **déduit la version de chaque bibliothèque de son empreinte** en la
+comparant aux paquets npm publiés (plus sûr qu'un numéro déclaré), interroge la base OSV, inventorie
+les API à effet de bord, vérifie que le bundle est reproductible depuis ses sources, puis observe
+le logiciel dans un vrai navigateur. Il sort en **code 1** s'il reste un constat bloquant.
+
+Deux règles à ne pas défaire, du même esprit que le CPERT réel facultatif :
+
+- **les contrôles réseau ne font jamais échouer l'audit** — un poste verrouillé n'a pas accès à
+  npm, et c'est justement le poste qui nous intéresse ; ils rendent « non vérifié », et le rapport
+  le dit plutôt que de laisser croire à un succès ;
+- **aucun attendu codé en dur** (ni empreinte, ni version, ni nombre de types) : un attendu recopié
+  d'une version antérieure ferait passer pour vérifié ce qui ne l'est plus.
+
+`dist/audit/` est **gitignoré**, et le rapport n'entre pas dans l'archive de livraison : c'est un
+document de travail daté, pas une certification qui accompagnerait le produit.
 
 ---
 

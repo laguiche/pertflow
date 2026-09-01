@@ -19,9 +19,25 @@ python -m http.server 8080
 
 ## Stack
 
-- [LiteGraph.js](https://github.com/jagenjo/litegraph.js) (MIT) — moteur de graphe canvas
+- [LiteGraph.js](https://github.com/jagenjo/litegraph.js) (MIT, build **`core`**) — moteur de graphe canvas
 - [jsPDF](https://github.com/parallax/jsPDF) (MIT) — export PDF
 - [fflate](https://github.com/101arrowz/fflate) (MIT) — zip/dézip des imports et exports Excel
+
+Les trois bibliothèques sont **embarquées dans le fichier livré** — aucune n'est chargée depuis le
+réseau. Leurs licences voyagent avec la livraison (`LICENCES-TIERCES.txt`).
+
+## Sécurité
+
+L'application est destinée à des postes administrés. Le fichier livré déclare une **politique de
+sécurité de contenu** (`connect-src 'none'`) : le navigateur lui interdit toute sortie réseau,
+quel que soit le code. Les contrôles se rejouent sur n'importe quelle version :
+
+```bash
+node tools/audit-securite.js     # empreintes, provenance npm, vulnérabilités OSV,
+                                 # reproductibilité, comportement observé → rapport HTML + PDF
+```
+
+Détail dans [`tools/README.md`](tools/README.md) §4 bis et [`docs/conception.md`](docs/conception.md) §9.
 
 ## Structure
 
@@ -49,7 +65,7 @@ affiche et exporte. Elle demande, elle, une petite installation :
 
 ```bash
 cd tools && npm install && npx playwright install chromium
-npm test          # 31 tests, ~90 s
+npm test          # 34 tests, ~95 s
 ```
 
 Tout est détaillé dans [`tools/README.md`](tools/README.md) — y compris pourquoi aucun fichier
