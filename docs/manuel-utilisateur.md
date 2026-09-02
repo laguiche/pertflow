@@ -71,6 +71,10 @@ la **Durée**. Ajoutez au besoin un **Responsable**, un **Groupe** et une **coul
 
 ![Étape 5 — une deuxième tâche reliée à la première](images/manuel/qs-5-lien.png)
 
+> Quand les deux nœuds ne tiennent plus ensemble à l'écran, ne cherchez pas à les rapprocher :
+> faites un **clic droit** sur l'un d'eux et choisissez **🔗 Relier à…** pour désigner l'autre
+> par son nom (voir §5).
+
 **Étape 6 — Ajoutez un jalon de fin.** Cliquez sur **◈ Jalon**, reliez-y la dernière tâche, et
 donnez-lui éventuellement une **date-cible** à tenir.
 
@@ -478,6 +482,62 @@ dépendances de proche en proche. Les voisins situés sur le **chemin critique**
 
 > Un nœud sans prédécesseur (respectivement sans successeur) l'affiche explicitement : il démarre
 > (ou termine) une chaîne. Un **Label** n'ayant ni dépendances ni dates, son onglet Synthèse le dit.
+
+### Relier deux nœuds éloignés (sans les chercher à l'écran)
+
+Tirer un trait d'un nœud à l'autre suppose de **voir les deux en même temps**. Dès que le planning
+dépasse l'écran, ce n'est plus le cas : il fallait dézoomer, filtrer pour retrouver la cible,
+zoomer, déplacer le nœud pour l'amener à portée, tirer le lien, puis le remettre en place — une
+gymnastique qui finissait par abîmer l'agencement.
+
+La fenêtre **« Relier à… »** fait l'inverse : vous partez du nœud sélectionné et vous **désignez**
+l'autre extrémité **par son nom**. La vue ne bouge pas, aucun nœud n'est déplacé.
+
+Elle s'ouvre de deux façons, toutes deux à partir d'un nœud :
+
+- **clic droit sur le nœud** → **🔗 Relier à…** ;
+- dans le panneau, **onglet Synthèse** → le bouton **🔗 Relier à un autre nœud…**, juste au-dessus
+  des prédécesseurs et des successeurs — c'est là que l'on constate ce qui manque.
+
+![L'entrée « Relier à… » du menu contextuel d'un nœud](images/manuel/relier-menu.png)
+
+![Le second point d'entrée, en tête du voisinage](images/manuel/relier-panneau.png)
+
+![La fenêtre « Relier à… » : sens, recherche, facettes et statuts](images/manuel/relier-fenetre.png)
+
+Dans la fenêtre :
+
+1. **Choisissez le sens.** **↣ Successeurs** : le nœud sélectionné **précède** celui que vous allez
+   choisir. **↢ Prédécesseurs** : c'est l'inverse. Le sens reste celui que vous avez choisi la fois
+   précédente.
+2. **Cherchez.** La zone de saisie cherche dans le **nom** et dans les **notes** des nœuds, sans se
+   soucier des majuscules ni des accents. Les deux listes déroulantes restreignent en plus à un
+   **groupe** ou à un **responsable** (elles ne portent que sur les tâches : choisir un groupe fait
+   donc sortir les jalons de la liste).
+3. **Cliquez sur un nœud** de la liste : le lien est créé aussitôt, les dates sont recalculées, et
+   un message le confirme en bas de l'écran.
+
+La fenêtre **reste ouverte** après chaque lien : on relie souvent plusieurs nœuds d'affilée (un
+jalon qui reçoit cinq tâches). La ligne que vous venez de cliquer passe alors en **« déjà lié »**,
+ce qui vous dit où vous en êtes. Fermez avec **Fermer** ou la touche **Échap**.
+
+Chaque ligne porte le **groupe** et le **responsable** du nœud, ainsi que sa **date** — de quoi
+trancher entre deux tâches portant le même nom. Les nœuds du **chemin critique** sont bordés de
+rouge, comme dans les listes de voisinage.
+
+**Deux mentions signalent un lien impossible.** La ligne reste affichée — elle disparaîtrait, vous
+croiriez à une faute de frappe — mais elle est grisée et n'est plus cliquable :
+
+| Mention | Ce qu'elle veut dire |
+|---|---|
+| **déjà lié** | Le lien existe déjà dans ce sens. Changez de sens pour voir l'autre côté. |
+| **boucle** | Ce lien refermerait un **cycle** (A avant B, et B avant A). PertFlow le refuse **avant** de le créer : un cycle empêche tout calcul, et le planning entier deviendrait muet (voir §4, « Les cycles »). |
+
+> Les **Labels** n'apparaissent jamais dans la liste et ne proposent pas la fenêtre : ce sont des
+> annotations, sans entrée ni sortie à relier.
+
+> Sur un très grand planning, seuls les **200 premiers** résultats sont affichés ; le compteur
+> annonce le total trouvé et vous invite alors à préciser votre recherche.
 
 ---
 
