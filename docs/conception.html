@@ -142,7 +142,9 @@ refuse la suite si cela arrive.</p>
 │   ├── export_gantt.js   # Gantt chargé (Excel) + MS Project (MSPDI XML)
 │   ├── export_microjalons.js  # Micro-jalonnement (Excel)
 │   ├── export_planning_directeur.js  # Planning directeur (Excel) : canevas calendaire + formes
-│   └── link_routing.js   # Rendu des liens : styles + routage orthogonal (évitement)
+│   ├── link_routing.js   # Rendu des liens : styles + routage orthogonal (évitement)
+│   └── link_search.js    # Fenêtre « Relier à… » : créer un lien en désignant l'autre
+│                         #   extrémité par une recherche, sans naviguer dans le canvas
 ├── docs/                 # Manuel, conception, maintenance, notes de version (MD + HTML + PDF)
 ├── tools/                # Suite de tests + captures d'écran (cf. tools/README.md)
 ├── test_cases/           # Jeux d'essai — versionnés en LISTE BLANCHE (cf. tools/README.md)
@@ -279,6 +281,33 @@ que le planning reste lisible dans son ensemble.</p>
 panneau ou de la synthèse. Une recherche <strong>remplace</strong> le filtre courant (ils partagent une seule
 variable), d'où l'obligation de resynchroniser les marqueurs d'état de la liste — sans quoi l'IHM
 annonce un filtre qui n'est plus actif.</p>
+<h3 id="relier-deux-nuds-eloignes-link_searchjs">Relier deux nœuds éloignés (<code>link_search.js</code>)</h3>
+<p>Tirer un lien à la souris suppose de <strong>voir les deux extrémités en même temps</strong> — hypothèse qui
+tombe dès que le planning dépasse l'écran. Créer un lien devenait alors une manœuvre
+<strong>géométrique</strong> (dézoomer, filtrer, rapprocher un nœud, tirer, le remettre) pour exprimer une
+relation purement <strong>logique</strong>, avec le risque d'abîmer l'agencement au passage.</p>
+<p>La fenêtre <strong>« Relier à… »</strong> renverse le geste : on part du nœud sélectionné et on <strong>désigne</strong>
+l'autre extrémité par une recherche (nom ou notes, plus deux facettes groupe et responsable). La
+vue ne bouge pas, aucun nœud n'est déplacé. Deux points d'entrée, tous deux ancrés sur un nœud —
+relier part toujours d'une extrémité connue : le <strong>menu contextuel</strong> du nœud et un bouton en tête
+du <strong>voisinage</strong> dans l'onglet Synthèse du panneau, là où l'on constate justement ce qui manque.</p>
+<p>Trois partis pris portent le reste :</p>
+<ul>
+<li><strong>Les deux sens sont offerts</strong> (successeur / prédécesseur), et le sens est <strong>mémorisé</strong> d'une
+  ouverture à l'autre. N'offrir qu'un sens obligerait à se placer sur l'amont, donc à naviguer —
+  exactement ce qu'on supprime.</li>
+<li><strong>Ce qui est impossible reste affiché, mais désactivé et motivé</strong> : un candidat déjà lié, ou qui
+  refermerait une boucle, garde sa ligne, grisée, avec la raison en bout. Le faire disparaître
+  laisserait croire à une faute de frappe. Le contrôle de cycle est fait <strong>avant</strong> la création :
+  le moteur sait détecter un cycle, mais il ne peut alors plus <strong>rien</strong> calculer — un seul clic
+  rendrait tout le planning muet.</li>
+<li><strong>La fenêtre ne se ferme pas après un lien</strong> : on relie par rafales (un jalon reçoit cinq
+  prédécesseurs), et la ligne cliquée bascule en « déjà lié », ce qui tient lieu d'accusé de
+  réception.</li>
+</ul>
+<p>Les listes de candidats réutilisent le vocabulaire visuel des listes de voisins du panneau, et
+l'adjacence vient de <code>pertBuildAdjacency</code> — même source de vérité que le calcul, donc le statut
+« déjà lié » ne peut pas diverger de ce que voit le moteur.</p>
 <h3 id="fenetres-de-rapport-synthesisjs-suivijs">Fenêtres de rapport (<code>synthesis.js</code>, <code>suivi.js</code>)</h3>
 <p>Le bouton <strong>Synthèse</strong> ouvre un menu à deux entrées, deux fenêtres au même patron :</p>
 <ul>
@@ -482,6 +511,14 @@ pour vérifié ce qui ne l'est plus).</p>
 <tr>
 <td>Filtre qui <strong>estompe</strong> au lieu de masquer</td>
 <td>Garder le planning lisible dans son ensemble</td>
+</tr>
+<tr>
+<td>Relier par <strong>recherche</strong>, pas seulement à la souris</td>
+<td>Au-delà d'un écran, tirer un lien devient une manœuvre géométrique pour une relation logique</td>
+</tr>
+<tr>
+<td>Cycle refusé <strong>avant</strong> la création du lien</td>
+<td>Un cycle empêche tout calcul : le planning entier deviendrait muet sur un clic</td>
 </tr>
 <tr>
 <td>LiteGraph en build <strong>« core »</strong></td>

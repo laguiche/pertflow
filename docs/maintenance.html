@@ -172,7 +172,7 @@ LiteGraph, l'intégrer au moteur si pertinent (<code>pert_engine.js</code>) et �
 <p><strong>Le mode d'emploi complet est dans <a href="../tools/README.md"><code>tools/README.md</code></a></strong> — prérequis,
 lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :</p>
 <pre><code class="language-bash">cd tools &amp;&amp; npm install &amp;&amp; npx playwright install chromium   # une fois
-npm test                                                     # 34 tests, ~95 s
+npm test                                                     # 35 tests, ~95 s
 </code></pre>
 <ul>
 <li><strong>Suite smoke</strong> : chaque test pilote l'application dans un vrai Chromium ouvert en <code>file://</code> —
@@ -230,7 +230,7 @@ et un <strong>PDF</strong>. Ces sorties <code>docs/*.html</code> et <code>docs/*
    L'ordre a changé le 01/09/2026 : deux contrôles portent désormais sur le <strong>bundle</strong> et non sur
    les sources (<code>smoke-securite.js</code>, <code>audit-securite.js</code>) — les lancer avant de le régénérer
    reviendrait à valider le fichier de la version précédente.</li>
-<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 34/34).</li>
+<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 35/35).</li>
 <li><strong>Mettre à jour la documentation</strong> touchée — les <code>.md</code> de <code>docs/</code>, les <strong>captures</strong> qu'une
    évolution d'IHM a périmées (<code>node tools/doc-shots-*.js</code>), les versions HTML/PDF
    (<code>node tools/build-docs.js</code>) et <strong>les notes de version</strong> — <strong>avant</strong> le push.</li>

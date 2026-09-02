@@ -147,6 +147,13 @@ document.addEventListener("DOMContentLoaded", () => {
           pertRecalc();
         } }
     ];
+    // « Relier a… » : cree un lien en DESIGNANT l'autre extremite par une recherche,
+    // au lieu de la chercher a l'ecran (cf. src/link_search.js). Absent sur un Label,
+    // qui n'a ni entree ni sortie — proposer une action impossible vaut moins que de
+    // ne rien proposer.
+    if (node.type === "pert/activity" || node.type === "pert/milestone") {
+      opts.push({ content: "🔗 Relier à…", callback: () => pertOpenLinkSearch(node) });
+    }
     // Boite a outils d'alignement : proposee des qu'au moins 2 nœuds sont
     // selectionnes (sous-menu ▸). Geometrie pure, pas de recalc PERT.
     const selCount = Object.keys(lgCanvas.selected_nodes || {}).length;
@@ -483,6 +490,10 @@ document.addEventListener("DOMContentLoaded", () => {
     guardUI("Impression impossible", () => pertPrintSynthesis());
   });
 
+  // Fenetre « Relier a… » : ecouteurs fixes (recherche, facettes, fermeture). Elle
+  // s'ouvre depuis le menu contextuel d'un nœud et depuis le panneau, pas d'un bouton
+  // de toolbar — relier part TOUJOURS d'un nœud designe.
+  if (window.pertInstallLinkSearch) pertInstallLinkSearch();
   document.getElementById("suivi-close").addEventListener("click", pertCloseSuiviDialog);
   document.getElementById("suivi-print").addEventListener("click", () => {
     guardUI("Impression impossible", () => pertPrintSuivi());
@@ -1995,6 +2006,19 @@ function fillLinksSection(node) {
       sec.appendChild(row);
     });
   };
+
+  // Point d'entree n°2 vers la fenetre « Relier a… » (le n°1 est le menu contextuel) :
+  // c'est ici qu'on LIT le voisinage d'un nœud, donc ici qu'on constate ce qui lui
+  // manque. Reserve aux nœuds reliables — un Label n'a pas de voisins.
+  if (node.type === "pert/activity" || node.type === "pert/milestone") {
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "ls-panel-btn";
+    add.textContent = "🔗 Relier à un autre nœud…";
+    add.title = "Chercher un nœud par nom, groupe ou responsable et créer le lien";
+    add.addEventListener("click", () => pertOpenLinkSearch(node));
+    sec.appendChild(add);
+  }
 
   buildList("↢ Prédécesseurs", preds[node.id], "pred",
     "Aucun — ce nœud démarre une chaîne.");

@@ -119,7 +119,7 @@ lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :
 
 ```bash
 cd tools && npm install && npx playwright install chromium   # une fois
-npm test                                                     # 34 tests, ~95 s
+npm test                                                     # 35 tests, ~95 s
 ```
 
 - **Suite smoke** : chaque test pilote l'application dans un vrai Chromium ouvert en `file://` —
@@ -178,7 +178,7 @@ et un **PDF**. Ces sorties `docs/*.html` et `docs/*.pdf` sont **versionnées** (
    L'ordre a changé le 01/09/2026 : deux contrôles portent désormais sur le **bundle** et non sur
    les sources (`smoke-securite.js`, `audit-securite.js`) — les lancer avant de le régénérer
    reviendrait à valider le fichier de la version précédente.
-2. **Faire passer la suite** : `cd tools && npm test` (attendu : 34/34).
+2. **Faire passer la suite** : `cd tools && npm test` (attendu : 35/35).
 3. **Mettre à jour la documentation** touchée — les `.md` de `docs/`, les **captures** qu'une
    évolution d'IHM a périmées (`node tools/doc-shots-*.js`), les versions HTML/PDF
    (`node tools/build-docs.js`) et **les notes de version** — **avant** le push.

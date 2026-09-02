@@ -11,6 +11,34 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
+## v0.25 — 03/09/2026 · Relier deux nœuds sans les chercher à l'écran
+Sur un planning qui dépasse l'écran, créer un lien était devenu le geste le plus coûteux de
+l'outil : dézoomer pour retrouver la tâche visée, poser un filtre pour la distinguer, zoomer,
+déplacer le nœud pour l'amener à portée de souris, tirer le trait, puis le remettre en place. Une
+manœuvre d'affichage pour exprimer une simple relation de précédence — et le risque, à chaque
+fois, de laisser l'agencement du planning abîmé derrière soi.
+
+- **Nouveau — la fenêtre « Relier à… ».** Sélectionnez un nœud, faites un **clic droit** puis
+  **🔗 Relier à…** (ou utilisez le bouton du même nom dans l'onglet **Synthèse** du panneau), et
+  **désignez l'autre extrémité par son nom**. Le lien est créé au clic. La vue ne bouge pas, et
+  aucun nœud n'est déplacé.
+- **Cherchez comme vous vous souvenez de la tâche** : la recherche porte sur le **nom** et sur les
+  **notes**, sans se soucier des majuscules ni des accents. Deux listes permettent en plus de se
+  restreindre à un **groupe** ou à un **responsable**. Chaque résultat affiche son groupe, son
+  responsable et sa date, de quoi trancher entre deux tâches de même nom.
+- **Les deux sens sont possibles** — ajouter un **successeur** ou un **prédécesseur** au nœud
+  choisi. Sans cela, il aurait fallu se déplacer jusqu'à l'amont pour lui ajouter une suite,
+  c'est-à-dire refaire la navigation qu'on cherche à éviter.
+- **La fenêtre reste ouverte** après chaque lien : on relie souvent plusieurs tâches d'affilée à un
+  même jalon. La ligne cliquée passe en « déjà lié ».
+- **Les liens impossibles sont refusés, et expliqués.** Un nœud déjà relié porte la mention
+  **déjà lié** ; un nœud dont le lien refermerait une **boucle** (A avant B, et B avant A) porte
+  la mention **boucle**. Dans les deux cas la ligne reste visible mais n'est plus cliquable — un
+  cycle empêche PertFlow de calculer quoi que ce soit, il valait mieux l'écarter d'avance que de
+  laisser un clic éteindre tout le planning.
+
+Le manuel décrit la fenêtre au chapitre 5.
+
 ## v0.24 — 01/09/2026 · Version sécurisée
 Aucune fonction ne change : **cette version se comporte exactement comme la précédente**. Ce qui
 change, c'est ce que le fichier contient — et ce qu'on peut en prouver. Elle répond aux questions

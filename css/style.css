@@ -1251,3 +1251,121 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 .lgraphcanvas {
   outline: none;
 }
+
+/* ─── Fenêtre « Relier à… » (src/link_search.js) ────────────────────────────────
+   Réutilise le vocabulaire visuel des listes de voisins du panneau (.lk-glyph,
+   .lk-name, .lk-critical) : c'est la même matière — des nœuds désignés par leur
+   nom — et elle doit se lire de la même façon d'un écran à l'autre. */
+.linksearch-dialog-box { width: 520px; max-width: 94vw; }
+
+/* Sens du lien : deux boutons exclusifs, l'actif en bleu plein. Un couple de boutons
+   plutôt qu'une liste déroulante — le sens se change souvent, il doit tenir en un
+   clic et rester lisible sans être déplié. */
+.ls-dir { display: flex; gap: 6px; }
+.ls-dir-btn {
+  flex: 1 1 0;
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  color: #aab4c8;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.ls-dir-btn:hover { background: #243a6a; border-color: #5a8fd8; color: #dde3ec; }
+.ls-dir-btn.active { background: #1a4a9a; border-color: #5a8fd8; color: #fff; font-weight: 600; }
+
+#linksearch-text {
+  background: #1a2240;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+  color: #dde3ec;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-family: inherit;
+}
+#linksearch-text:focus { outline: none; border-color: #5a8fd8; }
+#linksearch-text::placeholder { color: #6a7390; }
+
+.ls-facets { display: flex; gap: 8px; }
+.ls-facets select { flex: 1 1 0; min-width: 0; }
+
+.ls-count { font-size: 11px; color: #8899bb; }
+/* Aucun résultat : signalé en orange, comme le compteur du menu de filtre. */
+.ls-count.empty { color: #e0a56a; }
+
+.ls-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ls-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+  background: #16203a;
+  border: 1px solid #24325a;
+  border-radius: 3px;
+  padding: 6px 8px;
+  color: #dde3ec;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.ls-row:hover { background: #1e2c4e; border-color: #5a8fd8; }
+.ls-row .lk-glyph { flex: 0 0 auto; color: #7eb8f7; }
+.ls-row .lk-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Groupe · responsable : ce qui départage deux tâches de même nom. Secondaire, donc
+   discret, et écrasable en premier quand la place manque. */
+.ls-row .ls-meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7f8aa8;
+  font-size: 10px;
+}
+.ls-row .ls-tail { flex: 0 0 auto; color: #8899bb; font-size: 10px; }
+.ls-row.lk-critical { border-color: #8b2222; }
+.ls-row.lk-critical .lk-glyph { color: #ff7777; }
+
+/* Candidats impossibles : présents mais éteints, avec la raison en bout de ligne
+   (cf. décision 2 du module). Ce ne sont pas des <button> — ni clic, ni tabulation. */
+.ls-row.ls-taken, .ls-row.ls-cycle {
+  cursor: default;
+  background: #121a2e;
+  border-color: #1e2a40;
+  color: #6a7390;
+}
+.ls-row.ls-taken:hover, .ls-row.ls-cycle:hover { background: #121a2e; border-color: #1e2a40; }
+.ls-row.ls-taken .lk-glyph, .ls-row.ls-cycle .lk-glyph { color: #4a5878; }
+.ls-row.ls-taken .ls-tail { color: #6a9fd8; }
+.ls-row.ls-cycle .ls-tail { color: #e0a56a; }
+
+/* Bouton « + Relier à… » du panneau Synthèse, en tête des listes de voisins. */
+.ls-panel-btn {
+  width: 100%;
+  background: #1a2240;
+  border: 1px dashed #3a4a7a;
+  border-radius: 3px;
+  color: #7eb8f7;
+  padding: 6px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.ls-panel-btn:hover { background: #243a6a; border-color: #5a8fd8; color: #fff; }

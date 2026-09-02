@@ -37,7 +37,7 @@ cd tools && npm install && npx playwright install chromium && npm test
 
 ```bash
 cd tools
-npm test                        # toute la suite (34 tests, ~95 s)
+npm test                        # toute la suite (35 tests, ~95 s)
 node run-smokes.js -v           # idem, en affichant la sortie de chaque test
 node run-smokes.js import s9    # seulement les tests dont le nom contient "import" ou "s9"
 node smoke-suivi.js             # un test isolé (c'est ainsi qu'on débogue)

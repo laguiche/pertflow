@@ -248,6 +248,34 @@
     </div>
   </div>
 
+  <!-- ── Fenêtre « Relier à… » (src/link_search.js) ─────────────────────────────
+       Créer un lien sans naviguer : sur un très grand PERT, relier deux nœuds
+       éloignés imposait de dézoomer, filtrer, déplacer le nœud, tirer le lien, puis
+       le remettre en place — une manœuvre géométrique pour une relation logique.
+       Ouverte par le menu contextuel d'un nœud et par le bouton du panneau Synthèse.
+       Contenu construit dynamiquement (liste, facettes, sens). -->
+  <div id="linksearch-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog linksearch-dialog-box">
+      <h3 id="linksearch-title">Relier</h3>
+      <div id="linksearch-dir" class="ls-dir"></div>
+      <input type="text" id="linksearch-text" autocomplete="off" spellcheck="false"
+             placeholder="Rechercher par nom ou note…">
+      <div class="ls-facets">
+        <select id="linksearch-group" title="Restreindre à un groupe (Activités)"></select>
+        <select id="linksearch-resp" title="Restreindre à un responsable (Activités)"></select>
+      </div>
+      <div id="linksearch-count" class="ls-count"></div>
+      <div id="linksearch-list" class="ls-list"></div>
+      <p class="dialog-note">
+        Un clic sur un nœud crée le lien ; la fenêtre <b>reste ouverte</b> pour en
+        enchaîner plusieurs. La vue ne bouge pas et aucun nœud n'est déplacé.
+      </p>
+      <div class="dialog-buttons">
+        <button id="linksearch-close" class="primary">Fermer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Dialogue de récupération (sauvegarde automatique) ─────────────────── -->
   <div id="recovery-dialog" class="dialog-overlay" style="display:none">
     <div class="dialog">
@@ -340,6 +368,7 @@
   <!-- Chargé APRÈS synthesis.js : le suivi réutilise ses helpers de rendu
        (synthEl / synthTable / synthSection / synthNodeLink / pertSynthGoToNode). -->
   <script src="src/suivi.js"></script>
+  <script src="src/link_search.js"></script>
   <script src="src/ui.js"></script>
 </body>
 </html>

@@ -77,7 +77,9 @@ pertflow/
 │   ├── export_gantt.js   # Gantt chargé (Excel) + MS Project (MSPDI XML)
 │   ├── export_microjalons.js  # Micro-jalonnement (Excel)
 │   ├── export_planning_directeur.js  # Planning directeur (Excel) : canevas calendaire + formes
-│   └── link_routing.js   # Rendu des liens : styles + routage orthogonal (évitement)
+│   ├── link_routing.js   # Rendu des liens : styles + routage orthogonal (évitement)
+│   └── link_search.js    # Fenêtre « Relier à… » : créer un lien en désignant l'autre
+│                         #   extrémité par une recherche, sans naviguer dans le canvas
 ├── docs/                 # Manuel, conception, maintenance, notes de version (MD + HTML + PDF)
 ├── tools/                # Suite de tests + captures d'écran (cf. tools/README.md)
 ├── test_cases/           # Jeux d'essai — versionnés en LISTE BLANCHE (cf. tools/README.md)
@@ -232,6 +234,37 @@ C'est un **état de vue** : jamais sérialisé dans le `.pert`, au même titre q
 panneau ou de la synthèse. Une recherche **remplace** le filtre courant (ils partagent une seule
 variable), d'où l'obligation de resynchroniser les marqueurs d'état de la liste — sans quoi l'IHM
 annonce un filtre qui n'est plus actif.
+
+### Relier deux nœuds éloignés (`link_search.js`)
+
+Tirer un lien à la souris suppose de **voir les deux extrémités en même temps** — hypothèse qui
+tombe dès que le planning dépasse l'écran. Créer un lien devenait alors une manœuvre
+**géométrique** (dézoomer, filtrer, rapprocher un nœud, tirer, le remettre) pour exprimer une
+relation purement **logique**, avec le risque d'abîmer l'agencement au passage.
+
+La fenêtre **« Relier à… »** renverse le geste : on part du nœud sélectionné et on **désigne**
+l'autre extrémité par une recherche (nom ou notes, plus deux facettes groupe et responsable). La
+vue ne bouge pas, aucun nœud n'est déplacé. Deux points d'entrée, tous deux ancrés sur un nœud —
+relier part toujours d'une extrémité connue : le **menu contextuel** du nœud et un bouton en tête
+du **voisinage** dans l'onglet Synthèse du panneau, là où l'on constate justement ce qui manque.
+
+Trois partis pris portent le reste :
+
+- **Les deux sens sont offerts** (successeur / prédécesseur), et le sens est **mémorisé** d'une
+  ouverture à l'autre. N'offrir qu'un sens obligerait à se placer sur l'amont, donc à naviguer —
+  exactement ce qu'on supprime.
+- **Ce qui est impossible reste affiché, mais désactivé et motivé** : un candidat déjà lié, ou qui
+  refermerait une boucle, garde sa ligne, grisée, avec la raison en bout. Le faire disparaître
+  laisserait croire à une faute de frappe. Le contrôle de cycle est fait **avant** la création :
+  le moteur sait détecter un cycle, mais il ne peut alors plus **rien** calculer — un seul clic
+  rendrait tout le planning muet.
+- **La fenêtre ne se ferme pas après un lien** : on relie par rafales (un jalon reçoit cinq
+  prédécesseurs), et la ligne cliquée bascule en « déjà lié », ce qui tient lieu d'accusé de
+  réception.
+
+Les listes de candidats réutilisent le vocabulaire visuel des listes de voisins du panneau, et
+l'adjacence vient de `pertBuildAdjacency` — même source de vérité que le calcul, donc le statut
+« déjà lié » ne peut pas diverger de ce que voit le moteur.
 
 ### Fenêtres de rapport (`synthesis.js`, `suivi.js`)
 
@@ -393,5 +426,7 @@ pour vérifié ce qui ne l'est plus).
 | Avancement **hors de tout calcul** | Le PERT reste l'objectif : le renseigner ne doit rien déplacer |
 | Charge : un **mode** de saisie, pas deux valeurs libres | Le mode dit l'invariant quand la durée bouge ; deux valeurs stockées sans lui divergeraient |
 | Filtre qui **estompe** au lieu de masquer | Garder le planning lisible dans son ensemble |
+| Relier par **recherche**, pas seulement à la souris | Au-delà d'un écran, tirer un lien devient une manœuvre géométrique pour une relation logique |
+| Cycle refusé **avant** la création du lien | Un cycle empêche tout calcul : le planning entier deviendrait muet sur un clic |
 | LiteGraph en build **« core »** | Un `.pert` ne doit pouvoir instancier que les 3 types de PertFlow |
 | CSP injectée **au build**, pas dans les sources | Le bundle est ce qui circule ; en `file://` la même règle casserait le mode développement |
