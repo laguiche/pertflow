@@ -110,6 +110,21 @@ déploiement cible.
 Définir le type dans `nodes.js` (rendu custom, `title_mode`, slots), l'enregistrer auprès de
 LiteGraph, l'intégrer au moteur si pertinent (`pert_engine.js`) et à la sérialisation.
 
+**S'il ne doit PAS entrer dans le calcul** (cas du Risque) : le laisser hors de `PERT_TYPES`, et
+ne rien ajouter d'autre — `pertBuildAdjacency` filtre là-dessus, tout le moteur en découle. Le
+piège est qu'un type **sans entrée ni sortie** inscrit par erreur dans `PERT_TYPES` ne déplace
+**aucune** tâche : il devient un nœud isolé auquel le moteur donne des dates et qui peut se
+déclarer critique. Une non-régression qui ne regarderait que les tâches et les jalons ne verrait
+rien. Prendre l'empreinte de **tous** les nœuds, et de la liste des types que le moteur retient.
+
+Vérifier aussi les branches `else if (node.type === "pert/label")` : plusieurs écrans (panneau,
+onglet Synthèse, export planning directeur) énumèrent les types, et un type neuf y tombe
+silencieusement dans la mauvaise branche ou dans aucune.
+
+Enfin, l'ajouter au menu **« Insérer ▾ »** (`pertInsertMenuOptions`, `ui.js`) et à
+`pertAutoLayout` s'il doit être rangé par la réorganisation — un type que la réorganisation
+ignore reste posé au milieu du planning qu'on vient de déplacer sous lui.
+
 ---
 
 ## 5. Outillage de validation (`tools/`)
@@ -246,6 +261,12 @@ bundle) → pousser → merger sur `main` → taguer → pousser le tag → **ar
   LiteGraph fusionne les propriétés du fichier sur celles du nœud neuf — à condition que le
   **défaut du constructeur soit le comportement historique** (règle appliquée pour `charge_mode`,
   dont le défaut `"etp"` laisse les anciens plannings au coût inchangé).
+- **Une conversion `Date` → chaîne passe TOUJOURS par `pertIsoLocal`** (`pert_engine.js`), jamais
+  par `toISOString()` : celui-ci convertit en UTC et rend **la veille** pour tout fuseau à l'est
+  de Greenwich. Le piège a mordu deux fois — la trame calendaire, puis le champ « début » d'un
+  risque, qui affichait le 04/01 pour un T0 au 05/01. Rien ne le signale à l'écran, et un test
+  écrit sur une machine réglée en UTC ne le voit pas : `smoke-risques.js` **impose** donc le
+  fuseau `Europe/Paris` à son navigateur.
 - **Ordre des champs du panneau d'une Activité** (décision utilisateur, 31/07/2026) : un PERT sert
   d'abord à **planifier**. Viennent donc en tête libellé, durée, tâche anticipée, couleur, groupe,
   responsable, notes ; puis l'intertitre **« Suivi et coût »** et, derrière lui, l'avancement et la
@@ -270,7 +291,8 @@ bundle) → pousser → merger sur `main` → taguer → pousser le tag → **ar
 | Les imports (CPERT `.xlsm`, `.pert`) | `src/import.js`, `import_excel.js`, `import_pert.js` |
 | Les exports | `src/export*.js` |
 | La sérialisation / l'undo / l'autosave | `src/storage.js`, `history.js`, `autosave.js` |
-| Les fenêtres de rapport (synthèse, suivi d'avancement) | `src/synthesis.js`, `src/suivi.js` |
+| Les fenêtres de rapport (synthèse, suivi, risques) | `src/synthesis.js`, `src/suivi.js`, `src/risks.js` |
+| Les risques (bandeau, rattachement, filtre, rapport) | `src/risks.js` (+ `RiskNode` dans `src/nodes.js`) |
 | La fabrication du bundle et de l'archive de livraison | `scripts/build-bundle.js`, `scripts/make-release.js` |
 | La politique de sécurité (CSP) et les crédits de licence | `scripts/build-bundle.js` — injectés au build, **absents des sources** |
 | L'audit de sécurité et sa non-régression | `tools/audit-securite.js` (rapport), `tools/smoke-securite.js` (garde-fou) |

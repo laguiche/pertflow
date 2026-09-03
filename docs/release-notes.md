@@ -11,6 +11,61 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
+## v0.26 — 03/09/2026 · La gestion des risques
+Un planning ne dit que ce qui est **prévu**. Ce qui peut le mettre en défaut — un composant à
+fournisseur unique, une qualification qui traîne, un moyen d'essai partagé — vivait dans un
+tableau à part, sans lien avec les dates. Or un risque n'a d'intérêt que rapporté à une
+**période** et à des **tâches** : de quand à quand suis-je exposé, et sur quoi ? C'est
+précisément ce qu'un PERT sait dire.
+
+- **Nouveau — le Risque, quatrième type d'objet du planning**, à côté de la tâche, du jalon et
+  du label. Bouton **⚠ Risque** de la barre d'outils. Il apparaît sous forme de **bandeau** posé
+  au-dessus du planning : **sa position et sa largeur sont sa période**, lisibles sur le même axe
+  des temps que les tâches.
+- **Trois attributs, dont un seul se calcule tout seul.** Le **libellé** et la **date de début**
+  se saisissent ; la **date de fin**, elle, est **déduite** — c'est la fin au plus tard de la
+  dernière tâche couverte. Vous n'avez donc jamais à la remettre à jour : rattacher une tâche,
+  en détacher une, allonger une durée ou replanifier suffit, la période suit.
+- **À la création, un risque couvre tout le projet** (de T0 à la fin du planning) : l'hypothèse
+  la plus large, donc la moins fausse tant que vous n'avez rien précisé. Désigner les tâches
+  concernées ne fait ensuite que **resserrer** la période.
+- **Dire sur quoi le risque pèse, sans quitter des yeux le planning.** La fenêtre
+  **⚠ Couvrir des tâches…** reprend le principe de « Relier à… » : vous **désignez** les tâches
+  par une **recherche** (nom ou notes, plus un filtre par groupe et par responsable). La vue ne
+  bouge pas, aucun nœud n'est déplacé. Un clic couvre une tâche, un second l'en retire, et la
+  **période exposée**, rappelée en tête, se met à jour à chaque clic. Depuis une tâche, le clic
+  droit propose symétriquement **⚠ Risques couvrant cette tâche**.
+- **Le début reste sous votre contrôle**, entre T0 et le début de la première tâche couverte —
+  un risque qui commencerait après la tâche qu'il couvre ne la couvrirait pas. Votre saisie
+  n'est jamais écrasée : détachez la tâche qui bornait le début, et la date que vous aviez tapée
+  revient d'elle-même. Si une tâche couverte est **anticipée** (engagée avant T0), la borne
+  descend avec elle.
+- **Un filtre par risque** : le menu 🔎 Filtre gagne une section **Risques**. La choisir met en
+  évidence le bandeau **et les tâches qu'il couvre**, tout le reste s'estompe — et le panneau
+  ouvre dans le même geste la **synthèse des tâches couvertes** : dates, marges, avancement et
+  **coût exposé**.
+- **Une fenêtre Risques** — **📊 Synthèse ▾ → ⚠ Risques**, à côté de « Planification » et
+  « Avancement ». Deux onglets : **par risque** (ce que chacun met en jeu) et **par tâche**
+  (à combien de risques chaque tâche est exposée — la lecture qui fait ressortir celle qui en
+  concentre plusieurs). Imprimable en PDF, un chapitre par onglet.
+
+- **La réorganisation range aussi les risques.** En mode *chronologique complet*, ils sont
+  regroupés en une **bande au-dessus du planning**, sur autant de lignes que nécessaire — deux
+  risques dont les périodes ne se recouvrent pas partagent la même ligne. En mode *axe du temps
+  seul*, leur hauteur est conservée comme celle des autres nœuds.
+- **La barre d'outils est allégée** : les boutons *Activité*, *Jalon*, *Label* et *Risque* sont
+  regroupés derrière un seul bouton **➕ Insérer ▾**, sur le modèle de *Réorganiser ▾* et de
+  *Synthèse ▾*. Quatre boutons pour une famille d'actions qu'on ne déclenche qu'en construisant
+  le planning rognaient la place des outils utilisés en permanence. Le **clic droit sur le fond**
+  reste le chemin le plus direct quand on sait déjà où poser le nœud : il le pose sous le curseur.
+
+> **Votre PERT n'est pas touché.** Un risque **n'entre dans aucun calcul** : dates au plus tôt et
+> au plus tard, marges, chemin critique et coûts sont rendus au chiffre près comme avant. Vous
+> pouvez en ajouter autant que vous voulez. Les plannings existants s'ouvrent sans changement et
+> sans conversion — ils n'ont simplement aucun risque.
+
+---
+
 ## v0.25 — 03/09/2026 · Relier deux nœuds sans les chercher à l'écran
 Sur un planning qui dépasse l'écran, créer un lien était devenu le geste le plus coûteux de
 l'outil : dézoomer pour retrouver la tâche visée, poser un filtre pour la distinguer, zoomer,

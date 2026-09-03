@@ -114,6 +114,17 @@ function pertOffsetToDate(offsetUnits) {
   return pertAddUnits(t0, offsetUnits, meta.unit);
 }
 
+// Date → "YYYY-MM-DD" en heure LOCALE. Indispensable, et PIEGE RECURRENT :
+// toISOString() convertit en UTC, soit un jour d'écart pour tout fuseau à l'est de
+// Greenwich — une date affichée la veille, ou une trame décalée d'une case. Toute
+// conversion Date → chaîne du dépôt doit passer par ici (deux endroits s'y étaient
+// déjà fait prendre : la trame temporelle, puis le champ « début » d'un risque).
+function pertIsoLocal(d) {
+  if (!d) return "";
+  const p = (n) => (n < 10 ? "0" + n : String(n));
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+
 // Date calendaire (string "YYYY-MM-DD") → décalage en unités depuis T0, ou null.
 // Inverse exact de pertOffsetToDate pour un offset entier de mois / semaines / jours
 // ouvrés ; pour une date quelconque en mois, partie entière = mois calendaires
@@ -414,6 +425,7 @@ function pertRecalc() {
   if (nodes.length === 0) {
     window.pertCriticalPathIds = new Set(); // plus de chemin critique a agreger
     pertPublishStatus({ ok: true, nbNodes: 0, nbCritical: 0, projectEnd: null });
+    if (window.pertSyncRisks) pertSyncRisks();
     graph.setDirtyCanvas(true, true);
     return { ok: true, nbNodes: 0, nbCritical: 0 };
   }
@@ -423,6 +435,7 @@ function pertRecalc() {
     window.pertCriticalPathIds = new Set(); // pas de chemin critique sur un cycle
     const res = { ok: false, error: "cycle", nbNodes: nodes.length };
     pertPublishStatus(res);
+    if (window.pertSyncRisks) pertSyncRisks();
     graph.setDirtyCanvas(true, true);
     return res;
   }
@@ -502,6 +515,11 @@ function pertRecalc() {
 
   const res = { ok: true, nbNodes: nodes.length, nbCritical, projectEnd };
   pertPublishStatus(res);
+  // Les bandeaux de risque lisent le calcul qu'on vient de faire (leur fin est le LF
+  // le plus tardif des taches couvertes) : leur geometrie se recale ici, seul moment
+  // ou les LF bougent. COUTURE VOLONTAIRE et a sens unique — le moteur ne sait rien
+  // du contenu des risques, il se contente de dire « c'est recalcule » (cf. src/risks.js).
+  if (window.pertSyncRisks) pertSyncRisks();
   graph.setDirtyCanvas(true, true);
   return res;
 }
@@ -602,14 +620,39 @@ function pertAutoLayout() {
   placeable.forEach(n => { if (n.size[1] > rowH) rowH = n.size[1]; });
   rowH += PERT_LAYOUT_GAP_Y;
 
+  // Bandeaux de RISQUE : bande tout EN HAUT du graphe, packee en couloirs comme le
+  // reste (deux risques dont les periodes ne se recouvrent pas partagent un couloir).
+  //
+  // Pourquoi en haut, et pas ailleurs : un risque se lit comme un EN-TETE au-dessus de
+  // la periode qu'il couvre, et ses traits de rattachement descendent vers les taches.
+  // Le poser en bas les ferait tous remonter en traversant le planning.
+  //
+  // Le layout ne fait ici que l'ORDONNEE : l'abscisse et la largeur d'un bandeau sont
+  // sa periode (cf. src/risks.js), elles ne se negocient pas. On les calcule quand meme
+  // ici, dans le repere du layout, parce que le packing en a besoin — puis pertSyncRisks
+  // (en fin de fonction) repose la geometrie canonique, pos[1] etant conserve.
+  const risks = graph._nodes.filter(n => n.type === "pert/risk");
+  const riskRowH = PERT_RISK_H + PERT_LAYOUT_GAP_Y;
+  let riskLanes = 0;
+  if (risks.length && typeof pertRiskStart === "function") {
+    const rxOf = {};
+    risks.forEach(r => {
+      rxOf[r.id] = originX + pertRiskStart(r) * PERT_PX_PER_UNIT;
+      r.size[0] = Math.max(PERT_RISK_MIN_W, pertRiskDuration(r) * PERT_PX_PER_UNIT);
+      r.size[1] = PERT_RISK_H;
+    });
+    riskLanes = pertPackLanes(risks, PERT_LAYOUT_MARGIN_Y, riskRowH, rxOf);
+  }
+
   // Jalons de sortie (terminaux, sans successeur) regroupes dans une bande EN HAUT
-  // du graphe ; le reste (activites + jalons intermediaires) en dessous.
+  // du graphe (sous les risques) ; le reste (activites + jalons intermediaires) en dessous.
   const isOutMilestone = n => n.type === "pert/milestone" && succs[n.id].length === 0;
   const top = placeable.filter(isOutMilestone);
   const rest = placeable.filter(n => !isOutMilestone(n));
 
-  const topLanes = pertPackLanes(top, PERT_LAYOUT_MARGIN_Y, rowH, xOf);
-  const restTop = PERT_LAYOUT_MARGIN_Y + (top.length ? topLanes * rowH : 0);
+  const topStart = PERT_LAYOUT_MARGIN_Y + riskLanes * riskRowH;
+  const topLanes = pertPackLanes(top, topStart, rowH, xOf);
+  const restTop = topStart + (top.length ? topLanes * rowH : 0);
   // Packing a DEUX niveaux (evolution reorg). L'abscisse (∝ ES) reste inchangee
   // (coherence temporelle facon Gantt) ; seule l'affectation des couloirs verticaux
   // change. Regroupement PRIMAIRE = enchainement (composante connexe de liens : les
@@ -626,6 +669,11 @@ function pertAutoLayout() {
   // peuvent se retrouver sous une activite/jalon repositionne. On reloge ceux qui
   // chevauchent un nœud place, dans une bande libre sous le graphe.
   pertRelocateOverlappingLabels(graph, placeable);
+
+  // Geometrie canonique des bandeaux : l'origine des temps vient de changer avec le
+  // placement. Seule l'abscisse est reposee — l'ordonnee est celle que le packing
+  // ci-dessus vient d'attribuer.
+  if (window.pertSyncRisks) pertSyncRisks();
 
   graph.setDirtyCanvas(true, true);
 }
@@ -680,6 +728,12 @@ function pertAutoLayoutTimeOnly() {
     e.node.pos[0] = originX + e.off * PERT_PX_PER_UNIT;
     // pos[1] volontairement inchange (on ne touche pas a l'axe des ordonnees)
   });
+
+  // Les bandeaux de risque suivent la MEME regle que les autres nœuds dans ce mode :
+  // leur abscisse est recalee sur la nouvelle origine des temps, leur ordonnee est
+  // celle que l'utilisateur leur a donnee. Rien de plus a faire — l'abscisse d'un
+  // bandeau etant toujours calculee, il suffit de la reposer.
+  if (window.pertSyncRisks) pertSyncRisks();
 
   graph.setDirtyCanvas(true, true);
 }
@@ -1171,6 +1225,7 @@ window.pertFormatCost = pertFormatCost;
 window.pertFormatHours = pertFormatHours;
 window.pertRecalc = pertRecalc;
 window.pertOffsetToDate = pertOffsetToDate;
+window.pertIsoLocal = pertIsoLocal;
 window.pertDateToOffset = pertDateToOffset;
 window.pertAutoLayout = pertAutoLayout;
 window.pertHighlightCriticalPath = pertHighlightCriticalPath;

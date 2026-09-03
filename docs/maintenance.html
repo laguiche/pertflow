@@ -167,6 +167,18 @@ déploiement cible.</p>
 <h3 id="un-type-de-nud">…un type de nœud</h3>
 <p>Définir le type dans <code>nodes.js</code> (rendu custom, <code>title_mode</code>, slots), l'enregistrer auprès de
 LiteGraph, l'intégrer au moteur si pertinent (<code>pert_engine.js</code>) et à la sérialisation.</p>
+<p><strong>S'il ne doit PAS entrer dans le calcul</strong> (cas du Risque) : le laisser hors de <code>PERT_TYPES</code>, et
+ne rien ajouter d'autre — <code>pertBuildAdjacency</code> filtre là-dessus, tout le moteur en découle. Le
+piège est qu'un type <strong>sans entrée ni sortie</strong> inscrit par erreur dans <code>PERT_TYPES</code> ne déplace
+<strong>aucune</strong> tâche : il devient un nœud isolé auquel le moteur donne des dates et qui peut se
+déclarer critique. Une non-régression qui ne regarderait que les tâches et les jalons ne verrait
+rien. Prendre l'empreinte de <strong>tous</strong> les nœuds, et de la liste des types que le moteur retient.</p>
+<p>Vérifier aussi les branches <code>else if (node.type === "pert/label")</code> : plusieurs écrans (panneau,
+onglet Synthèse, export planning directeur) énumèrent les types, et un type neuf y tombe
+silencieusement dans la mauvaise branche ou dans aucune.</p>
+<p>Enfin, l'ajouter au menu <strong>« Insérer ▾ »</strong> (<code>pertInsertMenuOptions</code>, <code>ui.js</code>) et à
+<code>pertAutoLayout</code> s'il doit être rangé par la réorganisation — un type que la réorganisation
+ignore reste posé au milieu du planning qu'on vient de déplacer sous lui.</p>
 <hr />
 <h2 id="5-outillage-de-validation-tools">5. Outillage de validation (<code>tools/</code>)</h2>
 <p><strong>Le mode d'emploi complet est dans <a href="../tools/README.md"><code>tools/README.md</code></a></strong> — prérequis,
@@ -294,6 +306,12 @@ bundle) → pousser → merger sur <code>main</code> → taguer → pousser le t
   LiteGraph fusionne les propriétés du fichier sur celles du nœud neuf — à condition que le
   <strong>défaut du constructeur soit le comportement historique</strong> (règle appliquée pour <code>charge_mode</code>,
   dont le défaut <code>"etp"</code> laisse les anciens plannings au coût inchangé).</li>
+<li><strong>Une conversion <code>Date</code> → chaîne passe TOUJOURS par <code>pertIsoLocal</code></strong> (<code>pert_engine.js</code>), jamais
+  par <code>toISOString()</code> : celui-ci convertit en UTC et rend <strong>la veille</strong> pour tout fuseau à l'est
+  de Greenwich. Le piège a mordu deux fois — la trame calendaire, puis le champ « début » d'un
+  risque, qui affichait le 04/01 pour un T0 au 05/01. Rien ne le signale à l'écran, et un test
+  écrit sur une machine réglée en UTC ne le voit pas : <code>smoke-risques.js</code> <strong>impose</strong> donc le
+  fuseau <code>Europe/Paris</code> à son navigateur.</li>
 <li><strong>Ordre des champs du panneau d'une Activité</strong> (décision utilisateur, 31/07/2026) : un PERT sert
   d'abord à <strong>planifier</strong>. Viennent donc en tête libellé, durée, tâche anticipée, couleur, groupe,
   responsable, notes ; puis l'intertitre <strong>« Suivi et coût »</strong> et, derrière lui, l'avancement et la
@@ -359,8 +377,12 @@ bundle) → pousser → merger sur <code>main</code> → taguer → pousser le t
 <td><code>src/storage.js</code>, <code>history.js</code>, <code>autosave.js</code></td>
 </tr>
 <tr>
-<td>Les fenêtres de rapport (synthèse, suivi d'avancement)</td>
-<td><code>src/synthesis.js</code>, <code>src/suivi.js</code></td>
+<td>Les fenêtres de rapport (synthèse, suivi, risques)</td>
+<td><code>src/synthesis.js</code>, <code>src/suivi.js</code>, <code>src/risks.js</code></td>
+</tr>
+<tr>
+<td>Les risques (bandeau, rattachement, filtre, rapport)</td>
+<td><code>src/risks.js</code> (+ <code>RiskNode</code> dans <code>src/nodes.js</code>)</td>
 </tr>
 <tr>
 <td>La fabrication du bundle et de l'archive de livraison</td>

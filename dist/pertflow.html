@@ -1982,7 +1982,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 .ls-dir-btn:hover { background: #243a6a; border-color: #5a8fd8; color: #dde3ec; }
 .ls-dir-btn.active { background: #1a4a9a; border-color: #5a8fd8; color: #fff; font-weight: 600; }
 
-#linksearch-text {
+#linksearch-text, #risklink-text {
   background: #1a2240;
   border: 1px solid #2a3a6a;
   border-radius: 4px;
@@ -1991,8 +1991,8 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
   font-size: 13px;
   font-family: inherit;
 }
-#linksearch-text:focus { outline: none; border-color: #5a8fd8; }
-#linksearch-text::placeholder { color: #6a7390; }
+#linksearch-text:focus, #risklink-text:focus { outline: none; border-color: #5a8fd8; }
+#linksearch-text::placeholder, #risklink-text::placeholder { color: #6a7390; }
 
 .ls-facets { display: flex; gap: 8px; }
 .ls-facets select { flex: 1 1 0; min-width: 0; }
@@ -2076,10 +2076,78 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 }
 .ls-panel-btn:hover { background: #243a6a; border-color: #5a8fd8; color: #fff; }
 
+
+/* ─── Gestion des risques (src/risks.js) ────────────────────────────────────────
+   La fenêtre « Couvrir des tâches… » réutilise TOUT le vocabulaire visuel de
+   « Relier à… » (.ls-row, .ls-meta, .ls-tail, .ls-count) : c'est le même geste —
+   désigner un nœud par une recherche — et il doit se lire de la même façon. Seules
+   deux différences sont propres aux risques : la période rappelée en tête, et la
+   marque d'état d'une ligne (une tâche est couverte ou ne l'est pas). */
+
+/* Période exposée, rappelée sous le titre et remise à jour à chaque basculement :
+   c'est l'accusé de réception du geste — on voit la fin du risque se déplacer quand
+   on couvre une tâche plus tardive. */
+.rl-periode {
+  font-size: 12px;
+  color: #e0a56a;
+  background: #2a1f14;
+  border: 1px solid #6a4a24;
+  border-radius: 4px;
+  padding: 5px 8px;
+}
+
+.rl-only {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: #8899bb;
+  cursor: pointer;
+}
+.rl-only input { cursor: pointer; }
+
+/* Marque d'état : un carré DESSINÉ en CSS (bordure + fond), jamais un glyphe de
+   coche — on ne maîtrise pas les polices du poste, et un glyphe absent s'afficherait
+   en carré « tofu » sans la moindre erreur. Même précaution que les marqueurs
+   d'avancement tracés au Canvas2D. */
+.rl-box {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid #5a6a8a;
+  border-radius: 2px;
+  background: transparent;
+  align-self: center;
+}
+.rl-box.on {
+  background: #e0a56a;
+  border-color: #e0a56a;
+  box-shadow: inset 0 0 0 2px #16203a;
+}
+
+/* Une tâche déjà couverte reste PARFAITEMENT cliquable (c'est ainsi qu'on la
+   retire) : on la teinte, on ne l'éteint pas. C'est la différence avec les lignes
+   bloquées de « Relier à… », où le clic n'a rien à faire. */
+.rl-row.rl-couverte {
+  background: #221a2e;
+  border-color: #6a4a24;
+}
+.rl-row.rl-couverte:hover { background: #2e2338; border-color: #e0a56a; }
+.rl-row.rl-couverte .lk-name { color: #f0d0a8; }
+
+/* Renvoi explicatif du panneau (origine d'une valeur calculée, prérequis manquant).
+   Discret : c'est une note de lecture, pas un champ. */
+.prop-hint {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #8899bb;
+  margin: 2px 0 0;
+}
+
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"03/09/2026","tag":"v0.25"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"04/09/2026","tag":"v0.26"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -2200,9 +2268,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
   <div id="toolbar">
     <span id="project-title">PertFlow</span>
     <div class="tb-sep"></div>
-    <button id="btn-add-activity" title="Ajouter un nœud Activité">▭ Activité</button>
-    <button id="btn-add-milestone" title="Ajouter un nœud Jalon">◈ Jalon</button>
-    <button id="btn-add-label" title="Ajouter un nœud Label">❏ Label</button>
+    <button id="btn-insert" title="Insérer un objet dans le planning : Activité, Jalon, Label ou Risque">➕ Insérer ▾</button>
     <div class="tb-sep"></div>
     <button id="btn-layout" title="Réorganiser les nœuds : chronologique complète, ou sur l'axe du temps seul (ordonnées conservées)">⤓ Réorganiser ▾</button>
     <button id="btn-zoom-out" title="Dézoomer (utile sans molette ni pavé tactile multipoint)">➖</button>
@@ -2236,7 +2302,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
     <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
     <button id="btn-export" title="Exporter le planning (PNG, PDF, CSV, Excel, MS Project)">⬇ Exporter</button>
-    <button id="btn-synthesis" title="Synthèse du planning : « Planification » (jalons, groupes, coûts) ou « Avancement » (suivi des tâches et des jalons) — imprimables en PDF">📊 Synthèse ▾</button>
+    <button id="btn-synthesis" title="Synthèse du planning : « Planification » (jalons, groupes, coûts), « Avancement » (suivi des tâches et des jalons) ou « Risques » (périodes exposées et tâches couvertes) — imprimables en PDF">📊 Synthèse ▾</button>
     <div class="tb-sep"></div>
     <button id="btn-undo" title="Annuler (Ctrl+Z)" disabled>↶ Annuler</button>
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
@@ -2344,6 +2410,53 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
       </p>
       <div class="dialog-buttons">
         <button id="linksearch-close" class="primary">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Fenêtre « Couvrir des tâches… » (src/risks.js) ────────────────────────
+       Rattacher un risque aux tâches sur lesquelles il pèse, en les DÉSIGNANT par
+       une recherche plutôt qu'en les cherchant à l'écran (même parti pris que
+       « Relier à… »). Chaque ligne bascule : un clic couvre, un clic découvre. La
+       période exposée est rappelée en tête et se met à jour à chaque basculement —
+       c'est l'accusé de réception du geste. -->
+  <div id="risklink-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog linksearch-dialog-box">
+      <h3 id="risklink-title">Risque</h3>
+      <div id="risklink-periode" class="rl-periode"></div>
+      <input type="text" id="risklink-text" autocomplete="off" spellcheck="false"
+             placeholder="Rechercher une tâche par nom ou note…">
+      <div class="ls-facets">
+        <select id="risklink-group" title="Restreindre à un groupe"></select>
+        <select id="risklink-resp" title="Restreindre à un responsable"></select>
+      </div>
+      <label class="rl-only"><input type="checkbox" id="risklink-only">
+        N'afficher que les tâches déjà couvertes</label>
+      <div id="risklink-count" class="ls-count"></div>
+      <div id="risklink-list" class="ls-list"></div>
+      <p class="dialog-note">
+        Un clic sur une tâche la <b>couvre</b> ; un clic sur une tâche déjà couverte
+        l'en <b>retire</b>. La fenêtre reste ouverte, la vue ne bouge pas et aucun
+        nœud n'est déplacé.
+      </p>
+      <div class="dialog-buttons">
+        <button id="risklink-close" class="primary">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Fenêtre « Risques » (src/risks.js) ────────────────────────────────────
+       3e volet du bouton 📊 Synthèse. Deux onglets = deux chapitres à l'impression :
+       « Par risque » (ce que chacun met en jeu) et « Par tâche » (quelles tâches
+       sont exposées, et à combien de risques). Contenu construit dynamiquement. -->
+  <div id="risks-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog suivi-dialog-box">
+      <h3>Risques du planning</h3>
+      <div id="risks-tabs" class="synth-tabs" role="tablist"></div>
+      <div id="risks-content" class="synth-content"></div>
+      <div class="dialog-buttons">
+        <button id="risks-close">Fermer</button>
+        <button id="risks-print" class="primary">🖨 Imprimer / PDF</button>
       </div>
     </div>
   </div>
@@ -17417,6 +17530,9 @@ function ellipsize(ctx, text, maxWidth) {
 // window.pertFilter (defini dans ui.js, etat de vue non serialise) :
 //   null | { type:"group", value } | { type:"color", value } | { type:"responsible", value }
 //        | { type:"text", value }  (recherche par nom/notes, v0.20)
+//        | { type:"progress", value } (avancement, v0.21)
+//        | { type:"risk", value }  (uid d'un Risque, 03/09/2026 — met en evidence le
+//                                   bandeau ET les taches qu'il couvre)
 // Un nœud "estompe" recoit un voile translucide (pertDrawDimVeil), dessine en
 // onDrawForeground → par-dessus le contenu ET les slots (l'avant-plan est rendu en
 // dernier par LiteGraph). Sans filtre actif, rien n'est estompe. Seules les
@@ -17435,7 +17551,8 @@ function pertNormalizeSearch(s) {
 }
 
 // Texte d'un nœud offert a la recherche : son NOM et sa DESCRIPTION, quel que soit le
-// type. Un Label n'a que son texte, qui tient lieu des deux.
+// type. Un Label n'a que son texte, qui tient lieu des deux ; un Risque n'a que son
+// libelle.
 function pertNodeSearchText(node) {
   const p = (node && node.properties) || {};
   return [p.label, p.notes, p.text].filter(Boolean).join(" ");
@@ -17445,8 +17562,8 @@ function pertNodeDimmed(node) {
   const f = window.pertFilter;
   if (!f) return false;
   const isAct = node.type === "pert/activity" && node.properties;
-  // Recherche par nom : le SEUL filtre qui concerne les trois types de nœuds — on
-  // cherche « ou est passe X », pas « quelles taches appartiennent a X ».
+  // Recherche par nom : le SEUL filtre qui concerne TOUS les types de nœuds (Risques
+  // compris) — on cherche « ou est passe X », pas « quelles taches appartiennent a X ».
   if (f.type === "text") {
     const needle = pertNormalizeSearch(f.value);
     if (!needle) return false;
@@ -17466,6 +17583,18 @@ function pertNodeDimmed(node) {
   // valeur peut etre un etat OU un regroupement (« reste a faire »).
   if (f.type === "progress") {
     return !(isAct && pertProgressFilterMatch(f.value, node));
+  }
+  // Risque (03/09/2026) : le filtre met en evidence UN risque et les taches qu'il
+  // couvre — c'est-a-dire tout ce sur quoi il pese, et rien d'autre. Le bandeau
+  // lui-meme reste vif : l'estomper reviendrait a effacer le sujet de la question.
+  // Les AUTRES risques sont estompes, sinon on ne saurait plus lequel on regarde.
+  if (f.type === "risk") {
+    if (node.type === "pert/risk") {
+      return ((node.properties && node.properties.uid) || "") !== f.value;
+    }
+    if (!isAct) return true;
+    return !(typeof pertRiskCovers === "function"
+             && pertRiskCovers(f.value, node.properties.uid));
   }
   return false;
 }
@@ -18077,6 +18206,187 @@ LabelNode.prototype.onDrawForeground = function(ctx) {
   pertDrawDimVeil(ctx, this);
 };
 
+// ─── Nœud Risque (gestion des risques, 03/09/2026) ────────────────────────────
+//
+// POURQUOI UN QUATRIEME TYPE DE NŒUD. Un risque n'est ni une tache (il ne se
+// realise pas, il se surveille), ni un jalon (il n'a pas de date d'atteinte a
+// tenir), ni un label (il porte des donnees et une periode calculee). Il se lit
+// comme une PERIODE : du moment ou l'on s'expose jusqu'au moment ou la derniere
+// tache exposee est bouclee au plus tard.
+//
+// TROIS DECISIONS DE CADRAGE (arbitrees avec l'utilisateur le 03/09/2026) — ne pas
+// les defaire sans nouvel arbitrage, chacune commande tout le reste :
+//
+//  1. LE RISQUE N'ENTRE DANS AUCUN CALCUL PERT. Meme regle absolue que
+//     l'avancement (cf. PERT_PROGRESS_STATES) : ni es/ef/ls/lf, ni marge, ni chemin
+//     critique, ni cout, ni layout. La dependance est a SENS UNIQUE — c'est le
+//     risque qui LIT le PERT, jamais l'inverse. Techniquement il est hors de
+//     PERT_TYPES (pert_engine.js), donc invisible de pertBuildAdjacency : le moteur
+//     ne peut pas le voir, meme par accident, meme si un jour on l'oubliait.
+//
+//  2. IL NE PORTE NI ENTREE NI SORTIE (comme le Label). Le rattachement aux taches
+//     couvertes est une LISTE d'uid dans properties (`covers`), et non des liens
+//     LiteGraph : un lien de risque dans graph.links aurait impose d'ajouter un slot
+//     « risque » sur CHAQUE Activite — donc de changer la hauteur et la position des
+//     slots de tous les plannings existants, y compris ceux qui ne portent aucun
+//     risque. Le trait de rattachement est DESSINE (pointille, cf. src/risks.js)
+//     sans jamais exister dans le graphe.
+//     Corollaire : `covers` reference l'uid d'Activite (#34), PAS l'id LiteGraph —
+//     l'uid survit a la sauvegarde, au copier-coller et a l'undo, l'id non.
+//
+//  3. C'EST UN BANDEAU TEMPOREL. Son abscisse et sa largeur SONT sa periode : elles
+//     sont CALCULEES (pertRiskSyncGeometry, src/risks.js) et non placees a la main.
+//     L'utilisateur ne regle que l'ordonnee — la hauteur a laquelle il pose la bande.
+//     Ecrire les deux dates dans une boite libre aurait laisse la geometrie mentir
+//     sur la periode, alors qu'un risque se juge d'abord a son empan.
+
+const PERT_RISK_H = 34;          // hauteur fixe d'un bandeau (une seule ligne de texte)
+const PERT_RISK_MIN_W = 120;     // largeur plancher : un risque de periode nulle doit
+                                 // rester saisissable et lisible (meme parti pris que
+                                 // ACT_MIN_W pour les taches tres courtes).
+const PERT_RISK_DEFAULT_COLOR = "#c0392b";
+
+// Teinte translucide derivee de la couleur du risque. La couleur pleine est reservee
+// a la bordure et au texte : un bandeau opaque de la largeur d'un projet masquerait
+// tout ce qu'il survole, alors qu'il doit se lire AVEC le planning, pas a sa place.
+function pertRiskTint(hex, alpha) {
+  const h = String(hex || PERT_RISK_DEFAULT_COLOR).replace("#", "");
+  const full = h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h;
+  const r = parseInt(full.slice(0, 2), 16) || 0;
+  const g = parseInt(full.slice(2, 4), 16) || 0;
+  const b = parseInt(full.slice(4, 6), 16) || 0;
+  return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+}
+
+function RiskNode() {
+  // NI addInput NI addOutput : cf. decision 2 ci-dessus. Un risque ne peut donc
+  // physiquement pas entrer dans graph.links.
+  this.properties = {
+    // Identifiant stable du risque — genere a la creation, ni visible ni editable.
+    // Sert de valeur au filtre « Risques » et de cle des rapports.
+    uid: pertGenRiskUid(),
+    label: "Nouveau risque",
+    // Debut du risque, en OFFSET d'unites depuis T0 — comme TOUTE date interne du
+    // moteur (cf. « Conventions » de CLAUDE.md). Saisi par l'utilisateur sous forme
+    // de date calendaire dans le panneau, mais stocke en offset : le planning peut
+    // etre rejoue avec un autre T0 sans que les risques se decalent de travers.
+    // La valeur est BORNEE a la lecture (pertRiskStart), jamais ecrasee ici : si un
+    // detachement rouvre la plage, la saisie d'origine revient d'elle-meme.
+    start_offset: 0,
+    // uid des Activites couvertes (cf. decision 2). Tableau serialise nativement.
+    covers: [],
+    // Couleur : COSMETIQUE seulement, elle n'a aucune signification metier (a la
+    // difference de la couleur d'une Activite, qui suit son groupe). Elle sert a
+    // distinguer deux bandeaux qui se superposent et a reconnaitre un risque dans la
+    // liste du filtre.
+    color: PERT_RISK_DEFAULT_COLOR
+  };
+  this.size = [PERT_RISK_MIN_W, PERT_RISK_H];
+}
+
+RiskNode.title = "Risque";
+RiskNode.title_mode = LiteGraph.NO_TITLE;
+
+// La geometrie du bandeau est entierement deduite des dates (decision 3) : elle est
+// donc recalculee par src/risks.js, jamais posee ici. updateSize existe quand meme,
+// parce que tout le reste du code (addNodeAt, chargement, undo) l'appelle par
+// convention sur n'importe quel nœud.
+RiskNode.prototype.updateSize = function() {
+  if (typeof pertRiskSyncGeometry === "function") pertRiskSyncGeometry(this);
+  else this.size = [Math.max(PERT_RISK_MIN_W, this.size[0]), PERT_RISK_H];
+};
+
+RiskNode.prototype.onPropertyChanged = function() {
+  this.updateSize();
+  this.setDirtyCanvas(true, true);
+};
+
+// Le redimensionnement manuel n'a pas de sens : la largeur EST la duree du risque.
+// On rend la poignee inoperante plutot que de laisser l'utilisateur produire un
+// bandeau qui ment sur sa periode.
+RiskNode.prototype.onResize = function() {
+  this.size[0] = Math.max(PERT_RISK_MIN_W, this.size[0]);
+  this.size[1] = PERT_RISK_H;
+};
+
+RiskNode.prototype.onDrawBackground = function(ctx) {
+  const w = this.size[0], h = this.size[1];
+  const col = this.properties.color || PERT_RISK_DEFAULT_COLOR;
+  const r = 6;
+
+  // Bandeau : fond translucide + bordure pleine, coins arrondis.
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(w - r, 0);
+  ctx.arcTo(w, 0, w, r, r);
+  ctx.lineTo(w, h - r);
+  ctx.arcTo(w, h, w - r, h, r);
+  ctx.lineTo(r, h);
+  ctx.arcTo(0, h, 0, h - r, r);
+  ctx.lineTo(0, r);
+  ctx.arcTo(0, 0, r, 0, r);
+  ctx.closePath();
+  ctx.fillStyle = pertRiskTint(col, 0.20);
+  ctx.fill();
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Marqueur « risque » : triangle d'alerte TRACE, jamais le glyphe « ⚠ ». Meme
+  // raison que les marqueurs d'avancement — on ne maitrise pas les polices du poste
+  // DSI, et un glyphe absent s'afficherait en carre « tofu » sans la moindre erreur.
+  const cx = 14, cy = h / 2, s = 7;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s);
+  ctx.lineTo(cx + s, cy + s * 0.8);
+  ctx.lineTo(cx - s, cy + s * 0.8);
+  ctx.closePath();
+  ctx.fillStyle = col;
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(cx - 1, cy - 3.5, 2, 5.5);
+  ctx.fillRect(cx - 1, cy + 3.5, 2, 2);
+};
+
+RiskNode.prototype.onDrawForeground = function(ctx) {
+  const w = this.size[0], h = this.size[1];
+  const col = this.properties.color || PERT_RISK_DEFAULT_COLOR;
+
+  // Periode calculee, ecrite a droite quand la bande est assez large. Elle n'est PAS
+  // le premier element de lecture (la geometrie le dit deja) : elle sert a chiffrer
+  // ce que l'œil vient d'estimer, et cede la place au libelle si l'espace manque.
+  let dateW = 0;
+  const periode = (typeof pertRiskPeriodLabel === "function") ? pertRiskPeriodLabel(this) : "";
+  if (periode) {
+    ctx.font = "10px sans-serif";
+    const pw = ctx.measureText(periode).width;
+    if (w > pw + 90) {
+      ctx.fillStyle = pertRiskTint(col, 0.85);
+      ctx.textAlign = "right";
+      ctx.fillText(periode, w - 10, h / 2 + 3.5);
+      ctx.textAlign = "left";
+      dateW = pw + 14;
+    }
+  }
+
+  // Libelle + nombre de taches couvertes.
+  const nb = (this.properties.covers || []).length;
+  const suffixe = nb ? "  (" + nb + " tâche" + (nb > 1 ? "s" : "") + ")" : "";
+  ctx.font = "bold 12px sans-serif";
+  ctx.fillStyle = col;
+  ctx.fillText(ellipsize(ctx, (this.properties.label || "(sans nom)") + suffixe,
+                         w - 30 - dateW), 26, h / 2 + 4);
+
+  pertDrawDimVeil(ctx, this);
+};
+
+// Identifiant unique d'un Risque. Prefixe distinct de celui des Activites (« a- ») :
+// les deux familles d'uid se croisent dans `covers` et dans le filtre, et un prefixe
+// qui les separe rend toute confusion visible a l'œil dans un .pert.
+function pertGenRiskUid() {
+  return "r-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
 // ─── Slots d'entrée dynamiques ────────────────────────────────────────────────
 //
 // Règle : le dernier slot est toujours vide (disponible pour une nouvelle
@@ -18107,6 +18417,7 @@ function manageDynamicInputs(node, slotType) {
 LiteGraph.registerNodeType("pert/activity", ActivityNode);
 LiteGraph.registerNodeType("pert/milestone", MilestoneNode);
 LiteGraph.registerNodeType("pert/label", LabelNode);
+LiteGraph.registerNodeType("pert/risk", RiskNode);
 
 // ─── Identifiant unique d'Activité (#34) ────────────────────────────────────────
 //
@@ -18134,6 +18445,22 @@ function pertEnsureUids() {
       n.properties.uid = id;
     }
     seen.add(id);
+  });
+  // Meme garantie pour les Risques (03/09/2026), et pour la meme raison : l'uid d'un
+  // risque est la valeur de son filtre. Deux bandeaux dupliques qui partagent un uid
+  // se mettraient en evidence ENSEMBLE, sans qu'on puisse jamais les distinguer.
+  // NB : `covers` reference des uid d'Activite, pas de Risque — regenerer l'uid d'un
+  // risque duplique ne casse donc aucun rattachement, le clone couvre les memes
+  // taches que l'original, ce qui est le comportement attendu d'une duplication.
+  const vus = new Set();
+  graph._nodes.forEach(n => {
+    if (n.type !== "pert/risk" || !n.properties) return;
+    let id = n.properties.uid;
+    if (!id || vus.has(id)) {
+      id = pertGenRiskUid();
+      n.properties.uid = id;
+    }
+    vus.add(id);
   });
 }
 
@@ -18272,6 +18599,17 @@ function pertOffsetToDate(offsetUnits) {
   const t0 = new Date(meta.t0 + "T00:00:00");
   if (isNaN(t0.getTime())) return null;
   return pertAddUnits(t0, offsetUnits, meta.unit);
+}
+
+// Date → "YYYY-MM-DD" en heure LOCALE. Indispensable, et PIEGE RECURRENT :
+// toISOString() convertit en UTC, soit un jour d'écart pour tout fuseau à l'est de
+// Greenwich — une date affichée la veille, ou une trame décalée d'une case. Toute
+// conversion Date → chaîne du dépôt doit passer par ici (deux endroits s'y étaient
+// déjà fait prendre : la trame temporelle, puis le champ « début » d'un risque).
+function pertIsoLocal(d) {
+  if (!d) return "";
+  const p = (n) => (n < 10 ? "0" + n : String(n));
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
 }
 
 // Date calendaire (string "YYYY-MM-DD") → décalage en unités depuis T0, ou null.
@@ -18574,6 +18912,7 @@ function pertRecalc() {
   if (nodes.length === 0) {
     window.pertCriticalPathIds = new Set(); // plus de chemin critique a agreger
     pertPublishStatus({ ok: true, nbNodes: 0, nbCritical: 0, projectEnd: null });
+    if (window.pertSyncRisks) pertSyncRisks();
     graph.setDirtyCanvas(true, true);
     return { ok: true, nbNodes: 0, nbCritical: 0 };
   }
@@ -18583,6 +18922,7 @@ function pertRecalc() {
     window.pertCriticalPathIds = new Set(); // pas de chemin critique sur un cycle
     const res = { ok: false, error: "cycle", nbNodes: nodes.length };
     pertPublishStatus(res);
+    if (window.pertSyncRisks) pertSyncRisks();
     graph.setDirtyCanvas(true, true);
     return res;
   }
@@ -18662,6 +19002,11 @@ function pertRecalc() {
 
   const res = { ok: true, nbNodes: nodes.length, nbCritical, projectEnd };
   pertPublishStatus(res);
+  // Les bandeaux de risque lisent le calcul qu'on vient de faire (leur fin est le LF
+  // le plus tardif des taches couvertes) : leur geometrie se recale ici, seul moment
+  // ou les LF bougent. COUTURE VOLONTAIRE et a sens unique — le moteur ne sait rien
+  // du contenu des risques, il se contente de dire « c'est recalcule » (cf. src/risks.js).
+  if (window.pertSyncRisks) pertSyncRisks();
   graph.setDirtyCanvas(true, true);
   return res;
 }
@@ -18762,14 +19107,39 @@ function pertAutoLayout() {
   placeable.forEach(n => { if (n.size[1] > rowH) rowH = n.size[1]; });
   rowH += PERT_LAYOUT_GAP_Y;
 
+  // Bandeaux de RISQUE : bande tout EN HAUT du graphe, packee en couloirs comme le
+  // reste (deux risques dont les periodes ne se recouvrent pas partagent un couloir).
+  //
+  // Pourquoi en haut, et pas ailleurs : un risque se lit comme un EN-TETE au-dessus de
+  // la periode qu'il couvre, et ses traits de rattachement descendent vers les taches.
+  // Le poser en bas les ferait tous remonter en traversant le planning.
+  //
+  // Le layout ne fait ici que l'ORDONNEE : l'abscisse et la largeur d'un bandeau sont
+  // sa periode (cf. src/risks.js), elles ne se negocient pas. On les calcule quand meme
+  // ici, dans le repere du layout, parce que le packing en a besoin — puis pertSyncRisks
+  // (en fin de fonction) repose la geometrie canonique, pos[1] etant conserve.
+  const risks = graph._nodes.filter(n => n.type === "pert/risk");
+  const riskRowH = PERT_RISK_H + PERT_LAYOUT_GAP_Y;
+  let riskLanes = 0;
+  if (risks.length && typeof pertRiskStart === "function") {
+    const rxOf = {};
+    risks.forEach(r => {
+      rxOf[r.id] = originX + pertRiskStart(r) * PERT_PX_PER_UNIT;
+      r.size[0] = Math.max(PERT_RISK_MIN_W, pertRiskDuration(r) * PERT_PX_PER_UNIT);
+      r.size[1] = PERT_RISK_H;
+    });
+    riskLanes = pertPackLanes(risks, PERT_LAYOUT_MARGIN_Y, riskRowH, rxOf);
+  }
+
   // Jalons de sortie (terminaux, sans successeur) regroupes dans une bande EN HAUT
-  // du graphe ; le reste (activites + jalons intermediaires) en dessous.
+  // du graphe (sous les risques) ; le reste (activites + jalons intermediaires) en dessous.
   const isOutMilestone = n => n.type === "pert/milestone" && succs[n.id].length === 0;
   const top = placeable.filter(isOutMilestone);
   const rest = placeable.filter(n => !isOutMilestone(n));
 
-  const topLanes = pertPackLanes(top, PERT_LAYOUT_MARGIN_Y, rowH, xOf);
-  const restTop = PERT_LAYOUT_MARGIN_Y + (top.length ? topLanes * rowH : 0);
+  const topStart = PERT_LAYOUT_MARGIN_Y + riskLanes * riskRowH;
+  const topLanes = pertPackLanes(top, topStart, rowH, xOf);
+  const restTop = topStart + (top.length ? topLanes * rowH : 0);
   // Packing a DEUX niveaux (evolution reorg). L'abscisse (∝ ES) reste inchangee
   // (coherence temporelle facon Gantt) ; seule l'affectation des couloirs verticaux
   // change. Regroupement PRIMAIRE = enchainement (composante connexe de liens : les
@@ -18786,6 +19156,11 @@ function pertAutoLayout() {
   // peuvent se retrouver sous une activite/jalon repositionne. On reloge ceux qui
   // chevauchent un nœud place, dans une bande libre sous le graphe.
   pertRelocateOverlappingLabels(graph, placeable);
+
+  // Geometrie canonique des bandeaux : l'origine des temps vient de changer avec le
+  // placement. Seule l'abscisse est reposee — l'ordonnee est celle que le packing
+  // ci-dessus vient d'attribuer.
+  if (window.pertSyncRisks) pertSyncRisks();
 
   graph.setDirtyCanvas(true, true);
 }
@@ -18840,6 +19215,12 @@ function pertAutoLayoutTimeOnly() {
     e.node.pos[0] = originX + e.off * PERT_PX_PER_UNIT;
     // pos[1] volontairement inchange (on ne touche pas a l'axe des ordonnees)
   });
+
+  // Les bandeaux de risque suivent la MEME regle que les autres nœuds dans ce mode :
+  // leur abscisse est recalee sur la nouvelle origine des temps, leur ordonnee est
+  // celle que l'utilisateur leur a donnee. Rien de plus a faire — l'abscisse d'un
+  // bandeau etant toujours calculee, il suffit de la reposer.
+  if (window.pertSyncRisks) pertSyncRisks();
 
   graph.setDirtyCanvas(true, true);
 }
@@ -19331,6 +19712,7 @@ window.pertFormatCost = pertFormatCost;
 window.pertFormatHours = pertFormatHours;
 window.pertRecalc = pertRecalc;
 window.pertOffsetToDate = pertOffsetToDate;
+window.pertIsoLocal = pertIsoLocal;
 window.pertDateToOffset = pertDateToOffset;
 window.pertAutoLayout = pertAutoLayout;
 window.pertHighlightCriticalPath = pertHighlightCriticalPath;
@@ -23297,9 +23679,11 @@ function pertTgWeekNumber(monday) {
 // Date → "YYYY-MM-DD" en heure LOCALE. Indispensable : pertDateToOffset attend une
 // chaîne, et toISOString() convertirait en UTC — soit un jour d'écart pour tout
 // fuseau à l'est de Greenwich, donc une trame décalée d'une case en heure d'été.
+// Depuis le 03/09/2026 la conversion est mutualisee dans pert_engine.js
+// (pertIsoLocal) : le meme piege a repris un autre module, mieux vaut un seul
+// endroit a connaitre qu'une regle a se rappeler.
 function pertTgIso(d) {
-  const p = (n) => (n < 10 ? "0" + n : String(n));
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  return pertIsoLocal(d);
 }
 
 // Abscisse (repère graphe) d'une date calendaire, via l'offset temporel du projet.
@@ -24162,7 +24546,7 @@ function synthTable(headers, rows) {
 // rendu par les deux : plutot que de faire porter a chaque lien la connaissance de la
 // fenetre qui l'a construit, on ferme ce qui recouvre le planning, point.
 function pertCloseReportDialogs() {
-  ["synthesis-dialog", "suivi-dialog"].forEach(id => {
+  ["synthesis-dialog", "suivi-dialog", "risks-dialog"].forEach(id => {
     const d = document.getElementById(id);
     if (d) d.style.display = "none";
   });
@@ -25410,6 +25794,704 @@ window.pertInstallLinkSearch = pertInstallLinkSearch;
 
 </script>
   <script>
+/* src/risks.js */
+// ─── Gestion des risques ────────────────────────────────────────────────────────
+//
+// POURQUOI CE MODULE. Un planning ne dit que ce qui est PREVU. Ce qui le met en
+// defaut — une qualification qui traine, un fournisseur unique, une ressource pas
+// encore recrutee — vivait jusqu'ici dans un tableau a part, sans lien avec les
+// dates. Or un risque n'a d'interet que rapporte a une PERIODE et a des TACHES :
+// « de quand a quand suis-je expose, et sur quoi ». C'est exactement ce que le PERT
+// sait dire. Le risque devient donc un objet du planning (nœud `pert/risk`, cf.
+// nodes.js) qui LIT le calcul sans jamais y entrer.
+//
+// LE MODELE, EN UNE PHRASE : un risque porte un libelle, une date de DEBUT saisie
+// (bornee), et une date de FIN qui n'est pas saisie du tout — elle est DEDUITE des
+// taches couvertes, comme le cout est deduit de la charge. Rien a re-saisir, rien a
+// re-synchroniser : c'est ce qui garantit qu'un risque ne peut pas mentir sur le
+// planning apres un replanning.
+//
+//   fin    = max(LF) des taches couvertes      → le risque court tant qu'UNE des
+//            (a defaut : LF du projet, 0 si      taches exposees n'est pas bouclee
+//             le projet est vide)                au plus tard
+//   debut  = saisi, borne a [T0 , min(ES) des taches couvertes]
+//   duree  = fin − debut
+//
+// La borne haute du debut est le min des ES : un risque qui commencerait APRES la
+// premiere tache qu'il couvre ne la couvrirait pas. La borne basse est T0, l'origine
+// contractuelle — SAUF si une tache couverte est anticipee (ES negatif), auquel cas
+// la borne basse descend jusqu'a cet ES : refuser le cas rendrait le risque
+// incapable de couvrir sa propre tache (cf. pertRiskBounds).
+//
+// LA SAISIE N'EST JAMAIS ECRASEE. `start_offset` conserve ce que l'utilisateur a
+// tape ; le bornage est applique A LA LECTURE (pertRiskStart). Consequence voulue :
+// couvrir une tache tres precoce ramene le debut affiche a l'ES de celle-ci, et la
+// DETACHER rend au risque son debut d'origine. Ecraser la propriete aurait detruit
+// l'information a la premiere connexion, sans moyen de revenir en arriere.
+//
+// AUCUN EFFET SUR LE PERT — regle absolue, meme rang que celle de l'avancement :
+// aucune fonction de ce fichier n'appelle pertRecalc, et le moteur ignore le type
+// `pert/risk` (hors PERT_TYPES). La dependance est a sens unique.
+//
+// Contrainte file:// : pur JS charge en <script src>, aucune dependance.
+
+// ─── Lecture du modele ──────────────────────────────────────────────────────────
+
+function pertRiskNodes() {
+  const g = window.pertGraph;
+  if (!g || !g._nodes) return [];
+  return g._nodes.filter(n => n.type === "pert/risk");
+}
+window.pertRiskNodes = pertRiskNodes;
+
+function pertRiskByUid(uid) {
+  if (!uid) return null;
+  return pertRiskNodes().find(n => (n.properties.uid || "") === uid) || null;
+}
+
+// Appelee depuis nodes.js (pertNodeDimmed) : ce risque couvre-t-il cette Activite ?
+// Passer par une fonction plutot que de relire `covers` sur place garde UN seul
+// endroit qui sait comment le rattachement est stocke.
+function pertRiskCovers(riskUid, actUid) {
+  const r = pertRiskByUid(riskUid);
+  if (!r || !actUid) return false;
+  return (r.properties.covers || []).indexOf(actUid) !== -1;
+}
+window.pertRiskCovers = pertRiskCovers;
+
+// Activites effectivement presentes dans le graphe pour les uid couverts. Un uid
+// orphelin (tache supprimee depuis) est simplement ignore : on ne « nettoie » pas
+// `covers` en douce, car un undo peut ramener la tache — et un rattachement efface
+// sans que l'utilisateur l'ait demande serait invisible.
+function pertRiskCoveredNodes(risk) {
+  const g = window.pertGraph;
+  if (!risk || !g || !g._nodes) return [];
+  const uids = risk.properties.covers || [];
+  if (!uids.length) return [];
+  const wanted = new Set(uids);
+  const out = g._nodes.filter(n => n.type === "pert/activity"
+    && n.properties && wanted.has(n.properties.uid));
+  // Ordre chronologique : un risque se lit dans le sens du temps, comme les listes
+  // de jalons de la synthese.
+  out.sort((a, b) => {
+    const da = a.es == null ? Infinity : a.es, db = b.es == null ? Infinity : b.es;
+    if (da !== db) return da - db;
+    return String(a.properties.label || "").localeCompare(String(b.properties.label || ""), "fr");
+  });
+  return out;
+}
+window.pertRiskCoveredNodes = pertRiskCoveredNodes;
+
+// Fin de projet en offset : le LF le plus tardif du planning (a defaut son EF, pour
+// un nœud qu'un cycle a laisse sans backward pass). 0 — c'est-a-dire T0 — quand le
+// projet est vide : c'est la valeur d'initialisation demandee pour un risque cree
+// sur un planning encore blanc.
+function pertProjectEndOffset() {
+  const g = window.pertGraph;
+  if (!g || !g._nodes) return 0;
+  let end = null;
+  g._nodes.forEach(n => {
+    if (!pertIsComputed(n)) return;
+    const v = (n.lf != null) ? n.lf : n.ef;
+    if (v == null) return;
+    if (end === null || v > end) end = v;
+  });
+  return end === null ? 0 : end;
+}
+window.pertProjectEndOffset = pertProjectEndOffset;
+
+// Fin du risque (offset). DEDUITE, jamais stockee — c'est ce qui la rend
+// automatiquement juste apres toute connexion, deconnexion ou replanification, sans
+// le moindre code de synchronisation.
+function pertRiskEnd(risk) {
+  const covered = pertRiskCoveredNodes(risk);
+  let end = null;
+  covered.forEach(n => {
+    const v = (n.lf != null) ? n.lf : n.ef;
+    if (v == null) return;
+    if (end === null || v > end) end = v;
+  });
+  // Aucune tache couverte (ou aucune calculable, cas d'un cycle) : le risque pese sur
+  // tout le projet — c'est l'hypothese la moins fausse tant qu'on n'a rien precise.
+  return end === null ? pertProjectEndOffset() : end;
+}
+window.pertRiskEnd = pertRiskEnd;
+
+// Bornes admissibles de la date de DEBUT, en offsets : { lo, hi }.
+function pertRiskBounds(risk) {
+  const covered = pertRiskCoveredNodes(risk);
+  let minEs = null;
+  covered.forEach(n => {
+    if (n.es == null) return;
+    if (minEs === null || n.es < minEs) minEs = n.es;
+  });
+  // Sans tache couverte, il n'y a pas d'ES a respecter : la seule borne est la fin du
+  // risque lui-meme (un debut posterieur a la fin n'aurait aucun sens).
+  const hi = (minEs === null) ? pertRiskEnd(risk) : minEs;
+  // T0 (offset 0) est la borne basse, sauf si une tache couverte est ANTICIPEE : son
+  // ES est alors negatif et le risque doit pouvoir descendre avec elle, sinon il ne
+  // couvrirait pas la tache qu'on vient de lui rattacher.
+  return { lo: Math.min(0, hi), hi: hi };
+}
+window.pertRiskBounds = pertRiskBounds;
+
+// Debut effectif (offset) : la saisie, RAMENEE dans ses bornes. La propriete n'est
+// pas modifiee — cf. l'en-tete du fichier.
+function pertRiskStart(risk) {
+  if (!risk || !risk.properties) return 0;
+  const b = pertRiskBounds(risk);
+  const v = parseFloat(risk.properties.start_offset);
+  const start = isNaN(v) ? 0 : v;
+  return Math.max(b.lo, Math.min(b.hi, start));
+}
+window.pertRiskStart = pertRiskStart;
+
+// Duree exposee, dans l'unite du projet.
+function pertRiskDuration(risk) {
+  return pertRiskEnd(risk) - pertRiskStart(risk);
+}
+window.pertRiskDuration = pertRiskDuration;
+
+// « 01/03/26 → 14/09/26 » (ou « +0 j → +12 j » sans T0). Utilise par le bandeau et
+// par les rapports : la meme periode ne doit pas s'ecrire de deux facons.
+function pertRiskPeriodLabel(risk) {
+  const s = pertRiskStart(risk), e = pertRiskEnd(risk);
+  const fmt = (typeof pertOffsetLabel === "function")
+    ? pertOffsetLabel
+    : (o => String(o));
+  return fmt(s) + " → " + fmt(e);
+}
+window.pertRiskPeriodLabel = pertRiskPeriodLabel;
+
+// Cout cumule des taches couvertes — l'ordre de grandeur de ce que le risque met en
+// jeu. Lu via pertActivityCost, comme partout ailleurs (jamais etp × taux a la main).
+function pertRiskExposure(risk) {
+  let total = 0;
+  pertRiskCoveredNodes(risk).forEach(n => { total += pertActivityCost(n); });
+  return total;
+}
+window.pertRiskExposure = pertRiskExposure;
+
+// ─── Geometrie du bandeau ───────────────────────────────────────────────────────
+//
+// L'abscisse et la largeur SONT la periode (decision 3 de nodes.js) : elles sont
+// posees ici et nulle part ailleurs. L'ordonnee, elle, appartient a l'utilisateur —
+// on n'y touche jamais, c'est ce qui lui permet d'empiler ses risques ou de les
+// ranger sous le bloc de taches qu'ils concernent.
+//
+// L'origine du repere est celle de TOUT le planning : pertT0OriginX, deduite des
+// nœuds calcules. Sur un graphe qui n'en contient aucun, elle vaut null → on retombe
+// sur la marge du layout, la meme que celle ou seront poses les premiers nœuds.
+function pertRiskSyncGeometry(risk) {
+  if (!risk || !risk.properties) return;
+  const g = window.pertGraph;
+  const origin = (typeof pertT0OriginX === "function") ? pertT0OriginX(g) : null;
+  const ox = (origin === null || origin === undefined) ? PERT_LAYOUT_MARGIN_X : origin;
+  const s = pertRiskStart(risk), e = pertRiskEnd(risk);
+  risk.pos[0] = ox + s * PERT_PX_PER_UNIT;
+  risk.size[0] = Math.max(PERT_RISK_MIN_W, (e - s) * PERT_PX_PER_UNIT);
+  risk.size[1] = PERT_RISK_H;
+}
+window.pertRiskSyncGeometry = pertRiskSyncGeometry;
+
+// Recale tous les bandeaux. Appelee en fin de pertRecalc (le seul moment ou les LF
+// bougent) et apres tout rattachement. C'est une COUTURE volontaire dans le moteur :
+// une ligne d'appel garde, plutot que de disperser le recalage dans chaque appelant
+// — et le moteur, lui, ignore toujours tout du contenu des risques.
+function pertSyncRisks() {
+  const risks = pertRiskNodes();
+  if (!risks.length) return;
+  risks.forEach(pertRiskSyncGeometry);
+  const g = window.pertGraph;
+  if (g) g.setDirtyCanvas(true, true);
+}
+window.pertSyncRisks = pertSyncRisks;
+
+// ─── Trait de rattachement (dessine, pas connecte) ──────────────────────────────
+//
+// Le lien risque → tache n'existe pas dans graph.links (cf. decision 2 de nodes.js) :
+// il est trace ici, en POINTILLE, dans le fond du canvas — donc SOUS les nœuds, comme
+// la trame calendaire. Le passer au-dessus barrerait le texte des taches.
+//
+// ⚠ On CHAINE le handler existant, et ce module doit etre installe APRES la grille,
+// le repere T0 et la trame (cf. « Rendu de fond du CANVAS » dans CLAUDE.md) : une
+// affectation ecraserait purement les precedents, sans la moindre erreur.
+function pertInstallRiskTies(canvas) {
+  if (!canvas || canvas._pertRiskTies) return;
+  canvas._pertRiskTies = true;
+  const previous = canvas.onDrawBackground;
+  canvas.onDrawBackground = function(ctx, visibleArea) {
+    if (previous) previous.call(this, ctx, visibleArea);
+    pertDrawRiskTies(ctx);
+  };
+}
+window.pertInstallRiskTies = pertInstallRiskTies;
+
+function pertDrawRiskTies(ctx) {
+  const risks = pertRiskNodes();
+  if (!risks.length) return;
+  ctx.save();
+  ctx.setLineDash([4, 4]);
+  ctx.lineWidth = 1.5;
+  risks.forEach(risk => {
+    // Un risque estompe par le filtre n'affiche pas ses traits : ils ajouteraient du
+    // bruit exactement la ou l'on demande a ne PAS regarder.
+    if (pertNodeDimmed(risk)) return;
+    const col = risk.properties.color || PERT_RISK_DEFAULT_COLOR;
+    ctx.strokeStyle = pertRiskTint(col, 0.55);
+    const rx0 = risk.pos[0], rx1 = risk.pos[0] + risk.size[0];
+    const ryTop = risk.pos[1], ryBot = risk.pos[1] + risk.size[1];
+    pertRiskCoveredNodes(risk).forEach(act => {
+      const acx = act.pos[0] + act.size[0] / 2;
+      const dessous = act.pos[1] > ryBot;
+      // Depart : le point du bandeau le plus proche a l'aplomb de la tache. Un trait
+      // qui partirait toujours du milieu traverserait tout le bandeau des qu'il est
+      // long, et se croiserait avec ses voisins.
+      const sx = Math.max(rx0 + 6, Math.min(rx1 - 6, acx));
+      const sy = dessous ? ryBot : ryTop;
+      const ey = dessous ? act.pos[1] : act.pos[1] + act.size[1];
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(acx, ey);
+      ctx.stroke();
+    });
+  });
+  ctx.restore();
+}
+
+// ─── Rattachement / detachement ─────────────────────────────────────────────────
+//
+// Le geste est un BASCULEMENT : la meme ligne rattache puis detache. « Connexion » et
+// « deconnexion » sont deux faces d'un ajout/retrait dans une liste — les separer en
+// deux commandes aurait oblige a savoir, avant de cliquer, dans quel etat on est.
+//
+// Aucun pertRecalc : les dates du risque sont DEDUITES, il n'y a rien a recalculer
+// dans le PERT (regle absolue). On repositionne les bandeaux et on pose un cran
+// d'undo, puisque le geste modifie le document.
+function pertRiskToggleCover(risk, act) {
+  if (!risk || !act || !act.properties || !act.properties.uid) return false;
+  const uid = act.properties.uid;
+  const covers = risk.properties.covers || (risk.properties.covers = []);
+  const i = covers.indexOf(uid);
+  const nom = act.properties.label || "(sans nom)";
+  if (i === -1) covers.push(uid); else covers.splice(i, 1);
+  pertRiskSyncGeometry(risk);
+  if (window.pertGraph) window.pertGraph.setDirtyCanvas(true, true);
+  if (typeof pertHistoryMark === "function") pertHistoryMark();
+  if (window.showToast) {
+    showToast(i === -1
+      ? "« " + nom + " » est désormais couverte par ce risque"
+      : "« " + nom + " » n'est plus couverte par ce risque");
+  }
+  return i === -1;
+}
+window.pertRiskToggleCover = pertRiskToggleCover;
+
+// ─── Fenetre « Couvrir des taches… » ────────────────────────────────────────────
+//
+// Meme parti pris que « Relier a… » (v0.25), et pour la meme raison : sur un grand
+// planning, designer une tache par une RECHERCHE coute infiniment moins cher que
+// d'aller la chercher a l'ecran. La vue ne bouge pas, aucun nœud n'est deplace.
+//
+// Deux differences assumees avec « Relier a… » :
+//   - la liste ne contient QUE des Activites (un risque ne couvre pas un jalon : un
+//     jalon n'a pas de duree, donc pas d'exposition) ;
+//   - rien n'est jamais impossible ni desactive — d'ou le basculement plutot que des
+//     lignes grisees. Ici l'etat « deja couvert » n'est pas un obstacle, c'est une
+//     information sur laquelle on peut agir.
+const PERT_RL_MAX_ROWS = 200;
+
+const pertRiskLink = {
+  riskId: null,
+  text: "",
+  group: "",
+  resp: "",
+  // « Ne montrer que les taches deja couvertes » : sur un planning fourni, c'est la
+  // seule facon de relire d'un coup ce qu'on vient de rattacher sans le chercher
+  // parmi trois cents lignes. Non memorise entre deux ouvertures — c'est un geste de
+  // verification, pas une preference.
+  couvertesSeules: false
+};
+
+function pertRlRisk() {
+  const g = window.pertGraph;
+  if (!g || !g._nodes || pertRiskLink.riskId === null) return null;
+  return g._nodes.find(n => n.id === pertRiskLink.riskId) || null;
+}
+
+function pertRlCandidates() {
+  const risk = pertRlRisk();
+  const g = window.pertGraph;
+  if (!risk || !g) return { rows: [], total: 0, couvertes: 0 };
+  const covers = new Set(risk.properties.covers || []);
+  const needle = pertNormalizeSearch(pertRiskLink.text);
+  const rows = [];
+  let couvertes = 0;
+  g._nodes.forEach(n => {
+    if (n.type !== "pert/activity" || !n.properties) return;
+    const couverte = covers.has(n.properties.uid);
+    if (couverte) couvertes++;
+    if (pertRiskLink.couvertesSeules && !couverte) return;
+    const p = n.properties;
+    if (needle && pertNormalizeSearch(pertNodeSearchText(n)).indexOf(needle) === -1) return;
+    if (pertRiskLink.group && (p.group || "").trim() !== pertRiskLink.group) return;
+    if (pertRiskLink.resp && (p.responsible || "").trim() !== pertRiskLink.resp) return;
+    rows.push({ node: n, couverte: couverte });
+  });
+  rows.sort((a, b) => {
+    const da = a.node.es == null ? Infinity : a.node.es;
+    const db = b.node.es == null ? Infinity : b.node.es;
+    if (da !== db) return da - db;
+    return String(a.node.properties.label || "")
+      .localeCompare(String(b.node.properties.label || ""), "fr");
+  });
+  return { rows: rows.slice(0, PERT_RL_MAX_ROWS), total: rows.length, couvertes: couvertes };
+}
+
+function pertRlBuildRow(row) {
+  const n = row.node;
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "ls-row rl-row" + (row.couverte ? " rl-couverte" : "")
+    + (n.is_critical ? " lk-critical" : "");
+
+  // Marque d'etat tracee en CSS (carre coche), pas un glyphe « ☑ » : meme raison que
+  // les marqueurs des nœuds, on ne maitrise pas les polices du poste.
+  const box = document.createElement("span");
+  box.className = "rl-box" + (row.couverte ? " on" : "");
+
+  const name = document.createElement("span");
+  name.className = "lk-name";
+  name.textContent = n.properties.label || "(sans nom)";
+
+  const p = n.properties;
+  const meta = [p.group, p.responsible].map(v => (v || "").trim()).filter(Boolean).join(" · ");
+  const sub = document.createElement("span");
+  sub.className = "ls-meta";
+  sub.textContent = meta;
+
+  const tail = document.createElement("span");
+  tail.className = "ls-tail";
+  tail.textContent = pertOffsetLabel(n.es) + " → " + pertOffsetLabel(n.lf);
+
+  el.appendChild(box);
+  el.appendChild(name);
+  if (meta) el.appendChild(sub);
+  el.appendChild(tail);
+  el.title = row.couverte ? "Retirer cette tâche du risque" : "Couvrir cette tâche";
+  el.addEventListener("click", () => {
+    const risk = pertRlRisk();
+    if (!risk) return;
+    pertRiskToggleCover(risk, n);
+    pertRlRender();
+    // Le panneau lateral affiche peut-etre la synthese de ce risque : ses dates
+    // viennent de changer.
+    if (typeof showProperties === "function" && window.pertCanvas) {
+      const sel = Object.values(window.pertCanvas.selected_nodes || {});
+      if (sel.length === 1 && sel[0] === risk) showProperties(risk);
+    }
+  });
+  return el;
+}
+
+function pertRlRender() {
+  const risk = pertRlRisk();
+  const list = document.getElementById("risklink-list");
+  const count = document.getElementById("risklink-count");
+  const title = document.getElementById("risklink-title");
+  const periode = document.getElementById("risklink-periode");
+  if (!list || !count) return;
+  if (!risk) { pertCloseRiskLink(); return; }
+
+  if (title) title.textContent = "Risque « " + (risk.properties.label || "(sans nom)") + " »";
+  // La periode est rappelee EN PERMANENCE et se met a jour a chaque basculement :
+  // c'est l'accuse de reception du geste — on voit la fin du risque bouger quand on
+  // couvre une tache plus tardive, ce qui est tout l'interet du dispositif.
+  if (periode) periode.textContent = "Période exposée : " + pertRiskPeriodLabel(risk);
+
+  pertRiskLink.group = pertLsFillFacet("risklink-group", collectGroupNames(),
+    pertRiskLink.group, "Tous les groupes");
+  pertRiskLink.resp = pertLsFillFacet("risklink-resp", collectResponsibles(),
+    pertRiskLink.resp, "Tous les responsables");
+  const only = document.getElementById("risklink-only");
+  if (only) only.checked = pertRiskLink.couvertesSeules;
+
+  const { rows, total, couvertes } = pertRlCandidates();
+  count.textContent = total === 0
+    ? (pertRiskLink.couvertesSeules ? "Aucune tâche couverte" : "Aucune tâche ne correspond")
+    : (couvertes + " tâche(s) couverte(s) — " + total + " affichable(s)"
+       + (total > rows.length ? ", " + rows.length + " premières affichées, affinez la recherche" : ""));
+  count.className = "ls-count" + (total === 0 ? " empty" : "");
+
+  list.innerHTML = "";
+  rows.forEach(r => list.appendChild(pertRlBuildRow(r)));
+}
+
+function pertOpenRiskLink(risk) {
+  if (!risk || risk.type !== "pert/risk") return;
+  pertRiskLink.riskId = risk.id;
+  pertRiskLink.text = "";
+  pertRiskLink.couvertesSeules = false;
+  const input = document.getElementById("risklink-text");
+  if (input) input.value = "";
+  pertRlRender();
+  const dlg = document.getElementById("risklink-dialog");
+  if (dlg) dlg.style.display = "flex";
+  if (input) input.focus();
+}
+window.pertOpenRiskLink = pertOpenRiskLink;
+
+function pertCloseRiskLink() {
+  const dlg = document.getElementById("risklink-dialog");
+  if (dlg) dlg.style.display = "none";
+  pertRiskLink.riskId = null;
+}
+window.pertCloseRiskLink = pertCloseRiskLink;
+
+function pertInstallRiskLink() {
+  const input = document.getElementById("risklink-text");
+  if (input) input.addEventListener("input", e => {
+    pertRiskLink.text = e.target.value; pertRlRender();
+  });
+  const g = document.getElementById("risklink-group");
+  if (g) g.addEventListener("change", e => { pertRiskLink.group = e.target.value; pertRlRender(); });
+  const r = document.getElementById("risklink-resp");
+  if (r) r.addEventListener("change", e => { pertRiskLink.resp = e.target.value; pertRlRender(); });
+  const only = document.getElementById("risklink-only");
+  if (only) only.addEventListener("change", e => {
+    pertRiskLink.couvertesSeules = e.target.checked; pertRlRender();
+  });
+  const close = document.getElementById("risklink-close");
+  if (close) close.addEventListener("click", pertCloseRiskLink);
+  const dlg = document.getElementById("risklink-dialog");
+  if (dlg) dlg.addEventListener("keydown", e => { if (e.key === "Escape") pertCloseRiskLink(); });
+}
+window.pertInstallRiskLink = pertInstallRiskLink;
+
+// ─── Synthese des taches couvertes (panneau lateral) ────────────────────────────
+//
+// Repond a « ce risque, il pese sur quoi ? » — la question qu'on se pose le nœud
+// selectionne sous les yeux. Les helpers de rendu sont ceux de synthesis.js : un
+// tableau de taches doit avoir la meme graphie partout, c'est la raison d'etre de
+// leur mutualisation.
+function pertRiskFillSynthesis(parent, risk) {
+  const u = (window.pertMeta && window.pertMeta.unit) || "j";
+  const covered = pertRiskCoveredNodes(risk);
+  const b = pertRiskBounds(risk);
+
+  const ov = synthEl("div", "synth-overview");
+  synthKV(ov, "Début (exposition)", pertOffsetLabel(pertRiskStart(risk)));
+  synthKV(ov, "Fin (déduite)", pertOffsetLabel(pertRiskEnd(risk)));
+  synthKV(ov, "Durée exposée", pertFormatSlack(pertRiskDuration(risk)).replace("+", "") + " " + u);
+  synthKV(ov, "Tâches couvertes", String(covered.length));
+  if (covered.length) synthKV(ov, "Coût des tâches couvertes", pertFormatCost(pertRiskExposure(risk)));
+  // La borne haute EXPLIQUE pourquoi le champ de saisie refuse d'aller plus loin.
+  // Sans elle, l'utilisateur constate un plafond sans en comprendre l'origine.
+  synthKV(ov, "Début réglable jusqu'à", pertOffsetLabel(b.hi));
+  synthSection(parent, "Période", ov);
+
+  if (!covered.length) {
+    synthSection(parent, "Tâches couvertes", null,
+      "Ce risque ne couvre aucune tâche : sa fin est calée sur la fin du projet. "
+      + "Utilisez « Couvrir des tâches… » pour dire sur quoi il pèse.");
+    return;
+  }
+
+  const rows = covered.map(n => ({
+    cells: [
+      { text: n.properties.label || "(sans nom)", nodeId: n.id },
+      { text: (n.properties.group || "").trim() || "—" },
+      { text: pertOffsetLabel(n.es) },
+      { text: pertOffsetLabel(n.lf) },
+      synthMarginCell(n.slack, u),
+      { text: pertProgressDef(n.properties.progress).label }
+    ]
+  }));
+  synthSection(parent, "Tâches couvertes", synthTable([
+    { text: "Tâche" }, { text: "Groupe" }, { text: "Début t.tôt" },
+    { text: "Fin t.tard" }, { text: "Marge", cls: "num" }, { text: "Avancement" }
+  ], rows));
+}
+window.pertRiskFillSynthesis = pertRiskFillSynthesis;
+
+// ─── Fenetre « Risques » (3e volet du bouton Synthese) ──────────────────────────
+//
+// Deux onglets = deux chapitres a l'impression, comme la synthese et le suivi :
+//   « Par risque »  — ce que chaque risque met en jeu ;
+//   « Par tâche »   — l'inverse : quelles taches sont exposees, et a combien de
+//                     risques. C'est cette lecture-la qui fait ressortir la tache
+//                     qui concentre trois risques a elle seule, invisible autrement.
+// Une section vide reste AFFICHEE avec son message (regle de la fenetre de suivi) :
+// « aucune tache exposee » est une reponse qu'un pilote vient chercher.
+const PERT_RISKS_TABS = [
+  { id: "risques", label: "Par risque", chapter: "Risques du planning" },
+  { id: "taches",  label: "Par tâche",  chapter: "Tâches exposées" },
+];
+
+let pertRisksTab = "risques";
+
+function pertSelectRisksTab(name) {
+  const tabs = document.querySelectorAll("#risks-tabs .synth-tab");
+  const panels = document.querySelectorAll("#risks-content .synth-panel");
+  if (!tabs.length) return;
+  let known = false;
+  tabs.forEach(t => { if (t.dataset.tab === name) known = true; });
+  if (!known) name = tabs[0].dataset.tab;
+  pertRisksTab = name;
+  tabs.forEach(t => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  panels.forEach(p => p.classList.toggle("active", p.dataset.panel === name));
+  const c = document.getElementById("risks-content");
+  if (c) c.scrollTop = 0;
+}
+window.pertSelectRisksTab = pertSelectRisksTab;
+
+function pertBuildRisksTabs(nbRisques) {
+  const bar = document.getElementById("risks-tabs");
+  const c = document.getElementById("risks-content");
+  const panels = {};
+  if (!bar || !c) return panels;
+  bar.innerHTML = "";
+  c.innerHTML = "";
+  PERT_RISKS_TABS.forEach(t => {
+    const b = synthEl("button", "synth-tab", t.label);
+    b.type = "button";
+    b.dataset.tab = t.id;
+    b.setAttribute("role", "tab");
+    if (t.id === "risques" && nbRisques) {
+      b.appendChild(synthEl("span", "synth-tab-badge", String(nbRisques)));
+    }
+    b.addEventListener("click", () => pertSelectRisksTab(t.id));
+    bar.appendChild(b);
+    const p = synthEl("div", "synth-panel");
+    p.dataset.panel = t.id;
+    p.appendChild(synthEl("h3", "synth-chapter", t.chapter));
+    c.appendChild(p);
+    panels[t.id] = p;
+  });
+  return panels;
+}
+
+function pertRenderRisks() {
+  const c = document.getElementById("risks-content");
+  if (!c) return;
+  const u = (window.pertMeta && window.pertMeta.unit) || "j";
+  const risks = pertRiskNodes().slice().sort((a, b) => {
+    const da = pertRiskStart(a), db = pertRiskStart(b);
+    if (da !== db) return da - db;
+    return String(a.properties.label || "").localeCompare(String(b.properties.label || ""), "fr");
+  });
+  const panels = pertBuildRisksTabs(risks.length);
+  const pRisques = panels.risques || c;
+  const pTaches = panels.taches || c;
+
+  if (!risks.length) {
+    synthSection(pRisques, "Aucun risque", null,
+      "Ce planning ne porte encore aucun risque. « ➕ Insérer ▾ → ⚠ Risque » en crée un ; "
+      + "il couvre ensuite les tâches sur lesquelles il pèse.");
+    synthSection(pTaches, "Aucune tâche exposée", null, "Aucun risque n'est défini.");
+    pertSelectRisksTab(pertRisksTab);
+    return;
+  }
+
+  // ── Onglet « Par risque » ─────────────────────────────────────────────────────
+  const exposees = new Set();
+  risks.forEach(r => pertRiskCoveredNodes(r).forEach(n => exposees.add(n.properties.uid)));
+  const nbAct = (window.pertGraph && window.pertGraph._nodes || [])
+    .filter(n => n.type === "pert/activity").length;
+
+  const ov = synthEl("div", "synth-overview");
+  synthKV(ov, "Risques", String(risks.length));
+  synthKV(ov, "Tâches exposées", exposees.size + " sur " + nbAct);
+  synthSection(pRisques, "Vue d'ensemble", ov);
+
+  risks.forEach(r => {
+    const covered = pertRiskCoveredNodes(r);
+    const entete = synthEl("div", "synth-overview");
+    synthKV(entete, "Période", pertRiskPeriodLabel(r));
+    synthKV(entete, "Durée exposée",
+      pertFormatSlack(pertRiskDuration(r)).replace("+", "") + " " + u);
+    synthKV(entete, "Tâches couvertes", String(covered.length));
+    if (covered.length) synthKV(entete, "Coût couvert", pertFormatCost(pertRiskExposure(r)));
+    const bloc = synthEl("div");
+    bloc.appendChild(entete);
+    if (covered.length) {
+      bloc.appendChild(synthTable([
+        { text: "Tâche" }, { text: "Groupe" }, { text: "Début t.tôt" },
+        { text: "Fin t.tard" }, { text: "Marge", cls: "num" }, { text: "Avancement" }
+      ], covered.map(n => ({ cells: [
+        { text: n.properties.label || "(sans nom)", nodeId: n.id },
+        { text: (n.properties.group || "").trim() || "—" },
+        { text: pertOffsetLabel(n.es) },
+        { text: pertOffsetLabel(n.lf) },
+        synthMarginCell(n.slack, u),
+        { text: pertProgressDef(n.properties.progress).label }
+      ] }))));
+    } else {
+      bloc.appendChild(synthEl("div", "synth-empty",
+        "Aucune tâche couverte : la fin est calée sur celle du projet."));
+    }
+    synthSection(pRisques, (r.properties.label || "(sans nom)"), bloc);
+  });
+
+  // ── Onglet « Par tâche » ──────────────────────────────────────────────────────
+  const parTache = [];
+  (window.pertGraph && window.pertGraph._nodes || []).forEach(n => {
+    if (n.type !== "pert/activity" || !n.properties) return;
+    const porteurs = risks.filter(r => (r.properties.covers || []).indexOf(n.properties.uid) !== -1);
+    if (porteurs.length) parTache.push({ node: n, risques: porteurs });
+  });
+  // Le plus expose d'abord : c'est le classement qu'on vient chercher.
+  parTache.sort((a, b) => {
+    if (b.risques.length !== a.risques.length) return b.risques.length - a.risques.length;
+    const da = a.node.es == null ? Infinity : a.node.es;
+    const db = b.node.es == null ? Infinity : b.node.es;
+    return da - db;
+  });
+
+  if (!parTache.length) {
+    synthSection(pTaches, "Aucune tâche exposée", null,
+      "Aucun risque ne couvre encore de tâche : leurs fins sont toutes calées sur la "
+      + "fin du projet. Rattachez les tâches concernées pour resserrer les périodes.");
+    pertSelectRisksTab(pertRisksTab);
+    return;
+  }
+  synthSection(pTaches, "Tâches sous risque", synthTable([
+    { text: "Tâche" }, { text: "Groupe" }, { text: "Risques", cls: "num" },
+    { text: "Lesquels" }, { text: "Marge", cls: "num" }
+  ], parTache.map(e => ({ cells: [
+    { text: e.node.properties.label || "(sans nom)", nodeId: e.node.id },
+    { text: (e.node.properties.group || "").trim() || "—" },
+    { text: String(e.risques.length), cls: "num" },
+    { text: e.risques.map(r => r.properties.label || "(sans nom)").join(", ") },
+    synthMarginCell(e.node.slack, u)
+  ] }))));
+
+  pertSelectRisksTab(pertRisksTab);
+}
+window.pertRenderRisks = pertRenderRisks;
+
+function pertOpenRisksDialog() {
+  pertRenderRisks();
+  const d = document.getElementById("risks-dialog");
+  if (d) d.style.display = "flex";
+}
+window.pertOpenRisksDialog = pertOpenRisksDialog;
+
+function pertCloseRisksDialog() {
+  const d = document.getElementById("risks-dialog");
+  if (d) d.style.display = "none";
+}
+window.pertCloseRisksDialog = pertCloseRisksDialog;
+
+function pertPrintRisks() { pertPrintDialog("risks-dialog"); }
+window.pertPrintRisks = pertPrintRisks;
+
+</script>
+  <script>
 /* src/ui.js */
 // ─── État global ──────────────────────────────────────────────────────────────
 
@@ -25530,6 +26612,10 @@ document.addEventListener("DOMContentLoaded", () => {
     graph.add(n);
     return n;
   }
+  // addNodeAt vit dans la portee de l'initialisation (elle capture `graph`). Le menu
+  // « Insérer ▾ » etant construit hors de cette portee, on l'expose ici — un seul
+  // chemin de creation, donc un seul endroit ou vivent les defauts et le centrage.
+  window.pertAddNodeAt = addNodeAt;
 
   // Menu du fond de canvas : uniquement des actions PERT, en français
   // (remplace intégralement le menu natif anglais « Add Node / Add Group… »).
@@ -25539,6 +26625,10 @@ document.addEventListener("DOMContentLoaded", () => {
       { content: "▭ Ajouter une Activité", callback: () => addNodeAt("pert/activity", pos) },
       { content: "◈ Ajouter un Jalon",     callback: () => addNodeAt("pert/milestone", pos) },
       { content: "❏ Ajouter un Label",     callback: () => addNodeAt("pert/label", pos) },
+      // Le Risque n'est PAS propose ici : sa position sous le curseur serait aussitot
+      // reprise, son abscisse etant sa date de debut (cf. src/risks.js). Une entree
+      // qui ne tient pas sa promesse (« poser ici ») vaut moins que pas d'entree —
+      // le bouton « Insérer ▾ » de la toolbar, lui, ne promet rien sur l'abscisse.
       null,
       { content: "⤓ Réorganiser", has_submenu: true,
         submenu: { options: pertReorgMenuOptions() } },
@@ -25566,6 +26656,17 @@ document.addEventListener("DOMContentLoaded", () => {
     // ne rien proposer.
     if (node.type === "pert/activity" || node.type === "pert/milestone") {
       opts.push({ content: "🔗 Relier à…", callback: () => pertOpenLinkSearch(node) });
+    }
+    // Risques : deux entrees symetriques, chacune ancree sur le nœud qu'on a sous le
+    // curseur — depuis le bandeau on designe les taches, depuis une tache on coche les
+    // risques qui pesent sur elle. Sans cette seconde entree, il aurait fallu ouvrir
+    // chaque risque a tour de role pour repondre a « celle-ci, elle est couverte ? ».
+    if (node.type === "pert/risk") {
+      opts.push({ content: "⚠ Couvrir des tâches…", callback: () => pertOpenRiskLink(node) });
+    }
+    if (node.type === "pert/activity" && window.pertRiskNodes && pertRiskNodes().length) {
+      opts.push({ content: "⚠ Risques couvrant cette tâche", has_submenu: true,
+        submenu: { options: pertRiskCoverMenuOptions(node) } });
     }
     // Boite a outils d'alignement : proposee des qu'au moins 2 nœuds sont
     // selectionnes (sous-menu ▸). Geometrie pure, pas de recalc PERT.
@@ -25645,6 +26746,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // de l'ordre = module précédent purement écrasé, sans la moindre erreur.
   if (window.pertInstallTimeGrid) pertInstallTimeGrid(lgCanvas);
 
+  // Traits de rattachement risque → tache (cf. src/risks.js). ⚠️ Même chaînage, et
+  // installé APRÈS la trame : l'ordre en vigueur est grille (affecte) → repère T0 →
+  // trame → traits de risque, chacun chaînant le précédent.
+  if (window.pertInstallRiskTies) pertInstallRiskTies(lgCanvas);
+
   // Resize dynamique
   function resizeCanvas() {
     const container = document.getElementById("canvas-container");
@@ -25722,6 +26828,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (node && typeof pertSnapLabelToNeighbors === "function") {
       if (pertSnapLabelToNeighbors(node)) lgCanvas.setDirty(true, true);
     }
+    // Un bandeau de risque ne se deplace QUE verticalement : son abscisse est sa date
+    // de debut (cf. src/risks.js). On le remet a l'aplomb de sa periode au lacher
+    // plutot que d'empecher le glisser — l'utilisateur voit alors que l'axe horizontal
+    // ne lui appartient pas, au lieu de se demander pourquoi le nœud ne suit pas.
+    if (node && node.type === "pert/risk" && window.pertRiskSyncGeometry) {
+      pertRiskSyncGeometry(node);
+      lgCanvas.setDirty(true, true);
+    }
     pertHistoryMark();
   };
 
@@ -25733,18 +26847,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Toolbar ─────────────────────────────────────────────────────────────────
 
-  // Les 3 boutons d'ajout passent par addNodeAt (sans position) → nœud centré
-  // sur le milieu de l'espace de travail visible, taille calculee au prealable.
-  document.getElementById("btn-add-activity").addEventListener("click", () => {
-    addNodeAt("pert/activity");
-  });
-
-  document.getElementById("btn-add-milestone").addEventListener("click", () => {
-    addNodeAt("pert/milestone");
-  });
-
-  document.getElementById("btn-add-label").addEventListener("click", () => {
-    addNodeAt("pert/label");
+  // ── « Insérer ▾ » : les quatre créations derriere un seul bouton ─────────────
+  //
+  // Quatre boutons cote a cote, c'est un quart de la toolbar consomme par une famille
+  // d'actions qu'on ne declenche qu'en construisant le planning ; le reste (zoom,
+  // filtre, exports, synthese) sert en permanence et se faisait rogner — la toolbar
+  // passe deja a la ligne (flex-wrap). Un sous-menu rend la place au travail courant
+  // sans rien retirer : meme mecanique que « Réorganiser ▾ » et « Synthèse ▾ »
+  // (LiteGraph.ContextMenu).
+  //
+  // Le menu contextuel du FOND de canvas garde ses entrees d'ajout, inchangees : il
+  // reste le chemin le plus direct quand on sait deja OU poser le nœud (il le pose
+  // sous le curseur), la ou le bouton le centre dans la vue.
+  document.getElementById("btn-insert").addEventListener("click", (e) => {
+    new LiteGraph.ContextMenu(pertInsertMenuOptions(), { event: e });
   });
 
   // Deux modes de reorganisation (demande utilisateur) : le bouton ouvre un petit
@@ -25896,6 +27012,11 @@ document.addEventListener("DOMContentLoaded", () => {
           guardUI("Ouverture de la synthèse impossible", () => pertOpenSynthesisDialog()) },
       { content: "📈 Avancement", callback: () =>
           guardUI("Ouverture du suivi impossible", () => pertOpenSuiviDialog()) },
+      // « Risques » = la troisieme lecture du meme planning : ce qui est prevu, ou on
+      // en est, et ce qui peut le faire derailler. Meme intention (« fais-moi le
+      // point »), donc meme bouton.
+      { content: "⚠ Risques", callback: () =>
+          guardUI("Ouverture des risques impossible", () => pertOpenRisksDialog()) },
     ], { event: e });
   });
   document.getElementById("synthesis-close").addEventListener("click", pertCloseSynthesisDialog);
@@ -25907,6 +27028,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // s'ouvre depuis le menu contextuel d'un nœud et depuis le panneau, pas d'un bouton
   // de toolbar — relier part TOUJOURS d'un nœud designe.
   if (window.pertInstallLinkSearch) pertInstallLinkSearch();
+  // Fenetre « Couvrir des taches… » : memes ecouteurs fixes, meme parti pris — elle
+  // s'ouvre depuis un bandeau de risque, pas d'un bouton de toolbar.
+  if (window.pertInstallRiskLink) pertInstallRiskLink();
+  const risksClose = document.getElementById("risks-close");
+  if (risksClose) risksClose.addEventListener("click", pertCloseRisksDialog);
+  const risksPrint = document.getElementById("risks-print");
+  if (risksPrint) risksPrint.addEventListener("click", () => {
+    guardUI("Impression impossible", () => pertPrintRisks());
+  });
   document.getElementById("suivi-close").addEventListener("click", pertCloseSuiviDialog);
   document.getElementById("suivi-print").addEventListener("click", () => {
     guardUI("Impression impossible", () => pertPrintSuivi());
@@ -26207,6 +27337,9 @@ function showProperties(node) {
     buildTextarea(content, "Notes (hypothèses, contexte)", node.properties.notes, v => {
       node.properties.notes = v;
     });
+
+  } else if (node.type === "pert/risk") {
+    buildRiskFields(content, node);
 
   } else if (node.type === "pert/label") {
     buildTextarea(content, "Texte", node.properties.text, v => {
@@ -26559,6 +27692,11 @@ function pertRecolorGroup(groupName, color) {
 //   { type:"progress", value:"EN_COURS" } → seules les Activites dans cet etat d'avancement
 //                                        restent vives (29/07/2026). Le filtre est l'outil
 //                                        naturel du suivi : « montre-moi ce qui est en cours ».
+//   { type:"risk", value:"r-..." }     → le bandeau de ce Risque et les Activites qu'il
+//                                        COUVRE restent vifs (03/09/2026). Seul filtre dont
+//                                        la valeur designe un NŒUD et non une propriete : un
+//                                        risque n'est pas une categorie de taches, c'est un
+//                                        objet qui en cite nommement quelques-unes.
 //   { type:"text", value:"..." }       → seuls les nœuds dont le NOM ou les NOTES contiennent
 //                                        la chaine restent vifs (recherche, v0.20). Seul filtre
 //                                        a concerner les trois types de nœuds : on cherche « ou
@@ -26580,6 +27718,27 @@ function collectActivityColors() {
     }
   });
   return colors;
+}
+
+// Risques du planning, dans l'ordre chronologique d'exposition — c'est ainsi qu'on
+// les parcourt en revue. Rendu { uid, label, color } : le menu de filtre n'a pas
+// besoin des nœuds, et travailler sur une copie evite qu'il retienne des references
+// vers des nœuds supprimes entre deux ouvertures.
+function collectRisks() {
+  if (!window.pertRiskNodes) return [];
+  return pertRiskNodes()
+    .slice()
+    .sort((a, b) => {
+      const da = pertRiskStart(a), db = pertRiskStart(b);
+      if (da !== db) return da - db;
+      return String(a.properties.label || "").localeCompare(String(b.properties.label || ""), "fr");
+    })
+    .map(n => ({
+      uid: n.properties.uid || "",
+      label: n.properties.label || "(sans nom)",
+      color: n.properties.color || null
+    }))
+    .filter(r => r.uid);
 }
 
 // Libelle parlant d'une couleur dans le filtre : le(s) groupe(s) du registre qui
@@ -26621,8 +27780,21 @@ function pertFilterStillValid() {
   // voir son filtre sauter tout seul en cochant la derniere tache serait deroutant.
   // Meme raisonnement que la recherche ci-dessus.
   if (f.type === "progress") return pertProgressFilterKnown(f.value);
+  // Risque : contrairement a l'avancement, la valeur designe un OBJET du planning.
+  // Supprimer le risque (ou l'annuler par un undo) doit donc lever le filtre, sinon
+  // tout resterait estompe au profit d'un bandeau qui n'existe plus — meme regle que
+  // pour un groupe disparu.
+  if (f.type === "risk") return !!(window.pertRiskByUidExiste && pertRiskByUidExiste(f.value));
   return false;
 }
+
+// Un risque de cet uid existe-t-il encore ? (isole ici pour que pertFilterStillValid
+// reste lisible, et pour ne pas dependre de l'ordre de chargement des scripts.)
+function pertRiskByUidExiste(uid) {
+  if (!window.pertRiskNodes) return false;
+  return pertRiskNodes().some(n => (n.properties.uid || "") === uid);
+}
+window.pertRiskByUidExiste = pertRiskByUidExiste;
 
 // ── Menu déroulant custom (pastilles de couleur, compatible Firefox) ────────────
 
@@ -26788,6 +27960,18 @@ function refreshFilterOptions() {
     menu.appendChild(buildProgressFilterSelect());
   }
 
+  // Risques (03/09/2026) : places juste apres l'avancement, pour la meme raison —
+  // c'est une section COURTE (un planning porte une poignee de risques, pas cent
+  // groupes), donc celle qui coute le moins cher a laisser au-dessus de la ligne de
+  // flottaison du menu, qui defile. Filtrer sur un risque repond a « qu'est-ce qui
+  // est exposé ? », question de revue au moins aussi frequente que « quel lot ? ».
+  const risques = collectRisks();
+  if (risques.length) {
+    menu.appendChild(buildFilterHeader("Risques"));
+    risques.forEach(r => menu.appendChild(
+      buildFilterRow({ type: "risk", value: r.uid }, r.label, r.color)));
+  }
+
   const reg = pertGroups();
   const groups = collectGroupNames();
   if (groups.length) {
@@ -26874,6 +28058,12 @@ function updateFilterTrigger() {
   if (f.type === "group") { color = pertGroups()[f.value] || null; label = f.value; }
   else if (f.type === "responsible") { label = f.value; icon = "👤"; }
   else if (f.type === "text") { label = "« " + f.value + " »"; icon = "🔎"; }
+  else if (f.type === "risk") {
+    const rn = (window.pertRiskNodes ? pertRiskNodes() : [])
+      .find(n => (n.properties.uid || "") === f.value);
+    label = rn ? (rn.properties.label || "(sans nom)") : "risque supprimé";
+    color = rn ? (rn.properties.color || null) : null;
+  }
   else if (f.type === "progress") {
     label = pertProgressFilterLabel(f.value);
     // Un REGROUPEMENT n'a pas de couleur propre : sa pastille porte les teintes des
@@ -26895,6 +28085,22 @@ function updateFilterTrigger() {
 function applyFilter(filter, silent) {
   window.pertFilter = filter;
   if (window.pertGraph) window.pertGraph.setDirtyCanvas(true, true);
+  // Filtrer sur un risque, c'est demander « sur quoi pese-t-il ? ». La mise en
+  // evidence repond dans le planning, le PANNEAU repond en chiffres : on selectionne
+  // le bandeau et on ouvre son onglet Synthese, ou sont listees les taches couvertes
+  // avec leurs dates, leur marge et leur cout. Le geste et sa reponse arrivent
+  // ensemble, sans avoir a retrouver le bandeau a l'ecran.
+  //   ⚠️ On passe par selectNode + showProperties, JAMAIS par pertFocusNode : celui-ci
+  //   leve deliberement le filtre (cf. son commentaire), ce qui defairait a l'instant
+  //   meme ce qu'on vient de poser.
+  if (filter && filter.type === "risk" && window.pertRiskNodes) {
+    const rn = pertRiskNodes().find(n => (n.properties.uid || "") === filter.value);
+    if (rn && window.pertCanvas) {
+      pertCanvas.selectNode(rn);
+      showProperties(rn);
+      pertSelectPanelTab("synthese");
+    }
+  }
   if (silent) return;
   if (!filter) { showToast("Filtre désactivé"); return; }
   let label;
@@ -26902,6 +28108,11 @@ function applyFilter(filter, silent) {
   else if (filter.type === "responsible") label = "responsable « " + filter.value + " »";
   else if (filter.type === "text") label = "recherche « " + filter.value + " »";
   else if (filter.type === "progress") label = "avancement « " + pertProgressFilterLabel(filter.value) + " »";
+  else if (filter.type === "risk") {
+    const rn = (window.pertRiskNodes ? pertRiskNodes() : [])
+      .find(n => (n.properties.uid || "") === filter.value);
+    label = "risque « " + (rn ? (rn.properties.label || "(sans nom)") : "?") + " » et ses tâches";
+  }
   else label = "couleur de « " + pertColorGroupLabel(filter.value) + " »";
   showToast("Filtre actif : " + label + " mis en évidence");
 }
@@ -26927,6 +28138,39 @@ function buildTextarea(parent, labelText, value, onChange) {
 // rien si l'utilisateur l'a redimensionnee manuellement (manual_size).
 // Options du menu de reorganisation (partagees par le bouton toolbar et le
 // sous-menu du menu contextuel de fond). Deux modes, cf. pertRunReorg.
+// Entrees du menu « Insérer ▾ ». Meme ordre que les types du modele de donnees :
+// Activite, Jalon, Label, Risque.
+function pertInsertMenuOptions() {
+  return [
+    { content: "▭ Activité", callback: () => pertInsertNode("pert/activity") },
+    { content: "◈ Jalon",    callback: () => pertInsertNode("pert/milestone") },
+    { content: "❏ Label",    callback: () => pertInsertNode("pert/label") },
+    { content: "⚠ Risque",   callback: () => pertInsertNode("pert/risk") }
+  ];
+}
+window.pertInsertMenuOptions = pertInsertMenuOptions;
+
+// Insere un nœud au CENTRE de l'espace de travail visible (via addNodeAt, qui porte
+// aussi les defauts de couleur/groupe des nouvelles taches).
+//
+// Un RISQUE nait couvrant TOUT le projet : debut a T0, fin sur le LF le plus tardif du
+// planning (T0 si le planning est vide). C'est l'hypothese la plus large — donc la
+// moins fausse — tant qu'on n'a pas dit sur quelles taches il pese ; les couvrir
+// ensuite ne fait que RESSERRER la periode, jamais l'inverse. On le selectionne dans
+// la foulee : il ne sert a rien tant qu'on ne lui a pas designe ses taches, et c'est
+// le panneau qui porte le bouton permettant de le faire.
+function pertInsertNode(type) {
+  const n = window.pertAddNodeAt ? pertAddNodeAt(type) : null;
+  if (!n) return null;
+  if (type === "pert/risk") {
+    if (window.pertRiskSyncGeometry) pertRiskSyncGeometry(n);
+    if (window.pertCanvas) pertCanvas.selectNode(n);
+    showProperties(n);
+  }
+  return n;
+}
+window.pertInsertNode = pertInsertNode;
+
 function pertReorgMenuOptions() {
   return [
     { content: "⤓ Chronologique (complète)", callback: () => pertRunReorg("full") },
@@ -27337,8 +28581,133 @@ function fillCalcSection(node) {
 // voisin est CLIQUABLE : le clic le selectionne et centre la vue dessus, ce qui permet
 // de remonter ou de descendre une chaine de dependances de proche en proche.
 
+// ─── Panneau d'un Risque ────────────────────────────────────────────────────────
+//
+// Trois attributs seulement (decision utilisateur du 03/09/2026) : libelle, debut,
+// fin. Mais la FIN ne se saisit pas — elle est deduite des taches couvertes (cf.
+// src/risks.js) ; on l'affiche donc en lecture seule, avec ce qui la produit. Offrir
+// un champ de saisie pour une valeur calculee est le plus sur moyen de la voir
+// diverger du planning au premier replanning.
+function buildRiskFields(content, node) {
+  buildField(content, "Libellé", "text", node.properties.label, v => {
+    node.properties.label = v;
+    node.setDirtyCanvas(true, true);
+    // Le libelle du risque sert d'entree dans le menu de filtre : le renommer doit
+    // s'y voir sans rouvrir l'application.
+    refreshFilterOptions();
+    updateFilterTrigger();
+  });
+
+  const b = pertRiskBounds(node);
+  const t0 = (window.pertMeta || {}).t0;
+  if (t0) {
+    // Saisie en DATE calendaire, bornee par les attributs min/max du champ natif :
+    // le selecteur de date grise lui-meme ce qui est hors plage, ce qui explique la
+    // contrainte mieux qu'un message d'erreur apres coup. La valeur reste stockee en
+    // OFFSET (cf. src/risks.js) — rejouer le planning avec un autre T0 ne doit pas
+    // decaler les risques de travers.
+    const dMin = pertOffsetToDate(b.lo), dMax = pertOffsetToDate(b.hi);
+    // ⚠️ pertIsoLocal et NON toISOString : celui-ci convertit en UTC et afficherait
+    // la veille pour tout fuseau a l'est de Greenwich (bug constate a la relecture
+    // des captures : T0 au 05/01 s'affichait « 04/01 »).
+    const toIso = pertIsoLocal;
+    const input = buildField(content, "Début (exposition)", "date",
+      toIso(pertOffsetToDate(pertRiskStart(node))), v => {
+        const off = pertDateToOffset(v);
+        if (off === null) return;
+        const bb = pertRiskBounds(node);
+        const clamped = Math.max(bb.lo, Math.min(bb.hi, off));
+        node.properties.start_offset = clamped;
+        pertRiskSyncGeometry(node);
+        node.setDirtyCanvas(true, true);
+        fillSynthesis(node);
+      }, { min: toIso(dMin), max: toIso(dMax) });
+    // Le bornage s'applique a la VALEUR STOCKEE ; le champ, lui, continue d'afficher
+    // ce qui est en train d'etre tape (le reecrire a chaque frappe rendrait la saisie
+    // impraticable — un champ date emet un evenement par segment). On le remet donc
+    // en accord avec la verite a la VALIDATION seulement.
+    input.addEventListener("change", () => {
+      const d = pertOffsetToDate(pertRiskStart(node));
+      const iso = toIso(d);
+      if (iso && input.value !== iso) {
+        input.value = iso;
+        showToast("Début ramené au plus tard possible : « " + (node.properties.label || "ce risque")
+          + " » doit couvrir la première tâche qu'il porte");
+      }
+    });
+  } else {
+    // Sans T0, aucune date calendaire n'existe : on saisit l'offset brut plutot que
+    // d'afficher un champ date inerte. Meme parti pris que le suivi, qui dit
+    // franchement qu'il lui manque l'origine des temps.
+    const u = (window.pertMeta && window.pertMeta.unit) || "j";
+    buildField(content, "Début (T0 + n " + u + ")", "number", pertRiskStart(node), v => {
+      const off = parseFloat(v);
+      if (isNaN(off)) return;
+      const bb = pertRiskBounds(node);
+      node.properties.start_offset = Math.max(bb.lo, Math.min(bb.hi, off));
+      pertRiskSyncGeometry(node);
+      node.setDirtyCanvas(true, true);
+      fillSynthesis(node);
+    }, { step: 1 });
+    const note = document.createElement("p");
+    note.className = "prop-hint";
+    note.textContent = "Définissez T0 (Paramètres) pour saisir une date calendaire.";
+    content.appendChild(note);
+  }
+
+  // Fin : LECTURE SEULE, et on dit d'ou elle vient. C'est le point de la
+  // fonctionnalite le plus facile a mal comprendre.
+  const fin = document.createElement("p");
+  fin.className = "prop-hint";
+  const nb = (node.properties.covers || []).length;
+  fin.textContent = "Fin (déduite) : " + pertOffsetLabel(pertRiskEnd(node))
+    + (nb ? " — fin au plus tard de la dernière des " + nb + " tâche(s) couverte(s)."
+          : " — fin du projet, tant qu'aucune tâche n'est couverte.");
+  content.appendChild(fin);
+
+  buildField(content, "Couleur", "color", node.properties.color, v => {
+    node.properties.color = v;
+    node.setDirtyCanvas(true, true);
+    refreshFilterOptions();
+    updateFilterTrigger();
+  });
+
+  const btn = document.createElement("button");
+  btn.className = "panel-action";
+  btn.textContent = nb ? "⚠ Couvrir des tâches… (" + nb + " couverte" + (nb > 1 ? "s" : "") + ")"
+                       : "⚠ Couvrir des tâches…";
+  btn.title = "Désigner par une recherche les tâches sur lesquelles ce risque pèse "
+            + "— la vue ne bouge pas et aucun nœud n'est déplacé";
+  btn.addEventListener("click", () => pertOpenRiskLink(node));
+  content.appendChild(btn);
+}
+
+// Sous-menu contextuel d'une Activite : les risques du planning, coches ou non selon
+// qu'ils couvrent la tache. Repond a « celle-ci, elle est couverte ? » sans ouvrir
+// chaque risque a tour de role. Marques « ■ / □ » plutot qu'un glyphe de coche : ce
+// sont des formes geometriques de base, disponibles partout, et le menu est du DOM.
+function pertRiskCoverMenuOptions(node) {
+  return pertRiskNodes().map(r => {
+    const couvre = (r.properties.covers || []).indexOf(node.properties.uid) !== -1;
+    return {
+      content: (couvre ? "■ " : "□ ") + (r.properties.label || "(sans nom)"),
+      callback: () => {
+        pertRiskToggleCover(r, node);
+        showProperties(node);
+      }
+    };
+  });
+}
+
 // Construit l'onglet Synthèse : valeurs calculees, puis voisinage dans le graphe.
 function buildSynthesisTab(parent, node) {
+  if (node.type === "pert/risk") {
+    // Le risque a sa propre synthese : sa periode, et surtout les taches sur
+    // lesquelles il pese (cf. src/risks.js). Ni voisinage ni ES/EF — il n'entre dans
+    // aucun calcul, en afficher les colonnes laisserait croire le contraire.
+    if (window.pertRiskFillSynthesis) pertRiskFillSynthesis(parent, node);
+    return;
+  }
   if (node.type === "pert/label") {
     // Un Label ne porte ni dependances ni dates : le dire explicitement vaut mieux
     // qu'un onglet vide, qui laisserait croire a un bug.

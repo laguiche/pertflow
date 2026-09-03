@@ -20,8 +20,8 @@ const KEY = 'pertflow.recovery.v1';
     await page.evaluate(() => {
       window.pertMeta.autosave = true;
       window.pertAutosaveOnToggle();
-      document.getElementById('btn-add-activity').click();
-      document.getElementById('btn-add-milestone').click();
+      window.pertInsertNode('pert/activity');
+      window.pertInsertNode('pert/milestone');
     });
     await page.waitForTimeout(9000);
     key = await page.evaluate(k => localStorage.getItem(k), KEY);
@@ -48,7 +48,7 @@ const KEY = 'pertflow.recovery.v1';
     // Cas Ignorer
     await page.evaluate(() => {
       window.pertMeta.autosave = true;
-      document.getElementById('btn-add-activity').click();
+      window.pertInsertNode('pert/activity');
     });
     await page.waitForTimeout(9000);
     await page.reload();

@@ -57,9 +57,9 @@ function assert(cond, msg) { if (!cond) throw new Error('ECHEC: ' + msg); }
   const vocab = await page.evaluate(() => ({
     etats: PERT_PROGRESS_STATES.map(s => s.value),
     defaut: PERT_PROGRESS_DEFAULT,
-    // Tache neuve, creee par le chemin utilisateur (bouton de la toolbar).
+    // Tache neuve, creee par la fonction de PRODUCTION du menu « Insérer ▾ ».
     neuve: (() => {
-      document.getElementById('btn-add-activity').click();
+      window.pertInsertNode('pert/activity');
       const n = window.pertGraph._nodes[window.pertGraph._nodes.length - 1];
       const v = n.properties.progress;
       window.pertGraph.remove(n);

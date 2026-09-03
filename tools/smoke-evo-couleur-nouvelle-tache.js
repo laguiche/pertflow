@@ -30,14 +30,14 @@ const lib = require('./lib');
     window.pertMeta.new_task_group = '';
 
     // Aucun groupe : le bleu historique est libre, on doit le retrouver.
-    document.getElementById('btn-add-activity').click();
+    window.pertInsertNode('pert/activity');
     const bleu = g._nodes[g._nodes.length - 1].properties.color;
 
     // Un groupe s'approprie le bleu → la tache suivante doit changer de teinte.
     window.pertMeta.groups = { 'WP1': '#4A90D9' };
-    document.getElementById('btn-add-activity').click();
+    window.pertInsertNode('pert/activity');
     const apres = g._nodes[g._nodes.length - 1];
-    document.getElementById('btn-add-activity').click();
+    window.pertInsertNode('pert/activity');
     const encore = g._nodes[g._nodes.length - 1];
 
     return {
@@ -76,7 +76,7 @@ const lib = require('./lib');
     const pastille = document.getElementById('settings-newtask-swatch').style.background;
     saveSettings();
 
-    document.getElementById('btn-add-activity').click();
+    window.pertInsertNode('pert/activity');
     const n = g._nodes[g._nodes.length - 1];
     return {
       optionsProposees, ligneVisible, pastille,

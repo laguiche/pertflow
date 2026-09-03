@@ -59,6 +59,11 @@ async function launch(opts = {}) {
     acceptDownloads: true,
     viewport: opts.viewport || { width: 1400, height: 900 },
     deviceScaleFactor: opts.scale || 1,
+    // Fuseau IMPOSE quand un test en depend. Une conversion Date → chaine faite en
+    // UTC (toISOString) affiche la veille a l'est de Greenwich : le test qui protege
+    // ce piege doit donc valoir aussi sur une machine reglee en UTC, sans quoi il ne
+    // protege que le poste de son auteur.
+    ...(opts.timezoneId ? { timezoneId: opts.timezoneId } : {}),
   });
   const page = await ctx.newPage();
   return { browser, ctx, page };
@@ -140,13 +145,36 @@ async function resolveUnitDialog(page, choice) {
   return true;
 }
 
+// Insere un nœud par le VRAI chemin utilisateur : le bouton « Insérer ▾ » de la
+// toolbar, puis l'entree du sous-menu. Les quatre boutons de creation ont ete
+// regroupes derriere ce bouton le 04/09/2026 (la toolbar passait a la ligne) ; le
+// geste est centralise ici pour que les tests n'aient pas chacun a le reecrire —
+// et pour qu'un futur remaniement de la toolbar ne se paie qu'une fois.
+// quoi : "activite" | "jalon" | "label" | "risque".
+async function insererNoeud(page, quoi) {
+  const motifs = { activite: 'Activité', jalon: 'Jalon', label: 'Label', risque: 'Risque' };
+  const motif = motifs[quoi];
+  if (!motif) throw new Error('type a inserer inconnu : ' + quoi);
+  await page.click('#btn-insert');
+  await page.waitForSelector('.litegraph.litecontextmenu .litemenu-entry');
+  await page.evaluate((m) => {
+    const e = Array.from(document.querySelectorAll('.litegraph.litecontextmenu .litemenu-entry'))
+      .find(x => x.textContent.indexOf(m) !== -1);
+    if (!e) throw new Error('entree absente du menu Insérer : ' + m);
+    e.click();
+  }, motif);
+  await page.waitForTimeout(120);
+}
+
 // Ouvre une des deux fenetres de rapport via le bouton « Synthèse ▾ ». Depuis
 // l'ajout du suivi d'avancement (29/07/2026) ce bouton n'ouvre plus directement la
 // synthese : il deroule un sous-menu. Le geste est centralise ici pour que les tests
 // passent par le VRAI chemin utilisateur sans le reecrire chacun de leur cote.
-// quoi : "planification" (synthese) | "avancement" (suivi).
+// quoi : "planification" (synthese) | "avancement" (suivi) | "risques".
 async function openSynthesisMenu(page, quoi) {
-  const motif = quoi === "avancement" ? /Avancement/ : /Planification/;
+  const motif = quoi === "avancement" ? /Avancement/
+              : quoi === "risques" ? /Risques/
+              : /Planification/;
   await page.click('#btn-synthesis');
   await page.waitForSelector('.litegraph.litecontextmenu .litemenu-entry');
   await page.evaluate((src) => {
@@ -154,10 +182,13 @@ async function openSynthesisMenu(page, quoi) {
     Array.from(document.querySelectorAll('.litegraph.litecontextmenu .litemenu-entry'))
       .find(e => re.test(e.textContent)).click();
   }, motif.source);
-  const dialog = quoi === "avancement" ? '#suivi-dialog' : '#synthesis-dialog';
+  const dialog = quoi === "avancement" ? '#suivi-dialog'
+               : quoi === "risques" ? '#risks-dialog'
+               : '#synthesis-dialog';
   await page.waitForSelector(dialog + '[style*="flex"]');
 }
 
 module.exports = { ROOT, EXEMPLES, CPERT, CPERT_REEL, BUNDLE, cpertReelPresent,
                    findChromium, launch, openApp, openBundle, importXlsm, importPert,
-                   pickImportFormat, resolveUnitDialog, openSynthesisMenu };
+                   pickImportFormat, resolveUnitDialog, openSynthesisMenu,
+                   insererNoeud };

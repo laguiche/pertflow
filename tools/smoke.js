@@ -90,7 +90,7 @@ fs.mkdirSync(DL, { recursive: true });
   if (n1 !== n0 * 2) throw new Error('Copier/coller: attendu ' + (n0 * 2) + ', obtenu ' + n1);
 
   // 7) Label updateSize
-  await page.click('#btn-add-label');
+  await lib.insererNoeud(page, 'label');
   await page.waitForTimeout(150);
   const labelOk = await page.evaluate(() => {
     const lbl = window.pertGraph._nodes.find(n => n.type === 'pert/label');

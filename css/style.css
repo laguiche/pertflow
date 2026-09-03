@@ -1276,7 +1276,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 .ls-dir-btn:hover { background: #243a6a; border-color: #5a8fd8; color: #dde3ec; }
 .ls-dir-btn.active { background: #1a4a9a; border-color: #5a8fd8; color: #fff; font-weight: 600; }
 
-#linksearch-text {
+#linksearch-text, #risklink-text {
   background: #1a2240;
   border: 1px solid #2a3a6a;
   border-radius: 4px;
@@ -1285,8 +1285,8 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
   font-size: 13px;
   font-family: inherit;
 }
-#linksearch-text:focus { outline: none; border-color: #5a8fd8; }
-#linksearch-text::placeholder { color: #6a7390; }
+#linksearch-text:focus, #risklink-text:focus { outline: none; border-color: #5a8fd8; }
+#linksearch-text::placeholder, #risklink-text::placeholder { color: #6a7390; }
 
 .ls-facets { display: flex; gap: 8px; }
 .ls-facets select { flex: 1 1 0; min-width: 0; }
@@ -1369,3 +1369,71 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
   margin-bottom: 8px;
 }
 .ls-panel-btn:hover { background: #243a6a; border-color: #5a8fd8; color: #fff; }
+
+
+/* ─── Gestion des risques (src/risks.js) ────────────────────────────────────────
+   La fenêtre « Couvrir des tâches… » réutilise TOUT le vocabulaire visuel de
+   « Relier à… » (.ls-row, .ls-meta, .ls-tail, .ls-count) : c'est le même geste —
+   désigner un nœud par une recherche — et il doit se lire de la même façon. Seules
+   deux différences sont propres aux risques : la période rappelée en tête, et la
+   marque d'état d'une ligne (une tâche est couverte ou ne l'est pas). */
+
+/* Période exposée, rappelée sous le titre et remise à jour à chaque basculement :
+   c'est l'accusé de réception du geste — on voit la fin du risque se déplacer quand
+   on couvre une tâche plus tardive. */
+.rl-periode {
+  font-size: 12px;
+  color: #e0a56a;
+  background: #2a1f14;
+  border: 1px solid #6a4a24;
+  border-radius: 4px;
+  padding: 5px 8px;
+}
+
+.rl-only {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: #8899bb;
+  cursor: pointer;
+}
+.rl-only input { cursor: pointer; }
+
+/* Marque d'état : un carré DESSINÉ en CSS (bordure + fond), jamais un glyphe de
+   coche — on ne maîtrise pas les polices du poste, et un glyphe absent s'afficherait
+   en carré « tofu » sans la moindre erreur. Même précaution que les marqueurs
+   d'avancement tracés au Canvas2D. */
+.rl-box {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid #5a6a8a;
+  border-radius: 2px;
+  background: transparent;
+  align-self: center;
+}
+.rl-box.on {
+  background: #e0a56a;
+  border-color: #e0a56a;
+  box-shadow: inset 0 0 0 2px #16203a;
+}
+
+/* Une tâche déjà couverte reste PARFAITEMENT cliquable (c'est ainsi qu'on la
+   retire) : on la teinte, on ne l'éteint pas. C'est la différence avec les lignes
+   bloquées de « Relier à… », où le clic n'a rien à faire. */
+.rl-row.rl-couverte {
+  background: #221a2e;
+  border-color: #6a4a24;
+}
+.rl-row.rl-couverte:hover { background: #2e2338; border-color: #e0a56a; }
+.rl-row.rl-couverte .lk-name { color: #f0d0a8; }
+
+/* Renvoi explicatif du panneau (origine d'une valeur calculée, prérequis manquant).
+   Discret : c'est une note de lecture, pas un champ. */
+.prop-hint {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #8899bb;
+  margin: 2px 0 0;
+}

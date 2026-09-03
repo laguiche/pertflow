@@ -10,11 +10,11 @@ et le chemin critique, puis vous permet d'exporter le résultat (image, PDF, Exc
 - **Aucune donnée n'est envoyée** : tout reste sur votre poste.
 
 > **Vocabulaire.** Un planning PertFlow est constitué de **nœuds** — les boîtes posées sur la zone
-> de dessin (le *canvas*) — reliés par des **liens** (les dépendances). Il existe **trois types de
-> nœuds** : **Activité** (une *tâche*, qui a une durée), **Jalon** (une échéance instantanée) et
-> **Label** (une note libre). Dans ce manuel, « **tâche** » désigne toujours un nœud **Activité**,
-> et les boutons **▭ Activité / ◈ Jalon / ❏ Label** de la barre d'outils créent ces trois types
-> de nœuds.
+> de dessin (le *canvas*) — reliés par des **liens** (les dépendances). Il existe **quatre types
+> de nœuds** : **Activité** (une *tâche*, qui a une durée), **Jalon** (une échéance instantanée),
+> **Label** (une note libre) et **Risque** (une période d'exposition, §14). Dans ce manuel,
+> « **tâche** » désigne toujours un nœud **Activité**, et le bouton **➕ Insérer ▾** de la barre
+> d'outils crée ces quatre types de nœuds.
 
 > 💡 Ce manuel illustre l'application avec un projet d'exemple « Nouveau produit ».
 
@@ -35,9 +35,10 @@ et le chemin critique, puis vous permet d'exporter le résultat (image, PDF, Exc
 11. [Exporter le planning](#11-exporter-le-planning)
 12. [La synthèse du planning](#12-la-synthèse-du-planning)
 13. [Le suivi d'avancement](#13-le-suivi-davancement)
-14. [Les paramètres du projet](#14-les-paramètres-du-projet)
-15. [Raccourcis clavier](#15-raccourcis-clavier)
-16. [Questions fréquentes](#16-questions-fréquentes)
+14. [La gestion des risques](#14-la-gestion-des-risques)
+15. [Les paramètres du projet](#15-les-paramètres-du-projet)
+16. [Raccourcis clavier](#16-raccourcis-clavier)
+17. [Questions fréquentes](#17-questions-fréquentes)
 
 ---
 
@@ -55,7 +56,8 @@ votre navigateur, sans rien installer.
 
 ![Étape 2 — le dialogue Paramètres (T0 et unité)](images/manuel/qs-2-parametres.png)
 
-**Étape 3 — Ajoutez une tâche.** Cliquez sur **▭ Activité** dans la barre d'outils. Un nœud
+**Étape 3 — Ajoutez une tâche.** Cliquez sur **➕ Insérer ▾** dans la barre d'outils, puis
+sur **▭ Activité**. Un nœud
 apparaît au centre. Il est sélectionné : le **panneau Propriétés** (à droite) affiche ses champs.
 
 ![Étape 3 — une première tâche ajoutée, sélectionnée](images/manuel/qs-3-activite.png)
@@ -75,7 +77,7 @@ la **Durée**. Ajoutez au besoin un **Responsable**, un **Groupe** et une **coul
 > faites un **clic droit** sur l'un d'eux et choisissez **🔗 Relier à…** pour désigner l'autre
 > par son nom (voir §5).
 
-**Étape 6 — Ajoutez un jalon de fin.** Cliquez sur **◈ Jalon**, reliez-y la dernière tâche, et
+**Étape 6 — Ajoutez un jalon de fin.** Faites **➕ Insérer ▾ → ◈ Jalon**, reliez-y la dernière tâche, et
 donnez-lui éventuellement une **date-cible** à tenir.
 
 ![Étape 6 — un jalon de livraison relié, avec sa date-cible](images/manuel/qs-6-jalon.png)
@@ -116,9 +118,7 @@ L'écran se compose de quatre zones :
 
 | Bouton | Rôle |
 |---|---|
-| **▭ Activité** | Ajoute une tâche (voir §3). |
-| **◈ Jalon** | Ajoute un jalon (échéance / point de contrôle). |
-| **❏ Label** | Ajoute une zone de texte libre (documentation). |
+| **➕ Insérer ▾** | Ouvre un menu des quatre objets du planning : **▭ Activité** (une tâche, §3), **◈ Jalon** (une échéance ou un point de contrôle), **❏ Label** (une zone de texte libre) et **⚠ Risque** (§14). L'objet est créé **au centre de la vue**. |
 | **⤓ Réorganiser ▾** | Range automatiquement les nœuds. Ouvre un menu à **deux modes** : *chronologique complète* ou *axe du temps seul* (voir §6). |
 | **➖ / ➕** | Dézoome / zoome (utile sans molette de souris). |
 | **🔍 Tout afficher** | Ajuste le zoom pour voir tout le planning. |
@@ -130,7 +130,7 @@ L'écran se compose de quatre zones :
 | **💾 Sauvegarder** | Télécharge le projet au format `.pert`. |
 | **⬇ Exporter** | Ouvre la fenêtre d'export (image, PDF, Excel, MS Project…). |
 | **↶ Annuler / ↷ Rétablir** | Annule / rétablit la dernière action (Ctrl+Z / Ctrl+Y). |
-| **📊 Synthèse ▾** | Ouvre la **synthèse de planification** (§12) ou le **suivi d'avancement** (§13). |
+| **📊 Synthèse ▾** | Ouvre la **synthèse de planification** (§12), le **suivi d'avancement** (§13) ou les **risques** (§14). |
 | **ℹ À propos** | Auteur, licence et version. |
 
 ### Se déplacer dans le canvas
@@ -559,6 +559,11 @@ un mode.
   chevauchements. Idéal quand vous avez soigné un placement vertical (une ligne par équipe, par
   zone…) et voulez seulement « recaler les dates » sans casser votre disposition.
 
+Les **risques** (§14) suivent la même règle que le reste : en mode *complet*, ils sont rangés en
+une **bande au-dessus du planning**, empilés seulement quand leurs périodes se recouvrent ; en
+mode *axe du temps seul*, leur hauteur est conservée comme celle des autres nœuds. Dans les deux
+cas leur position horizontale reste, comme toujours, leur période.
+
 L'exemple ci-dessous illustre le mode **axe du temps seul** : à gauche, deux rangées disposées
 à la main mais dont les abscisses ne correspondent pas aux dates ; à droite, après réorganisation,
 les abscisses sont recalées sur le temps **tandis que les deux rangées sont conservées** (la tâche
@@ -683,7 +688,7 @@ nouveau nom, ou choisissez-en un déjà utilisé.
 - **Bouton « Appliquer ce groupe aux tâches de même couleur »** : rattache d'un clic toutes les
   tâches d'une même couleur au groupe courant — pratique pour taguer un lot importé.
 - **La couleur des tâches que vous créez** se règle dans **Paramètres → Projet → Couleur des nouvelles tâches**
-  (§14) : soit une couleur **libre**, qu'aucun groupe n'utilise, soit directement **le groupe** de
+  (§15) : soit une couleur **libre**, qu'aucun groupe n'utilise, soit directement **le groupe** de
   votre choix, avec sa couleur.
 
 ---
@@ -1158,7 +1163,132 @@ quoi emporter le point d'avancement en revue de projet.
 
 ---
 
-## 14. Les paramètres du projet
+## 14. La gestion des risques
+
+Un planning ne dit que ce qui est **prévu**. Ce qui peut le mettre en défaut — un composant à
+fournisseur unique, une qualification qui traîne, un moyen d'essai partagé — vit d'ordinaire dans
+un tableau à part, sans lien avec les dates. Or un risque n'a d'intérêt que rapporté à une
+**période** et à des **tâches** : *de quand à quand suis-je exposé, et sur quoi ?* C'est
+exactement ce qu'un PERT sait dire.
+
+Le **Risque** est donc un quatrième type d'objet du planning, à côté de la tâche, du jalon et du
+label.
+
+> **Un risque ne déplace jamais rien.** Il n'entre dans aucun calcul : ni dates au plus tôt ou au
+> plus tard, ni marges, ni chemin critique, ni coûts. La dépendance va dans l'autre sens — c'est
+> le risque qui **lit** le planning. Vous pouvez en ajouter autant que vous voulez, votre PERT
+> est rendu au chiffre près comme avant.
+
+### Créer un risque
+
+**➕ Insérer ▾ → ⚠ Risque.** Il apparaît sous forme de **bandeau** posé au-dessus du
+planning, et couvrant d'emblée **tout le projet** : de **T0** à la fin au plus tard du planning
+(à T0 si le planning est encore vide). C'est l'hypothèse la plus large, donc la moins fausse tant
+que vous n'avez pas dit sur quoi il pèse — le rattacher à des tâches ne fera ensuite que
+**resserrer** la période.
+
+![Deux risques au-dessus du planning](images/manuel/risques-canvas.png)
+
+**L'abscisse et la largeur du bandeau *sont* sa période** : il se lit sur le même axe des temps
+que les tâches, et l'on voit d'un coup d'œil jusqu'où l'on est exposé. Vous le déplacez donc
+**verticalement** seulement — pour l'empiler avec ses voisins ou le poser près du bloc de tâches
+qu'il concerne. Un déplacement horizontal est repris au lâcher : l'axe des dates n'est pas
+négociable, sinon le bandeau mentirait sur sa période.
+
+Les **traits en pointillé** relient le bandeau aux tâches qu'il couvre.
+
+La **réorganisation** (§6) range les risques comme le reste du planning : en mode *chronologique
+complet*, ils forment une **bande au-dessus** des tâches, sur autant de lignes que nécessaire —
+deux risques dont les périodes ne se recouvrent pas partagent la même ligne. C'est l'état montré
+sur la capture ci-dessus.
+
+### Ses trois attributs
+
+![Le panneau d'un risque](images/manuel/risques-panneau.png)
+
+| Attribut | Comment il se règle |
+|---|---|
+| **Libellé** | Libre. C'est lui qui nomme le risque dans le filtre et dans les rapports. |
+| **Début (exposition)** | **Saisi**, dans une plage bornée (voir ci-dessous). |
+| **Fin** | **Jamais saisie** : elle est *déduite* des tâches couvertes. |
+
+La **fin** vaut la **fin au plus tard de la dernière tâche couverte** — le risque court tant
+qu'une des tâches exposées n'est pas bouclée. Tant qu'aucune tâche n'est rattachée, elle est
+calée sur la fin du projet. Comme elle n'est jamais stockée, elle est **automatiquement juste** :
+rattacher, détacher, allonger une durée ou replanifier la met à jour sans que vous ayez quoi que
+ce soit à re-saisir.
+
+Le **début** se règle entre **T0** et le **début au plus tôt de la première tâche couverte** :
+un risque qui commencerait après la tâche qu'il couvre ne la couvrirait pas. Le sélecteur de date
+grise lui-même ce qui sort de la plage, et le panneau rappelle la borne dans l'onglet *Synthèse*.
+
+> **Votre saisie n'est jamais écrasée.** Si vous couvrez une tâche très précoce, le début affiché
+> se cale sur elle ; **détachez-la** et le début que vous aviez tapé revient de lui-même.
+
+> **Et si la tâche est anticipée ?** Une tâche engagée avant T0 (§4) a un début au plus tôt
+> *négatif*. La borne basse descend alors avec elle — sinon le risque ne pourrait pas couvrir
+> précisément la tâche qui inquiète.
+
+La **couleur** est purement cosmétique : elle sert à distinguer deux bandeaux superposés et à
+reconnaître un risque dans la liste du filtre.
+
+### Dire sur quoi le risque pèse
+
+Deux chemins, l'un et l'autre ancrés sur un nœud :
+
+- depuis le **bandeau** — bouton **⚠ Couvrir des tâches…** du panneau, ou clic droit sur le
+  bandeau — on désigne les tâches ;
+- depuis une **tâche** — clic droit → **⚠ Risques couvrant cette tâche** — on coche les risques
+  qui pèsent sur elle. C'est le chemin qui répond à *« celle-ci, elle est couverte ? »* sans
+  ouvrir chaque risque à tour de rôle.
+
+![La fenêtre « Couvrir des tâches… »](images/manuel/risques-couvrir.png)
+
+La fenêtre reprend le principe de « Relier à… » (§5) : vous **désignez** les tâches par une
+**recherche** (nom ou notes), avec deux filtres *groupe* et *responsable* — **la vue ne bouge pas
+et aucun nœud n'est déplacé**. Sur un planning plus large que l'écran, c'est la seule façon
+praticable.
+
+- Un clic sur une tâche la **couvre** ; un clic sur une tâche déjà couverte l'en **retire**.
+  Le même geste dans les deux sens : pas de commande séparée à retrouver.
+- La **période exposée**, rappelée en tête, se met à jour à chaque clic — c'est l'accusé de
+  réception : on voit la fin du risque se déplacer quand on couvre une tâche plus tardive.
+- La fenêtre **reste ouverte** : on couvre par rafales.
+- La case **« N'afficher que les tâches déjà couvertes »** sert à relire d'un coup ce qu'on
+  vient de rattacher, sans le chercher parmi trois cents lignes.
+
+### Voir ce qui est exposé : le filtre
+
+Le menu **🔎 Filtre** (§6) porte une section **Risques**. La choisir met en évidence le bandeau
+**et les tâches qu'il couvre** ; tout le reste s'estompe.
+
+![Le filtre par risque](images/manuel/risques-filtre.png)
+
+Dans le même geste, le panneau bascule sur l'onglet **Synthèse** du risque, qui **chiffre** ce
+que la mise en évidence montre : période, durée exposée, **coût des tâches couvertes**, borne du
+début, et le tableau des tâches avec leurs dates, leur marge et leur avancement.
+
+### La fenêtre Risques
+
+**📊 Synthèse ▾ → ⚠ Risques.** C'est la troisième lecture du même planning : ce qui est prévu
+(*Planification*), où l'on en est (*Avancement*), et ce qui peut le faire dérailler.
+
+Deux onglets :
+
+| Onglet | Ce qu'il répond |
+|---|---|
+| **Par risque** | Ce que chaque risque met en jeu : sa période, sa durée exposée, le coût couvert, et le détail des tâches. |
+| **Par tâche** | L'inverse : quelles tâches sont exposées, et **à combien de risques**. C'est cette lecture qui fait ressortir la tâche qui en concentre trois à elle seule. |
+
+![L'onglet « Par tâche » de la fenêtre Risques](images/manuel/risques-fenetre.png)
+
+Comme les deux autres fenêtres de rapport, les noms de tâches **mènent au nœud**, et le bouton
+**🖨 Imprimer / PDF** produit un document où **les deux onglets deviennent deux chapitres**, un
+par page.
+
+---
+
+## 15. Les paramètres du projet
 
 ![Le dialogue Paramètres](images/manuel/parametres.png)
 
@@ -1227,7 +1357,7 @@ subdivisions disparaissent avant que la trame ne vire au gris uni.
 
 ---
 
-## 15. Raccourcis clavier
+## 16. Raccourcis clavier
 
 | Raccourci | Action |
 |---|---|
@@ -1240,7 +1370,7 @@ subdivisions disparaissent avant que la trame ne vire au gris uni.
 
 ---
 
-## 16. Questions fréquentes
+## 17. Questions fréquentes
 
 **Puis-je utiliser PertFlow sans internet ?**
 Oui, c'est même le mode prévu : double-clic sur `pertflow.html`, tout fonctionne hors ligne.

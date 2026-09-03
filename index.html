@@ -128,9 +128,7 @@
   <div id="toolbar">
     <span id="project-title">PertFlow</span>
     <div class="tb-sep"></div>
-    <button id="btn-add-activity" title="Ajouter un nœud Activité">▭ Activité</button>
-    <button id="btn-add-milestone" title="Ajouter un nœud Jalon">◈ Jalon</button>
-    <button id="btn-add-label" title="Ajouter un nœud Label">❏ Label</button>
+    <button id="btn-insert" title="Insérer un objet dans le planning : Activité, Jalon, Label ou Risque">➕ Insérer ▾</button>
     <div class="tb-sep"></div>
     <button id="btn-layout" title="Réorganiser les nœuds : chronologique complète, ou sur l'axe du temps seul (ordonnées conservées)">⤓ Réorganiser ▾</button>
     <button id="btn-zoom-out" title="Dézoomer (utile sans molette ni pavé tactile multipoint)">➖</button>
@@ -164,7 +162,7 @@
     <button id="btn-open" title="Ouvrir un fichier .pert">📂 Ouvrir</button>
     <button id="btn-save" title="Sauvegarder le projet">💾 Sauvegarder</button>
     <button id="btn-export" title="Exporter le planning (PNG, PDF, CSV, Excel, MS Project)">⬇ Exporter</button>
-    <button id="btn-synthesis" title="Synthèse du planning : « Planification » (jalons, groupes, coûts) ou « Avancement » (suivi des tâches et des jalons) — imprimables en PDF">📊 Synthèse ▾</button>
+    <button id="btn-synthesis" title="Synthèse du planning : « Planification » (jalons, groupes, coûts), « Avancement » (suivi des tâches et des jalons) ou « Risques » (périodes exposées et tâches couvertes) — imprimables en PDF">📊 Synthèse ▾</button>
     <div class="tb-sep"></div>
     <button id="btn-undo" title="Annuler (Ctrl+Z)" disabled>↶ Annuler</button>
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
@@ -276,6 +274,53 @@
     </div>
   </div>
 
+  <!-- ── Fenêtre « Couvrir des tâches… » (src/risks.js) ────────────────────────
+       Rattacher un risque aux tâches sur lesquelles il pèse, en les DÉSIGNANT par
+       une recherche plutôt qu'en les cherchant à l'écran (même parti pris que
+       « Relier à… »). Chaque ligne bascule : un clic couvre, un clic découvre. La
+       période exposée est rappelée en tête et se met à jour à chaque basculement —
+       c'est l'accusé de réception du geste. -->
+  <div id="risklink-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog linksearch-dialog-box">
+      <h3 id="risklink-title">Risque</h3>
+      <div id="risklink-periode" class="rl-periode"></div>
+      <input type="text" id="risklink-text" autocomplete="off" spellcheck="false"
+             placeholder="Rechercher une tâche par nom ou note…">
+      <div class="ls-facets">
+        <select id="risklink-group" title="Restreindre à un groupe"></select>
+        <select id="risklink-resp" title="Restreindre à un responsable"></select>
+      </div>
+      <label class="rl-only"><input type="checkbox" id="risklink-only">
+        N'afficher que les tâches déjà couvertes</label>
+      <div id="risklink-count" class="ls-count"></div>
+      <div id="risklink-list" class="ls-list"></div>
+      <p class="dialog-note">
+        Un clic sur une tâche la <b>couvre</b> ; un clic sur une tâche déjà couverte
+        l'en <b>retire</b>. La fenêtre reste ouverte, la vue ne bouge pas et aucun
+        nœud n'est déplacé.
+      </p>
+      <div class="dialog-buttons">
+        <button id="risklink-close" class="primary">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Fenêtre « Risques » (src/risks.js) ────────────────────────────────────
+       3e volet du bouton 📊 Synthèse. Deux onglets = deux chapitres à l'impression :
+       « Par risque » (ce que chacun met en jeu) et « Par tâche » (quelles tâches
+       sont exposées, et à combien de risques). Contenu construit dynamiquement. -->
+  <div id="risks-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog suivi-dialog-box">
+      <h3>Risques du planning</h3>
+      <div id="risks-tabs" class="synth-tabs" role="tablist"></div>
+      <div id="risks-content" class="synth-content"></div>
+      <div class="dialog-buttons">
+        <button id="risks-close">Fermer</button>
+        <button id="risks-print" class="primary">🖨 Imprimer / PDF</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Dialogue de récupération (sauvegarde automatique) ─────────────────── -->
   <div id="recovery-dialog" class="dialog-overlay" style="display:none">
     <div class="dialog">
@@ -369,6 +414,7 @@
        (synthEl / synthTable / synthSection / synthNodeLink / pertSynthGoToNode). -->
   <script src="src/suivi.js"></script>
   <script src="src/link_search.js"></script>
+  <script src="src/risks.js"></script>
   <script src="src/ui.js"></script>
 </body>
 </html>
