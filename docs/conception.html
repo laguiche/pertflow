@@ -143,8 +143,10 @@ refuse la suite si cela arrive.</p>
 │   ├── export_microjalons.js  # Micro-jalonnement (Excel)
 │   ├── export_planning_directeur.js  # Planning directeur (Excel) : canevas calendaire + formes
 │   ├── link_routing.js   # Rendu des liens : styles + routage orthogonal (évitement)
-│   └── link_search.js    # Fenêtre « Relier à… » : créer un lien en désignant l'autre
-│                         #   extrémité par une recherche, sans naviguer dans le canvas
+│   ├── link_search.js    # Fenêtre « Relier à… » : créer un lien en désignant l'autre
+│   │                     #   extrémité par une recherche, sans naviguer dans le canvas
+│   └── risks.js          # Risques : bandeau temporel, rattachement aux tâches, filtre,
+│                         #   fenêtre de rapport — observateur du PERT, jamais acteur
 ├── docs/                 # Manuel, conception, maintenance, notes de version (MD + HTML + PDF)
 ├── tools/                # Suite de tests + captures d'écran (cf. tools/README.md)
 ├── test_cases/           # Jeux d'essai — versionnés en LISTE BLANCHE (cf. tools/README.md)
@@ -308,8 +310,51 @@ du <strong>voisinage</strong> dans l'onglet Synthèse du panneau, là où l'on c
 <p>Les listes de candidats réutilisent le vocabulaire visuel des listes de voisins du panneau, et
 l'adjacence vient de <code>pertBuildAdjacency</code> — même source de vérité que le calcul, donc le statut
 « déjà lié » ne peut pas diverger de ce que voit le moteur.</p>
-<h3 id="fenetres-de-rapport-synthesisjs-suivijs">Fenêtres de rapport (<code>synthesis.js</code>, <code>suivi.js</code>)</h3>
-<p>Le bouton <strong>Synthèse</strong> ouvre un menu à deux entrées, deux fenêtres au même patron :</p>
+<h3 id="les-risques-risksjs">Les risques (<code>risks.js</code>)</h3>
+<p>Un planning ne dit que ce qui est <strong>prévu</strong>. Ce qui le met en défaut vivait dans un tableau à
+part, sans lien avec les dates — alors qu'un risque n'a d'intérêt que rapporté à une <strong>période</strong>
+et à des <strong>tâches</strong>. Le <code>pert/risk</code> est donc un quatrième type de nœud, et le module est un
+<strong>observateur</strong> du moteur.</p>
+<p><strong>La règle qui commande tout : un risque n'entre dans aucun calcul.</strong> Même rang que celle de
+l'avancement — ni <code>es</code>/<code>ef</code>/<code>ls</code>/<code>lf</code>, ni marge, ni chemin critique, ni coût, ni layout. La
+dépendance est à <strong>sens unique</strong>. Techniquement, le type est hors de <code>PERT_TYPES</code>, donc invisible
+de <code>pertBuildAdjacency</code> : le moteur ne peut pas le voir, même par accident. Le seul point de
+contact est <strong>une ligne d'appel en fin de <code>pertRecalc</code></strong> (<code>pertSyncRisks</code>), couture volontaire :
+le moteur dit <em>« c'est recalculé »</em> et ne sait rien du contenu des risques.</p>
+<blockquote>
+<p><strong>Piège vérifié par mutation.</strong> Un bandeau n'ayant ni entrée ni sortie, l'inscrire par erreur
+dans <code>PERT_TYPES</code> ne <strong>déplace aucune tâche</strong> — il devient juste un nœud isolé auquel le moteur
+attribue des dates et qui peut se déclarer critique. Une non-régression limitée aux tâches et
+aux jalons ne le voit pas : <code>smoke-risques.js</code> prend donc l'empreinte de <strong>tous</strong> les nœuds,
+plus la liste des types que le moteur accepte de calculer.</p>
+</blockquote>
+<p>Trois décisions de cadrage portent le reste :</p>
+<ul>
+<li><strong>La fin n'est jamais stockée</strong>, elle est <em>déduite</em> : <code>max(LF)</code> des tâches couvertes, à défaut
+  la fin du projet. C'est ce qui la rend automatiquement juste après un rattachement, un
+  détachement ou une replanification — il n'y a aucun code de synchronisation à écrire, donc
+  aucun à oublier. Le <strong>début</strong>, lui, est saisi et <strong>borné à la lecture</strong> (<code>[T0, min(ES)]</code>) sans
+  que la propriété soit écrasée : détacher rend au risque le début qu'on avait tapé. La borne
+  basse descend sous T0 quand une tâche couverte est <strong>anticipée</strong>, sans quoi le risque ne
+  pourrait pas couvrir la tâche qui inquiète.</li>
+<li><strong>Le rattachement est une liste d'uid dans <code>properties.covers</code>, pas des liens LiteGraph.</strong> Un
+  lien de risque dans <code>graph.links</code> aurait imposé d'ajouter un slot « risque » sur <strong>chaque</strong>
+  Activité, donc de changer la géométrie de tous les plannings existants, y compris ceux qui ne
+  portent aucun risque. Le trait de rattachement est <strong>dessiné</strong> (pointillé, fond de canvas) sans
+  exister dans le graphe. <code>covers</code> référence l'<strong>uid</strong> d'Activité et non l'id LiteGraph : l'uid
+  survit à la sauvegarde, au copier-coller et à l'undo.</li>
+<li><strong>Le bandeau est un objet temporel</strong> : son abscisse et sa largeur <em>sont</em> sa période, calculées
+  (<code>pertRiskSyncGeometry</code>) et non placées à la main ; seule l'ordonnée appartient à l'utilisateur.
+  Un glisser horizontal est repris au lâcher. Écrire les deux dates dans une boîte libre aurait
+  laissé la géométrie mentir sur la période, alors qu'un risque se juge d'abord à son empan.</li>
+</ul>
+<p>Le reste réutilise l'existant sans rien dupliquer : la fenêtre de rattachement reprend le patron
+et le vocabulaire visuel de « Relier à… » (désigner par une recherche, fenêtre qui reste ouverte),
+la fenêtre de rapport reprend la coquille mutualisée ci-dessous, et le filtre s'ajoute comme une
+nature de plus dans <code>window.pertFilter</code> — la seule dont la valeur désigne un <strong>nœud</strong> et non une
+propriété, d'où l'invalidation quand le risque est supprimé.</p>
+<h3 id="fenetres-de-rapport-synthesisjs-suivijs-risksjs">Fenêtres de rapport (<code>synthesis.js</code>, <code>suivi.js</code>, <code>risks.js</code>)</h3>
+<p>Le bouton <strong>Synthèse</strong> ouvre un menu à trois entrées, trois fenêtres au même patron :</p>
 <ul>
 <li><strong>Synthèse de planification</strong> — le planning <strong>tel qu'il est prévu</strong> : vue d'ensemble, jalons
   entrants / sortants, agrégats par groupe (charge, coût, fin au plus tard), et un onglet
@@ -317,6 +362,9 @@ l'adjacence vient de <code>pertBuildAdjacency</code> — même source de vérit�
 <li><strong>Suivi d'avancement</strong> — le même planning <strong>confronté à la date du jour</strong>. Il ne recalcule rien.
   La date du point est surchargeable (<code>window.pertSuiviToday</code>) : sans cette couture, ni test ni
   capture ne seraient reproductibles.</li>
+<li><strong>Risques</strong> — le même planning vu par <strong>ce qui peut le faire dérailler</strong> : deux onglets,
+  <em>par risque</em> (ce que chacun met en jeu) et <em>par tâche</em> (à combien de risques chacune est
+  exposée). La seconde lecture est celle qui fait ressortir la tâche qui en concentre plusieurs.</li>
 </ul>
 <p>Deux principes structurants. <strong>L'onglet Analyse est fait pour s'enrichir</strong> : un contrôle est un
 objet <code>{ id, title, hint, columns, rows }</code> poussé dans une liste, le rendu est générique ; un

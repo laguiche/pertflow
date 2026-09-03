@@ -530,7 +530,7 @@ function synthTable(headers, rows) {
 // rendu par les deux : plutot que de faire porter a chaque lien la connaissance de la
 // fenetre qui l'a construit, on ferme ce qui recouvre le planning, point.
 function pertCloseReportDialogs() {
-  ["synthesis-dialog", "suivi-dialog"].forEach(id => {
+  ["synthesis-dialog", "suivi-dialog", "risks-dialog"].forEach(id => {
     const d = document.getElementById(id);
     if (d) d.style.display = "none";
   });

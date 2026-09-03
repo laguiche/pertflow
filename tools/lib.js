@@ -59,6 +59,11 @@ async function launch(opts = {}) {
     acceptDownloads: true,
     viewport: opts.viewport || { width: 1400, height: 900 },
     deviceScaleFactor: opts.scale || 1,
+    // Fuseau IMPOSE quand un test en depend. Une conversion Date → chaine faite en
+    // UTC (toISOString) affiche la veille a l'est de Greenwich : le test qui protege
+    // ce piege doit donc valoir aussi sur une machine reglee en UTC, sans quoi il ne
+    // protege que le poste de son auteur.
+    ...(opts.timezoneId ? { timezoneId: opts.timezoneId } : {}),
   });
   const page = await ctx.newPage();
   return { browser, ctx, page };
@@ -144,9 +149,11 @@ async function resolveUnitDialog(page, choice) {
 // l'ajout du suivi d'avancement (29/07/2026) ce bouton n'ouvre plus directement la
 // synthese : il deroule un sous-menu. Le geste est centralise ici pour que les tests
 // passent par le VRAI chemin utilisateur sans le reecrire chacun de leur cote.
-// quoi : "planification" (synthese) | "avancement" (suivi).
+// quoi : "planification" (synthese) | "avancement" (suivi) | "risques".
 async function openSynthesisMenu(page, quoi) {
-  const motif = quoi === "avancement" ? /Avancement/ : /Planification/;
+  const motif = quoi === "avancement" ? /Avancement/
+              : quoi === "risques" ? /Risques/
+              : /Planification/;
   await page.click('#btn-synthesis');
   await page.waitForSelector('.litegraph.litecontextmenu .litemenu-entry');
   await page.evaluate((src) => {
@@ -154,7 +161,9 @@ async function openSynthesisMenu(page, quoi) {
     Array.from(document.querySelectorAll('.litegraph.litecontextmenu .litemenu-entry'))
       .find(e => re.test(e.textContent)).click();
   }, motif.source);
-  const dialog = quoi === "avancement" ? '#suivi-dialog' : '#synthesis-dialog';
+  const dialog = quoi === "avancement" ? '#suivi-dialog'
+               : quoi === "risques" ? '#risks-dialog'
+               : '#synthesis-dialog';
   await page.waitForSelector(dialog + '[style*="flex"]');
 }
 

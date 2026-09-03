@@ -139,9 +139,11 @@ function pertTgWeekNumber(monday) {
 // Date → "YYYY-MM-DD" en heure LOCALE. Indispensable : pertDateToOffset attend une
 // chaîne, et toISOString() convertirait en UTC — soit un jour d'écart pour tout
 // fuseau à l'est de Greenwich, donc une trame décalée d'une case en heure d'été.
+// Depuis le 03/09/2026 la conversion est mutualisee dans pert_engine.js
+// (pertIsoLocal) : le meme piege a repris un autre module, mieux vaut un seul
+// endroit a connaitre qu'une regle a se rappeler.
 function pertTgIso(d) {
-  const p = (n) => (n < 10 ? "0" + n : String(n));
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  return pertIsoLocal(d);
 }
 
 // Abscisse (repère graphe) d'une date calendaire, via l'offset temporel du projet.

@@ -186,6 +186,9 @@ function ellipsize(ctx, text, maxWidth) {
 // window.pertFilter (defini dans ui.js, etat de vue non serialise) :
 //   null | { type:"group", value } | { type:"color", value } | { type:"responsible", value }
 //        | { type:"text", value }  (recherche par nom/notes, v0.20)
+//        | { type:"progress", value } (avancement, v0.21)
+//        | { type:"risk", value }  (uid d'un Risque, 03/09/2026 — met en evidence le
+//                                   bandeau ET les taches qu'il couvre)
 // Un nœud "estompe" recoit un voile translucide (pertDrawDimVeil), dessine en
 // onDrawForeground → par-dessus le contenu ET les slots (l'avant-plan est rendu en
 // dernier par LiteGraph). Sans filtre actif, rien n'est estompe. Seules les
@@ -204,7 +207,8 @@ function pertNormalizeSearch(s) {
 }
 
 // Texte d'un nœud offert a la recherche : son NOM et sa DESCRIPTION, quel que soit le
-// type. Un Label n'a que son texte, qui tient lieu des deux.
+// type. Un Label n'a que son texte, qui tient lieu des deux ; un Risque n'a que son
+// libelle.
 function pertNodeSearchText(node) {
   const p = (node && node.properties) || {};
   return [p.label, p.notes, p.text].filter(Boolean).join(" ");
@@ -214,8 +218,8 @@ function pertNodeDimmed(node) {
   const f = window.pertFilter;
   if (!f) return false;
   const isAct = node.type === "pert/activity" && node.properties;
-  // Recherche par nom : le SEUL filtre qui concerne les trois types de nœuds — on
-  // cherche « ou est passe X », pas « quelles taches appartiennent a X ».
+  // Recherche par nom : le SEUL filtre qui concerne TOUS les types de nœuds (Risques
+  // compris) — on cherche « ou est passe X », pas « quelles taches appartiennent a X ».
   if (f.type === "text") {
     const needle = pertNormalizeSearch(f.value);
     if (!needle) return false;
@@ -235,6 +239,18 @@ function pertNodeDimmed(node) {
   // valeur peut etre un etat OU un regroupement (« reste a faire »).
   if (f.type === "progress") {
     return !(isAct && pertProgressFilterMatch(f.value, node));
+  }
+  // Risque (03/09/2026) : le filtre met en evidence UN risque et les taches qu'il
+  // couvre — c'est-a-dire tout ce sur quoi il pese, et rien d'autre. Le bandeau
+  // lui-meme reste vif : l'estomper reviendrait a effacer le sujet de la question.
+  // Les AUTRES risques sont estompes, sinon on ne saurait plus lequel on regarde.
+  if (f.type === "risk") {
+    if (node.type === "pert/risk") {
+      return ((node.properties && node.properties.uid) || "") !== f.value;
+    }
+    if (!isAct) return true;
+    return !(typeof pertRiskCovers === "function"
+             && pertRiskCovers(f.value, node.properties.uid));
   }
   return false;
 }
@@ -846,6 +862,187 @@ LabelNode.prototype.onDrawForeground = function(ctx) {
   pertDrawDimVeil(ctx, this);
 };
 
+// ─── Nœud Risque (gestion des risques, 03/09/2026) ────────────────────────────
+//
+// POURQUOI UN QUATRIEME TYPE DE NŒUD. Un risque n'est ni une tache (il ne se
+// realise pas, il se surveille), ni un jalon (il n'a pas de date d'atteinte a
+// tenir), ni un label (il porte des donnees et une periode calculee). Il se lit
+// comme une PERIODE : du moment ou l'on s'expose jusqu'au moment ou la derniere
+// tache exposee est bouclee au plus tard.
+//
+// TROIS DECISIONS DE CADRAGE (arbitrees avec l'utilisateur le 03/09/2026) — ne pas
+// les defaire sans nouvel arbitrage, chacune commande tout le reste :
+//
+//  1. LE RISQUE N'ENTRE DANS AUCUN CALCUL PERT. Meme regle absolue que
+//     l'avancement (cf. PERT_PROGRESS_STATES) : ni es/ef/ls/lf, ni marge, ni chemin
+//     critique, ni cout, ni layout. La dependance est a SENS UNIQUE — c'est le
+//     risque qui LIT le PERT, jamais l'inverse. Techniquement il est hors de
+//     PERT_TYPES (pert_engine.js), donc invisible de pertBuildAdjacency : le moteur
+//     ne peut pas le voir, meme par accident, meme si un jour on l'oubliait.
+//
+//  2. IL NE PORTE NI ENTREE NI SORTIE (comme le Label). Le rattachement aux taches
+//     couvertes est une LISTE d'uid dans properties (`covers`), et non des liens
+//     LiteGraph : un lien de risque dans graph.links aurait impose d'ajouter un slot
+//     « risque » sur CHAQUE Activite — donc de changer la hauteur et la position des
+//     slots de tous les plannings existants, y compris ceux qui ne portent aucun
+//     risque. Le trait de rattachement est DESSINE (pointille, cf. src/risks.js)
+//     sans jamais exister dans le graphe.
+//     Corollaire : `covers` reference l'uid d'Activite (#34), PAS l'id LiteGraph —
+//     l'uid survit a la sauvegarde, au copier-coller et a l'undo, l'id non.
+//
+//  3. C'EST UN BANDEAU TEMPOREL. Son abscisse et sa largeur SONT sa periode : elles
+//     sont CALCULEES (pertRiskSyncGeometry, src/risks.js) et non placees a la main.
+//     L'utilisateur ne regle que l'ordonnee — la hauteur a laquelle il pose la bande.
+//     Ecrire les deux dates dans une boite libre aurait laisse la geometrie mentir
+//     sur la periode, alors qu'un risque se juge d'abord a son empan.
+
+const PERT_RISK_H = 34;          // hauteur fixe d'un bandeau (une seule ligne de texte)
+const PERT_RISK_MIN_W = 120;     // largeur plancher : un risque de periode nulle doit
+                                 // rester saisissable et lisible (meme parti pris que
+                                 // ACT_MIN_W pour les taches tres courtes).
+const PERT_RISK_DEFAULT_COLOR = "#c0392b";
+
+// Teinte translucide derivee de la couleur du risque. La couleur pleine est reservee
+// a la bordure et au texte : un bandeau opaque de la largeur d'un projet masquerait
+// tout ce qu'il survole, alors qu'il doit se lire AVEC le planning, pas a sa place.
+function pertRiskTint(hex, alpha) {
+  const h = String(hex || PERT_RISK_DEFAULT_COLOR).replace("#", "");
+  const full = h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h;
+  const r = parseInt(full.slice(0, 2), 16) || 0;
+  const g = parseInt(full.slice(2, 4), 16) || 0;
+  const b = parseInt(full.slice(4, 6), 16) || 0;
+  return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+}
+
+function RiskNode() {
+  // NI addInput NI addOutput : cf. decision 2 ci-dessus. Un risque ne peut donc
+  // physiquement pas entrer dans graph.links.
+  this.properties = {
+    // Identifiant stable du risque — genere a la creation, ni visible ni editable.
+    // Sert de valeur au filtre « Risques » et de cle des rapports.
+    uid: pertGenRiskUid(),
+    label: "Nouveau risque",
+    // Debut du risque, en OFFSET d'unites depuis T0 — comme TOUTE date interne du
+    // moteur (cf. « Conventions » de CLAUDE.md). Saisi par l'utilisateur sous forme
+    // de date calendaire dans le panneau, mais stocke en offset : le planning peut
+    // etre rejoue avec un autre T0 sans que les risques se decalent de travers.
+    // La valeur est BORNEE a la lecture (pertRiskStart), jamais ecrasee ici : si un
+    // detachement rouvre la plage, la saisie d'origine revient d'elle-meme.
+    start_offset: 0,
+    // uid des Activites couvertes (cf. decision 2). Tableau serialise nativement.
+    covers: [],
+    // Couleur : COSMETIQUE seulement, elle n'a aucune signification metier (a la
+    // difference de la couleur d'une Activite, qui suit son groupe). Elle sert a
+    // distinguer deux bandeaux qui se superposent et a reconnaitre un risque dans la
+    // liste du filtre.
+    color: PERT_RISK_DEFAULT_COLOR
+  };
+  this.size = [PERT_RISK_MIN_W, PERT_RISK_H];
+}
+
+RiskNode.title = "Risque";
+RiskNode.title_mode = LiteGraph.NO_TITLE;
+
+// La geometrie du bandeau est entierement deduite des dates (decision 3) : elle est
+// donc recalculee par src/risks.js, jamais posee ici. updateSize existe quand meme,
+// parce que tout le reste du code (addNodeAt, chargement, undo) l'appelle par
+// convention sur n'importe quel nœud.
+RiskNode.prototype.updateSize = function() {
+  if (typeof pertRiskSyncGeometry === "function") pertRiskSyncGeometry(this);
+  else this.size = [Math.max(PERT_RISK_MIN_W, this.size[0]), PERT_RISK_H];
+};
+
+RiskNode.prototype.onPropertyChanged = function() {
+  this.updateSize();
+  this.setDirtyCanvas(true, true);
+};
+
+// Le redimensionnement manuel n'a pas de sens : la largeur EST la duree du risque.
+// On rend la poignee inoperante plutot que de laisser l'utilisateur produire un
+// bandeau qui ment sur sa periode.
+RiskNode.prototype.onResize = function() {
+  this.size[0] = Math.max(PERT_RISK_MIN_W, this.size[0]);
+  this.size[1] = PERT_RISK_H;
+};
+
+RiskNode.prototype.onDrawBackground = function(ctx) {
+  const w = this.size[0], h = this.size[1];
+  const col = this.properties.color || PERT_RISK_DEFAULT_COLOR;
+  const r = 6;
+
+  // Bandeau : fond translucide + bordure pleine, coins arrondis.
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(w - r, 0);
+  ctx.arcTo(w, 0, w, r, r);
+  ctx.lineTo(w, h - r);
+  ctx.arcTo(w, h, w - r, h, r);
+  ctx.lineTo(r, h);
+  ctx.arcTo(0, h, 0, h - r, r);
+  ctx.lineTo(0, r);
+  ctx.arcTo(0, 0, r, 0, r);
+  ctx.closePath();
+  ctx.fillStyle = pertRiskTint(col, 0.20);
+  ctx.fill();
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Marqueur « risque » : triangle d'alerte TRACE, jamais le glyphe « ⚠ ». Meme
+  // raison que les marqueurs d'avancement — on ne maitrise pas les polices du poste
+  // DSI, et un glyphe absent s'afficherait en carre « tofu » sans la moindre erreur.
+  const cx = 14, cy = h / 2, s = 7;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s);
+  ctx.lineTo(cx + s, cy + s * 0.8);
+  ctx.lineTo(cx - s, cy + s * 0.8);
+  ctx.closePath();
+  ctx.fillStyle = col;
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(cx - 1, cy - 3.5, 2, 5.5);
+  ctx.fillRect(cx - 1, cy + 3.5, 2, 2);
+};
+
+RiskNode.prototype.onDrawForeground = function(ctx) {
+  const w = this.size[0], h = this.size[1];
+  const col = this.properties.color || PERT_RISK_DEFAULT_COLOR;
+
+  // Periode calculee, ecrite a droite quand la bande est assez large. Elle n'est PAS
+  // le premier element de lecture (la geometrie le dit deja) : elle sert a chiffrer
+  // ce que l'œil vient d'estimer, et cede la place au libelle si l'espace manque.
+  let dateW = 0;
+  const periode = (typeof pertRiskPeriodLabel === "function") ? pertRiskPeriodLabel(this) : "";
+  if (periode) {
+    ctx.font = "10px sans-serif";
+    const pw = ctx.measureText(periode).width;
+    if (w > pw + 90) {
+      ctx.fillStyle = pertRiskTint(col, 0.85);
+      ctx.textAlign = "right";
+      ctx.fillText(periode, w - 10, h / 2 + 3.5);
+      ctx.textAlign = "left";
+      dateW = pw + 14;
+    }
+  }
+
+  // Libelle + nombre de taches couvertes.
+  const nb = (this.properties.covers || []).length;
+  const suffixe = nb ? "  (" + nb + " tâche" + (nb > 1 ? "s" : "") + ")" : "";
+  ctx.font = "bold 12px sans-serif";
+  ctx.fillStyle = col;
+  ctx.fillText(ellipsize(ctx, (this.properties.label || "(sans nom)") + suffixe,
+                         w - 30 - dateW), 26, h / 2 + 4);
+
+  pertDrawDimVeil(ctx, this);
+};
+
+// Identifiant unique d'un Risque. Prefixe distinct de celui des Activites (« a- ») :
+// les deux familles d'uid se croisent dans `covers` et dans le filtre, et un prefixe
+// qui les separe rend toute confusion visible a l'œil dans un .pert.
+function pertGenRiskUid() {
+  return "r-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
 // ─── Slots d'entrée dynamiques ────────────────────────────────────────────────
 //
 // Règle : le dernier slot est toujours vide (disponible pour une nouvelle
@@ -876,6 +1073,7 @@ function manageDynamicInputs(node, slotType) {
 LiteGraph.registerNodeType("pert/activity", ActivityNode);
 LiteGraph.registerNodeType("pert/milestone", MilestoneNode);
 LiteGraph.registerNodeType("pert/label", LabelNode);
+LiteGraph.registerNodeType("pert/risk", RiskNode);
 
 // ─── Identifiant unique d'Activité (#34) ────────────────────────────────────────
 //
@@ -903,6 +1101,22 @@ function pertEnsureUids() {
       n.properties.uid = id;
     }
     seen.add(id);
+  });
+  // Meme garantie pour les Risques (03/09/2026), et pour la meme raison : l'uid d'un
+  // risque est la valeur de son filtre. Deux bandeaux dupliques qui partagent un uid
+  // se mettraient en evidence ENSEMBLE, sans qu'on puisse jamais les distinguer.
+  // NB : `covers` reference des uid d'Activite, pas de Risque — regenerer l'uid d'un
+  // risque duplique ne casse donc aucun rattachement, le clone couvre les memes
+  // taches que l'original, ce qui est le comportement attendu d'une duplication.
+  const vus = new Set();
+  graph._nodes.forEach(n => {
+    if (n.type !== "pert/risk" || !n.properties) return;
+    let id = n.properties.uid;
+    if (!id || vus.has(id)) {
+      id = pertGenRiskUid();
+      n.properties.uid = id;
+    }
+    vus.add(id);
   });
 }
 

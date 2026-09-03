@@ -114,6 +114,17 @@ function pertOffsetToDate(offsetUnits) {
   return pertAddUnits(t0, offsetUnits, meta.unit);
 }
 
+// Date → "YYYY-MM-DD" en heure LOCALE. Indispensable, et PIEGE RECURRENT :
+// toISOString() convertit en UTC, soit un jour d'écart pour tout fuseau à l'est de
+// Greenwich — une date affichée la veille, ou une trame décalée d'une case. Toute
+// conversion Date → chaîne du dépôt doit passer par ici (deux endroits s'y étaient
+// déjà fait prendre : la trame temporelle, puis le champ « début » d'un risque).
+function pertIsoLocal(d) {
+  if (!d) return "";
+  const p = (n) => (n < 10 ? "0" + n : String(n));
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+
 // Date calendaire (string "YYYY-MM-DD") → décalage en unités depuis T0, ou null.
 // Inverse exact de pertOffsetToDate pour un offset entier de mois / semaines / jours
 // ouvrés ; pour une date quelconque en mois, partie entière = mois calendaires
@@ -414,6 +425,7 @@ function pertRecalc() {
   if (nodes.length === 0) {
     window.pertCriticalPathIds = new Set(); // plus de chemin critique a agreger
     pertPublishStatus({ ok: true, nbNodes: 0, nbCritical: 0, projectEnd: null });
+    if (window.pertSyncRisks) pertSyncRisks();
     graph.setDirtyCanvas(true, true);
     return { ok: true, nbNodes: 0, nbCritical: 0 };
   }
@@ -423,6 +435,7 @@ function pertRecalc() {
     window.pertCriticalPathIds = new Set(); // pas de chemin critique sur un cycle
     const res = { ok: false, error: "cycle", nbNodes: nodes.length };
     pertPublishStatus(res);
+    if (window.pertSyncRisks) pertSyncRisks();
     graph.setDirtyCanvas(true, true);
     return res;
   }
@@ -502,6 +515,11 @@ function pertRecalc() {
 
   const res = { ok: true, nbNodes: nodes.length, nbCritical, projectEnd };
   pertPublishStatus(res);
+  // Les bandeaux de risque lisent le calcul qu'on vient de faire (leur fin est le LF
+  // le plus tardif des taches couvertes) : leur geometrie se recale ici, seul moment
+  // ou les LF bougent. COUTURE VOLONTAIRE et a sens unique — le moteur ne sait rien
+  // du contenu des risques, il se contente de dire « c'est recalcule » (cf. src/risks.js).
+  if (window.pertSyncRisks) pertSyncRisks();
   graph.setDirtyCanvas(true, true);
   return res;
 }
@@ -1171,6 +1189,7 @@ window.pertFormatCost = pertFormatCost;
 window.pertFormatHours = pertFormatHours;
 window.pertRecalc = pertRecalc;
 window.pertOffsetToDate = pertOffsetToDate;
+window.pertIsoLocal = pertIsoLocal;
 window.pertDateToOffset = pertDateToOffset;
 window.pertAutoLayout = pertAutoLayout;
 window.pertHighlightCriticalPath = pertHighlightCriticalPath;

@@ -99,9 +99,15 @@ function assert(cond, msg) { if (!cond) throw new Error('ECHEC: ' + msg); }
     document.querySelectorAll('.litegraph.litecontextmenu .litemenu-entry'))
     .map(e => e.textContent.trim()));
   console.log('sous-menu Synthèse :', menu);
-  assert(menu.length === 2, '2 entrees attendues dans le sous-menu, vu ' + menu.length);
-  assert(/Planification/.test(menu[0]) && /Avancement/.test(menu[1]),
-    'sous-menu attendu : Planification puis Avancement — vu ' + menu.join(' | '));
+  // Ce qu'on protege ici, c'est que le suivi soit ATTEIGNABLE par le vrai chemin
+  // utilisateur, et que la synthese de planification reste sa voisine. Surtout PAS le
+  // NOMBRE d'entrees : le sous-menu est fait pour s'enrichir (les risques s'y sont
+  // ajoutes le 03/09/2026), et figer un compte transforme chaque ajout en echec sans
+  // rapport avec ce que le test protege — meme regle que les index de colonnes figes.
+  assert(menu.some(e => /Planification/.test(e)) && menu.some(e => /Avancement/.test(e)),
+    'sous-menu : Planification et Avancement attendus — vu ' + menu.join(' | '));
+  assert(menu.findIndex(e => /Planification/.test(e)) < menu.findIndex(e => /Avancement/.test(e)),
+    'Planification doit preceder Avancement — vu ' + menu.join(' | '));
   await page.evaluate(() => Array.from(
     document.querySelectorAll('.litegraph.litecontextmenu .litemenu-entry'))
     .find(e => /Avancement/.test(e.textContent)).click());

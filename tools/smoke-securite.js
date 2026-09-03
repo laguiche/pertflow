@@ -113,11 +113,21 @@ const PERT_FORGE = {
 
   await lib.openBundle(page);
 
-  // Seuls les 3 types de PertFlow doivent etre instanciables par un fichier. C'est la
-  // mesure directe de R1 : 156 avant, 3 apres.
+  // Seuls les types de PertFlow doivent etre instanciables par un fichier. C'est la
+  // mesure directe de R1 : 156 types avant le passage au build « core », 3 apres (4
+  // depuis l'ajout du Risque, 03/09/2026).
+  //
+  // On compare a la LISTE ATTENDUE, et non a un simple compte : PertFlow gagnera
+  // d'autres types de nœuds, et un compte figé transformerait chaque ajout en echec
+  // sans rapport avec ce que ce test protege. Ce qu'il protege, c'est qu'AUCUN type
+  // etranger ne soit enregistre — d'ou la liste nominative, a completer sciemment
+  // quand un type PertFlow s'ajoute. Le controle « prefixe pert/ » reste en second
+  // filet : il attrape le type venu d'ailleurs meme si la liste vieillit.
+  const TYPES_ATTENDUS = ['pert/activity', 'pert/label', 'pert/milestone', 'pert/risk'];
   const types = await page.evaluate(() => Object.keys(LiteGraph.registered_node_types).sort());
-  assert(types.length === 3,
-    '3 types de noeuds attendus (pert/*), vu ' + types.length + ' : ' + types.join(', '));
+  assert(JSON.stringify(types) === JSON.stringify(TYPES_ATTENDUS),
+    'types de noeuds enregistres inattendus.\n  attendu : ' + TYPES_ATTENDUS.join(', ')
+    + '\n  obtenu  : ' + types.join(', '));
   types.forEach(t => assert(t.indexOf('pert/') === 0, 'type inattendu enregistre : ' + t));
 
   // Ouverture du planning forge par le chemin utilisateur normal (le bouton « Ouvrir »).
