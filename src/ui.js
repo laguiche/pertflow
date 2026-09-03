@@ -117,6 +117,10 @@ document.addEventListener("DOMContentLoaded", () => {
     graph.add(n);
     return n;
   }
+  // addNodeAt vit dans la portee de l'initialisation (elle capture `graph`). Le menu
+  // « Insérer ▾ » etant construit hors de cette portee, on l'expose ici — un seul
+  // chemin de creation, donc un seul endroit ou vivent les defauts et le centrage.
+  window.pertAddNodeAt = addNodeAt;
 
   // Menu du fond de canvas : uniquement des actions PERT, en français
   // (remplace intégralement le menu natif anglais « Add Node / Add Group… »).
@@ -126,6 +130,10 @@ document.addEventListener("DOMContentLoaded", () => {
       { content: "▭ Ajouter une Activité", callback: () => addNodeAt("pert/activity", pos) },
       { content: "◈ Ajouter un Jalon",     callback: () => addNodeAt("pert/milestone", pos) },
       { content: "❏ Ajouter un Label",     callback: () => addNodeAt("pert/label", pos) },
+      // Le Risque n'est PAS propose ici : sa position sous le curseur serait aussitot
+      // reprise, son abscisse etant sa date de debut (cf. src/risks.js). Une entree
+      // qui ne tient pas sa promesse (« poser ici ») vaut moins que pas d'entree —
+      // le bouton « Insérer ▾ » de la toolbar, lui, ne promet rien sur l'abscisse.
       null,
       { content: "⤓ Réorganiser", has_submenu: true,
         submenu: { options: pertReorgMenuOptions() } },
@@ -344,29 +352,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Toolbar ─────────────────────────────────────────────────────────────────
 
-  // Les 3 boutons d'ajout passent par addNodeAt (sans position) → nœud centré
-  // sur le milieu de l'espace de travail visible, taille calculee au prealable.
-  document.getElementById("btn-add-activity").addEventListener("click", () => {
-    addNodeAt("pert/activity");
-  });
-
-  document.getElementById("btn-add-milestone").addEventListener("click", () => {
-    addNodeAt("pert/milestone");
-  });
-
-  document.getElementById("btn-add-label").addEventListener("click", () => {
-    addNodeAt("pert/label");
-  });
-
-  // Un Risque nait couvrant TOUT le projet : debut a T0, fin sur le LF le plus tardif
-  // du planning (T0 si le planning est vide). C'est l'hypothese la plus large — donc
-  // la moins fausse — tant qu'on n'a pas dit sur quelles taches il pese ; la couvrir
-  // ensuite ne fait que RESSERRER la periode, jamais l'inverse.
-  document.getElementById("btn-add-risk").addEventListener("click", () => {
-    const n = addNodeAt("pert/risk");
-    if (window.pertRiskSyncGeometry) pertRiskSyncGeometry(n);
-    lgCanvas.selectNode(n);
-    showProperties(n);
+  // ── « Insérer ▾ » : les quatre créations derriere un seul bouton ─────────────
+  //
+  // Quatre boutons cote a cote, c'est un quart de la toolbar consomme par une famille
+  // d'actions qu'on ne declenche qu'en construisant le planning ; le reste (zoom,
+  // filtre, exports, synthese) sert en permanence et se faisait rogner — la toolbar
+  // passe deja a la ligne (flex-wrap). Un sous-menu rend la place au travail courant
+  // sans rien retirer : meme mecanique que « Réorganiser ▾ » et « Synthèse ▾ »
+  // (LiteGraph.ContextMenu).
+  //
+  // Le menu contextuel du FOND de canvas garde ses entrees d'ajout, inchangees : il
+  // reste le chemin le plus direct quand on sait deja OU poser le nœud (il le pose
+  // sous le curseur), la ou le bouton le centre dans la vue.
+  document.getElementById("btn-insert").addEventListener("click", (e) => {
+    new LiteGraph.ContextMenu(pertInsertMenuOptions(), { event: e });
   });
 
   // Deux modes de reorganisation (demande utilisateur) : le bouton ouvre un petit
@@ -1644,6 +1643,39 @@ function buildTextarea(parent, labelText, value, onChange) {
 // rien si l'utilisateur l'a redimensionnee manuellement (manual_size).
 // Options du menu de reorganisation (partagees par le bouton toolbar et le
 // sous-menu du menu contextuel de fond). Deux modes, cf. pertRunReorg.
+// Entrees du menu « Insérer ▾ ». Meme ordre que les types du modele de donnees :
+// Activite, Jalon, Label, Risque.
+function pertInsertMenuOptions() {
+  return [
+    { content: "▭ Activité", callback: () => pertInsertNode("pert/activity") },
+    { content: "◈ Jalon",    callback: () => pertInsertNode("pert/milestone") },
+    { content: "❏ Label",    callback: () => pertInsertNode("pert/label") },
+    { content: "⚠ Risque",   callback: () => pertInsertNode("pert/risk") }
+  ];
+}
+window.pertInsertMenuOptions = pertInsertMenuOptions;
+
+// Insere un nœud au CENTRE de l'espace de travail visible (via addNodeAt, qui porte
+// aussi les defauts de couleur/groupe des nouvelles taches).
+//
+// Un RISQUE nait couvrant TOUT le projet : debut a T0, fin sur le LF le plus tardif du
+// planning (T0 si le planning est vide). C'est l'hypothese la plus large — donc la
+// moins fausse — tant qu'on n'a pas dit sur quelles taches il pese ; les couvrir
+// ensuite ne fait que RESSERRER la periode, jamais l'inverse. On le selectionne dans
+// la foulee : il ne sert a rien tant qu'on ne lui a pas designe ses taches, et c'est
+// le panneau qui porte le bouton permettant de le faire.
+function pertInsertNode(type) {
+  const n = window.pertAddNodeAt ? pertAddNodeAt(type) : null;
+  if (!n) return null;
+  if (type === "pert/risk") {
+    if (window.pertRiskSyncGeometry) pertRiskSyncGeometry(n);
+    if (window.pertCanvas) pertCanvas.selectNode(n);
+    showProperties(n);
+  }
+  return n;
+}
+window.pertInsertNode = pertInsertNode;
+
 function pertReorgMenuOptions() {
   return [
     { content: "⤓ Chronologique (complète)", callback: () => pertRunReorg("full") },

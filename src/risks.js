@@ -593,8 +593,8 @@ function pertRenderRisks() {
 
   if (!risks.length) {
     synthSection(pRisques, "Aucun risque", null,
-      "Ce planning ne porte encore aucun risque. Le bouton « ⚠ Risque » de la barre "
-      + "d'outils en crée un ; il couvre ensuite les tâches sur lesquelles il pèse.");
+      "Ce planning ne porte encore aucun risque. « ➕ Insérer ▾ → ⚠ Risque » en crée un ; "
+      + "il couvre ensuite les tâches sur lesquelles il pèse.");
     synthSection(pTaches, "Aucune tâche exposée", null, "Aucun risque n'est défini.");
     pertSelectRisksTab(pertRisksTab);
     return;

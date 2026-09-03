@@ -87,8 +87,7 @@ const lib = require('./lib');
   // ── 1) Creation : debut = T0, fin = LF du projet ─────────────────────────────
   // Un risque nait couvrant TOUT le projet : c'est l'hypothese la plus large, donc
   // la moins fausse tant qu'on n'a pas dit sur quoi il pese.
-  await page.click('#btn-add-risk');
-  await page.waitForTimeout(150);
+  await lib.insererNoeud(page, 'risque');
   const cree = await page.evaluate(() => {
     const r = pertRiskNodes()[0];
     return { nb: pertRiskNodes().length, start: pertRiskStart(r), end: pertRiskEnd(r),
@@ -378,6 +377,83 @@ const lib = require('./lib');
        .every(n => n.slice(2, 7).every(v => v === null)), true,
      '10) REGLE ABSOLUE : aucun risque n\'a acquis de valeur calculee en cours de route');
 
+  // ── 11) Reorganisation : les bandeaux sont replaces comme le reste ───────────
+  //
+  // « Réorganiser » doit traiter les risques, pas les laisser sur place au milieu du
+  // planning qu'on vient de deplacer sous eux. Deux modes, deux promesses distinctes :
+  // la reorg COMPLETE leur attribue une ordonnee (bande en haut, packee en couloirs
+  // comme les taches) ; l'axe du temps SEUL ne touche a aucune ordonnee, mais recale
+  // les abscisses — et l'abscisse d'un bandeau est sa date de debut.
+  await page.evaluate(() => { pertCloseRiskLink(); });
+  const reorg = await page.evaluate(() => {
+    const g = window.pertGraph; g.clear();
+    window.pertMeta.t0 = '2026-01-05'; window.pertMeta.unit = 'sem';
+    const mk = (label, dur) => {
+      const n = LiteGraph.createNode('pert/activity');
+      n.properties.label = label; n.properties.duration = dur;
+      n.updateSize(); g.add(n); return n;
+    };
+    const a = mk('A', 4), b = mk('B', 4), c = mk('C', 4);
+    a.connect(0, b, 0); b.connect(0, c, 0);
+    pertRecalc();
+    // R1 couvre A (donc periode courte, a gauche), R2 couvre A et C (large, il
+    // recouvre R1), R3 ne couvre que C (a droite, disjoint de R1).
+    const mkR = (label, couverts) => {
+      const r = LiteGraph.createNode('pert/risk');
+      r.properties.label = label;
+      r.properties.covers = couverts.map(n => n.properties.uid);
+      g.add(r); r.pos[1] = 5000;   // volontairement absurde : la reorg doit la reprendre
+      return r;
+    };
+    const r1 = mkR('R1', [a]), r2 = mkR('R2', [a, c]), r3 = mkR('R3', [c]);
+    // R3 doit commencer apres la fin de R1 pour pouvoir partager son couloir.
+    r3.properties.start_offset = 8;
+    pertRecalc();
+    pertAutoLayout();
+
+    const taches = g._nodes.filter(n => n.type !== 'pert/risk');
+    const hautDesTaches = Math.min.apply(null, taches.map(n => n.pos[1]));
+    const basDesRisques = Math.max.apply(null, [r1, r2, r3].map(n => n.pos[1] + n.size[1]));
+    const ox = pertT0OriginX(g);
+    const geo = r => [Math.round(r.pos[0]), Math.round(r.size[0])];
+    const attendu = r => [Math.round(ox + pertRiskStart(r) * PERT_PX_PER_UNIT),
+                          Math.round(Math.max(PERT_RISK_MIN_W,
+                                     pertRiskDuration(r) * PERT_PX_PER_UNIT))];
+    const avantTimeOnly = [r1.pos[1], r2.pos[1], r3.pos[1]];
+    // Axe du temps seul : on decale tout le graphe, les ordonnees doivent survivre et
+    // les abscisses des bandeaux se recaler.
+    taches.forEach(n => { n.pos[0] += 777; });
+    pertAutoLayoutTimeOnly();
+    return {
+      hautDesTaches, basDesRisques,
+      memeCouloir: r1.pos[1] === r3.pos[1],
+      couloirDistinct: r1.pos[1] !== r2.pos[1],
+      geoR2: geo(r2), attR2: attendu(r2),
+      ordonneesConservees: JSON.stringify([r1.pos[1], r2.pos[1], r3.pos[1]])
+                           === JSON.stringify(avantTimeOnly),
+      xRecale: Math.round(r2.pos[0]) === Math.round(pertT0OriginX(g)
+                 + pertRiskStart(r2) * PERT_PX_PER_UNIT)
+    };
+  });
+  check(reorg.basDesRisques <= reorg.hautDesTaches,
+     '11) La reorganisation complete doit poser les bandeaux EN BANDE AU-DESSUS du '
+     + 'planning (un risque se lit comme un en-tete, et ses traits descendent vers '
+     + 'les taches) — bas des risques ' + reorg.basDesRisques
+     + ', haut des taches ' + reorg.hautDesTaches);
+  check(reorg.couloirDistinct,
+     '11) Deux risques dont les periodes se recouvrent doivent occuper deux couloirs');
+  check(reorg.memeCouloir,
+     '11) Deux risques dont les periodes sont DISJOINTES doivent partager un couloir '
+     + '(meme packing que les taches — sinon la bande enfle inutilement)');
+  eq(reorg.geoR2, reorg.attR2,
+     '11) Apres reorganisation, l\'abscisse et la largeur d\'un bandeau restent sa periode');
+  check(reorg.ordonneesConservees,
+     '11) La reorganisation « axe du temps seul » ne doit toucher AUCUNE ordonnee, '
+     + 'celles des bandeaux comprises');
+  check(reorg.xRecale,
+     '11) La reorganisation « axe du temps seul » doit recaler l\'abscisse des bandeaux '
+     + 'sur la nouvelle origine des temps');
+
   await browser.close();
 
   if (errors.length) ko.push('Erreurs JS dans la page :\n    ' + errors.join('\n    '));
@@ -388,5 +464,6 @@ const lib = require('./lib');
   }
   console.log('OK — risques : aucun effet sur le PERT, fin deduite et reevaluee, debut borne');
   console.log('     sans ecrasement, anticipation, geometrie = periode, filtre + synthese,');
-  console.log('     round-trip .pert, uid uniques, fenetres Risques et « Couvrir des taches ».');
+  console.log('     round-trip .pert, uid uniques, fenetres Risques et « Couvrir des taches »,');
+  console.log('     reorganisation (bande en haut, couloirs) dans les deux modes.');
 })();

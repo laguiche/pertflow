@@ -21,7 +21,7 @@ const lib = require('./lib');
 
     const res = await page.evaluate(() => {
       const before = window.pertGraph._nodes.length;
-      document.getElementById('btn-add-activity').click();
+      window.pertInsertNode('pert/activity');
       const nodes = window.pertGraph._nodes;
       const n = nodes[nodes.length - 1];
       const c = window.pertCanvas, cv = document.getElementById('pertCanvas');

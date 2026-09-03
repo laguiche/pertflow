@@ -10,11 +10,11 @@ et le chemin critique, puis vous permet d'exporter le résultat (image, PDF, Exc
 - **Aucune donnée n'est envoyée** : tout reste sur votre poste.
 
 > **Vocabulaire.** Un planning PertFlow est constitué de **nœuds** — les boîtes posées sur la zone
-> de dessin (le *canvas*) — reliés par des **liens** (les dépendances). Il existe **trois types de
-> nœuds** : **Activité** (une *tâche*, qui a une durée), **Jalon** (une échéance instantanée) et
-> **Label** (une note libre). Dans ce manuel, « **tâche** » désigne toujours un nœud **Activité**,
-> et les boutons **▭ Activité / ◈ Jalon / ❏ Label** de la barre d'outils créent ces trois types
-> de nœuds.
+> de dessin (le *canvas*) — reliés par des **liens** (les dépendances). Il existe **quatre types
+> de nœuds** : **Activité** (une *tâche*, qui a une durée), **Jalon** (une échéance instantanée),
+> **Label** (une note libre) et **Risque** (une période d'exposition, §14). Dans ce manuel,
+> « **tâche** » désigne toujours un nœud **Activité**, et le bouton **➕ Insérer ▾** de la barre
+> d'outils crée ces quatre types de nœuds.
 
 > 💡 Ce manuel illustre l'application avec un projet d'exemple « Nouveau produit ».
 
@@ -56,7 +56,8 @@ votre navigateur, sans rien installer.
 
 ![Étape 2 — le dialogue Paramètres (T0 et unité)](images/manuel/qs-2-parametres.png)
 
-**Étape 3 — Ajoutez une tâche.** Cliquez sur **▭ Activité** dans la barre d'outils. Un nœud
+**Étape 3 — Ajoutez une tâche.** Cliquez sur **➕ Insérer ▾** dans la barre d'outils, puis
+sur **▭ Activité**. Un nœud
 apparaît au centre. Il est sélectionné : le **panneau Propriétés** (à droite) affiche ses champs.
 
 ![Étape 3 — une première tâche ajoutée, sélectionnée](images/manuel/qs-3-activite.png)
@@ -76,7 +77,7 @@ la **Durée**. Ajoutez au besoin un **Responsable**, un **Groupe** et une **coul
 > faites un **clic droit** sur l'un d'eux et choisissez **🔗 Relier à…** pour désigner l'autre
 > par son nom (voir §5).
 
-**Étape 6 — Ajoutez un jalon de fin.** Cliquez sur **◈ Jalon**, reliez-y la dernière tâche, et
+**Étape 6 — Ajoutez un jalon de fin.** Faites **➕ Insérer ▾ → ◈ Jalon**, reliez-y la dernière tâche, et
 donnez-lui éventuellement une **date-cible** à tenir.
 
 ![Étape 6 — un jalon de livraison relié, avec sa date-cible](images/manuel/qs-6-jalon.png)
@@ -117,9 +118,7 @@ L'écran se compose de quatre zones :
 
 | Bouton | Rôle |
 |---|---|
-| **▭ Activité** | Ajoute une tâche (voir §3). |
-| **◈ Jalon** | Ajoute un jalon (échéance / point de contrôle). |
-| **❏ Label** | Ajoute une zone de texte libre (documentation). |
+| **➕ Insérer ▾** | Ouvre un menu des quatre objets du planning : **▭ Activité** (une tâche, §3), **◈ Jalon** (une échéance ou un point de contrôle), **❏ Label** (une zone de texte libre) et **⚠ Risque** (§14). L'objet est créé **au centre de la vue**. |
 | **⤓ Réorganiser ▾** | Range automatiquement les nœuds. Ouvre un menu à **deux modes** : *chronologique complète* ou *axe du temps seul* (voir §6). |
 | **➖ / ➕** | Dézoome / zoome (utile sans molette de souris). |
 | **🔍 Tout afficher** | Ajuste le zoom pour voir tout le planning. |
@@ -131,7 +130,7 @@ L'écran se compose de quatre zones :
 | **💾 Sauvegarder** | Télécharge le projet au format `.pert`. |
 | **⬇ Exporter** | Ouvre la fenêtre d'export (image, PDF, Excel, MS Project…). |
 | **↶ Annuler / ↷ Rétablir** | Annule / rétablit la dernière action (Ctrl+Z / Ctrl+Y). |
-| **📊 Synthèse ▾** | Ouvre la **synthèse de planification** (§12) ou le **suivi d'avancement** (§13). |
+| **📊 Synthèse ▾** | Ouvre la **synthèse de planification** (§12), le **suivi d'avancement** (§13) ou les **risques** (§14). |
 | **ℹ À propos** | Auteur, licence et version. |
 
 ### Se déplacer dans le canvas
@@ -559,6 +558,11 @@ un mode.
   **conserve la hauteur** (l'ordonnée) que vous avez donnée à chaque nœud, quitte à laisser des
   chevauchements. Idéal quand vous avez soigné un placement vertical (une ligne par équipe, par
   zone…) et voulez seulement « recaler les dates » sans casser votre disposition.
+
+Les **risques** (§14) suivent la même règle que le reste : en mode *complet*, ils sont rangés en
+une **bande au-dessus du planning**, empilés seulement quand leurs périodes se recouvrent ; en
+mode *axe du temps seul*, leur hauteur est conservée comme celle des autres nœuds. Dans les deux
+cas leur position horizontale reste, comme toujours, leur période.
 
 L'exemple ci-dessous illustre le mode **axe du temps seul** : à gauche, deux rangées disposées
 à la main mais dont les abscisses ne correspondent pas aux dates ; à droite, après réorganisation,
@@ -1177,7 +1181,7 @@ label.
 
 ### Créer un risque
 
-Bouton **⚠ Risque** de la barre d'outils. Il apparaît sous forme de **bandeau** posé au-dessus du
+**➕ Insérer ▾ → ⚠ Risque.** Il apparaît sous forme de **bandeau** posé au-dessus du
 planning, et couvrant d'emblée **tout le projet** : de **T0** à la fin au plus tard du planning
 (à T0 si le planning est encore vide). C'est l'hypothèse la plus large, donc la moins fausse tant
 que vous n'avez pas dit sur quoi il pèse — le rattacher à des tâches ne fera ensuite que
@@ -1192,6 +1196,11 @@ qu'il concerne. Un déplacement horizontal est repris au lâcher : l'axe des dat
 négociable, sinon le bandeau mentirait sur sa période.
 
 Les **traits en pointillé** relient le bandeau aux tâches qu'il couvre.
+
+La **réorganisation** (§6) range les risques comme le reste du planning : en mode *chronologique
+complet*, ils forment une **bande au-dessus** des tâches, sur autant de lignes que nécessaire —
+deux risques dont les périodes ne se recouvrent pas partagent la même ligne. C'est l'état montré
+sur la capture ci-dessus.
 
 ### Ses trois attributs
 

@@ -176,6 +176,9 @@ rien. Prendre l'empreinte de <strong>tous</strong> les nœuds, et de la liste de
 <p>Vérifier aussi les branches <code>else if (node.type === "pert/label")</code> : plusieurs écrans (panneau,
 onglet Synthèse, export planning directeur) énumèrent les types, et un type neuf y tombe
 silencieusement dans la mauvaise branche ou dans aucune.</p>
+<p>Enfin, l'ajouter au menu <strong>« Insérer ▾ »</strong> (<code>pertInsertMenuOptions</code>, <code>ui.js</code>) et à
+<code>pertAutoLayout</code> s'il doit être rangé par la réorganisation — un type que la réorganisation
+ignore reste posé au milieu du planning qu'on vient de déplacer sous lui.</p>
 <hr />
 <h2 id="5-outillage-de-validation-tools">5. Outillage de validation (<code>tools/</code>)</h2>
 <p><strong>Le mode d'emploi complet est dans <a href="../tools/README.md"><code>tools/README.md</code></a></strong> — prérequis,

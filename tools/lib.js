@@ -145,6 +145,27 @@ async function resolveUnitDialog(page, choice) {
   return true;
 }
 
+// Insere un nœud par le VRAI chemin utilisateur : le bouton « Insérer ▾ » de la
+// toolbar, puis l'entree du sous-menu. Les quatre boutons de creation ont ete
+// regroupes derriere ce bouton le 04/09/2026 (la toolbar passait a la ligne) ; le
+// geste est centralise ici pour que les tests n'aient pas chacun a le reecrire —
+// et pour qu'un futur remaniement de la toolbar ne se paie qu'une fois.
+// quoi : "activite" | "jalon" | "label" | "risque".
+async function insererNoeud(page, quoi) {
+  const motifs = { activite: 'Activité', jalon: 'Jalon', label: 'Label', risque: 'Risque' };
+  const motif = motifs[quoi];
+  if (!motif) throw new Error('type a inserer inconnu : ' + quoi);
+  await page.click('#btn-insert');
+  await page.waitForSelector('.litegraph.litecontextmenu .litemenu-entry');
+  await page.evaluate((m) => {
+    const e = Array.from(document.querySelectorAll('.litegraph.litecontextmenu .litemenu-entry'))
+      .find(x => x.textContent.indexOf(m) !== -1);
+    if (!e) throw new Error('entree absente du menu Insérer : ' + m);
+    e.click();
+  }, motif);
+  await page.waitForTimeout(120);
+}
+
 // Ouvre une des deux fenetres de rapport via le bouton « Synthèse ▾ ». Depuis
 // l'ajout du suivi d'avancement (29/07/2026) ce bouton n'ouvre plus directement la
 // synthese : il deroule un sous-menu. Le geste est centralise ici pour que les tests
@@ -169,4 +190,5 @@ async function openSynthesisMenu(page, quoi) {
 
 module.exports = { ROOT, EXEMPLES, CPERT, CPERT_REEL, BUNDLE, cpertReelPresent,
                    findChromium, launch, openApp, openBundle, importXlsm, importPert,
-                   pickImportFormat, resolveUnitDialog, openSynthesisMenu };
+                   pickImportFormat, resolveUnitDialog, openSynthesisMenu,
+                   insererNoeud };

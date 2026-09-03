@@ -2147,7 +2147,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"03/09/2026","tag":"v0.26"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"04/09/2026","tag":"v0.26"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -2268,10 +2268,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
   <div id="toolbar">
     <span id="project-title">PertFlow</span>
     <div class="tb-sep"></div>
-    <button id="btn-add-activity" title="Ajouter un nœud Activité">▭ Activité</button>
-    <button id="btn-add-milestone" title="Ajouter un nœud Jalon">◈ Jalon</button>
-    <button id="btn-add-label" title="Ajouter un nœud Label">❏ Label</button>
-    <button id="btn-add-risk" title="Ajouter un Risque : un bandeau qui couvre les tâches sur lesquelles il pèse, du début de l'exposition à la fin au plus tard de la dernière tâche couverte">⚠ Risque</button>
+    <button id="btn-insert" title="Insérer un objet dans le planning : Activité, Jalon, Label ou Risque">➕ Insérer ▾</button>
     <div class="tb-sep"></div>
     <button id="btn-layout" title="Réorganiser les nœuds : chronologique complète, ou sur l'axe du temps seul (ordonnées conservées)">⤓ Réorganiser ▾</button>
     <button id="btn-zoom-out" title="Dézoomer (utile sans molette ni pavé tactile multipoint)">➖</button>
@@ -19110,14 +19107,39 @@ function pertAutoLayout() {
   placeable.forEach(n => { if (n.size[1] > rowH) rowH = n.size[1]; });
   rowH += PERT_LAYOUT_GAP_Y;
 
+  // Bandeaux de RISQUE : bande tout EN HAUT du graphe, packee en couloirs comme le
+  // reste (deux risques dont les periodes ne se recouvrent pas partagent un couloir).
+  //
+  // Pourquoi en haut, et pas ailleurs : un risque se lit comme un EN-TETE au-dessus de
+  // la periode qu'il couvre, et ses traits de rattachement descendent vers les taches.
+  // Le poser en bas les ferait tous remonter en traversant le planning.
+  //
+  // Le layout ne fait ici que l'ORDONNEE : l'abscisse et la largeur d'un bandeau sont
+  // sa periode (cf. src/risks.js), elles ne se negocient pas. On les calcule quand meme
+  // ici, dans le repere du layout, parce que le packing en a besoin — puis pertSyncRisks
+  // (en fin de fonction) repose la geometrie canonique, pos[1] etant conserve.
+  const risks = graph._nodes.filter(n => n.type === "pert/risk");
+  const riskRowH = PERT_RISK_H + PERT_LAYOUT_GAP_Y;
+  let riskLanes = 0;
+  if (risks.length && typeof pertRiskStart === "function") {
+    const rxOf = {};
+    risks.forEach(r => {
+      rxOf[r.id] = originX + pertRiskStart(r) * PERT_PX_PER_UNIT;
+      r.size[0] = Math.max(PERT_RISK_MIN_W, pertRiskDuration(r) * PERT_PX_PER_UNIT);
+      r.size[1] = PERT_RISK_H;
+    });
+    riskLanes = pertPackLanes(risks, PERT_LAYOUT_MARGIN_Y, riskRowH, rxOf);
+  }
+
   // Jalons de sortie (terminaux, sans successeur) regroupes dans une bande EN HAUT
-  // du graphe ; le reste (activites + jalons intermediaires) en dessous.
+  // du graphe (sous les risques) ; le reste (activites + jalons intermediaires) en dessous.
   const isOutMilestone = n => n.type === "pert/milestone" && succs[n.id].length === 0;
   const top = placeable.filter(isOutMilestone);
   const rest = placeable.filter(n => !isOutMilestone(n));
 
-  const topLanes = pertPackLanes(top, PERT_LAYOUT_MARGIN_Y, rowH, xOf);
-  const restTop = PERT_LAYOUT_MARGIN_Y + (top.length ? topLanes * rowH : 0);
+  const topStart = PERT_LAYOUT_MARGIN_Y + riskLanes * riskRowH;
+  const topLanes = pertPackLanes(top, topStart, rowH, xOf);
+  const restTop = topStart + (top.length ? topLanes * rowH : 0);
   // Packing a DEUX niveaux (evolution reorg). L'abscisse (∝ ES) reste inchangee
   // (coherence temporelle facon Gantt) ; seule l'affectation des couloirs verticaux
   // change. Regroupement PRIMAIRE = enchainement (composante connexe de liens : les
@@ -19134,6 +19156,11 @@ function pertAutoLayout() {
   // peuvent se retrouver sous une activite/jalon repositionne. On reloge ceux qui
   // chevauchent un nœud place, dans une bande libre sous le graphe.
   pertRelocateOverlappingLabels(graph, placeable);
+
+  // Geometrie canonique des bandeaux : l'origine des temps vient de changer avec le
+  // placement. Seule l'abscisse est reposee — l'ordonnee est celle que le packing
+  // ci-dessus vient d'attribuer.
+  if (window.pertSyncRisks) pertSyncRisks();
 
   graph.setDirtyCanvas(true, true);
 }
@@ -19188,6 +19215,12 @@ function pertAutoLayoutTimeOnly() {
     e.node.pos[0] = originX + e.off * PERT_PX_PER_UNIT;
     // pos[1] volontairement inchange (on ne touche pas a l'axe des ordonnees)
   });
+
+  // Les bandeaux de risque suivent la MEME regle que les autres nœuds dans ce mode :
+  // leur abscisse est recalee sur la nouvelle origine des temps, leur ordonnee est
+  // celle que l'utilisateur leur a donnee. Rien de plus a faire — l'abscisse d'un
+  // bandeau etant toujours calculee, il suffit de la reposer.
+  if (window.pertSyncRisks) pertSyncRisks();
 
   graph.setDirtyCanvas(true, true);
 }
@@ -26357,8 +26390,8 @@ function pertRenderRisks() {
 
   if (!risks.length) {
     synthSection(pRisques, "Aucun risque", null,
-      "Ce planning ne porte encore aucun risque. Le bouton « ⚠ Risque » de la barre "
-      + "d'outils en crée un ; il couvre ensuite les tâches sur lesquelles il pèse.");
+      "Ce planning ne porte encore aucun risque. « ➕ Insérer ▾ → ⚠ Risque » en crée un ; "
+      + "il couvre ensuite les tâches sur lesquelles il pèse.");
     synthSection(pTaches, "Aucune tâche exposée", null, "Aucun risque n'est défini.");
     pertSelectRisksTab(pertRisksTab);
     return;
@@ -26579,6 +26612,10 @@ document.addEventListener("DOMContentLoaded", () => {
     graph.add(n);
     return n;
   }
+  // addNodeAt vit dans la portee de l'initialisation (elle capture `graph`). Le menu
+  // « Insérer ▾ » etant construit hors de cette portee, on l'expose ici — un seul
+  // chemin de creation, donc un seul endroit ou vivent les defauts et le centrage.
+  window.pertAddNodeAt = addNodeAt;
 
   // Menu du fond de canvas : uniquement des actions PERT, en français
   // (remplace intégralement le menu natif anglais « Add Node / Add Group… »).
@@ -26588,6 +26625,10 @@ document.addEventListener("DOMContentLoaded", () => {
       { content: "▭ Ajouter une Activité", callback: () => addNodeAt("pert/activity", pos) },
       { content: "◈ Ajouter un Jalon",     callback: () => addNodeAt("pert/milestone", pos) },
       { content: "❏ Ajouter un Label",     callback: () => addNodeAt("pert/label", pos) },
+      // Le Risque n'est PAS propose ici : sa position sous le curseur serait aussitot
+      // reprise, son abscisse etant sa date de debut (cf. src/risks.js). Une entree
+      // qui ne tient pas sa promesse (« poser ici ») vaut moins que pas d'entree —
+      // le bouton « Insérer ▾ » de la toolbar, lui, ne promet rien sur l'abscisse.
       null,
       { content: "⤓ Réorganiser", has_submenu: true,
         submenu: { options: pertReorgMenuOptions() } },
@@ -26806,29 +26847,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Toolbar ─────────────────────────────────────────────────────────────────
 
-  // Les 3 boutons d'ajout passent par addNodeAt (sans position) → nœud centré
-  // sur le milieu de l'espace de travail visible, taille calculee au prealable.
-  document.getElementById("btn-add-activity").addEventListener("click", () => {
-    addNodeAt("pert/activity");
-  });
-
-  document.getElementById("btn-add-milestone").addEventListener("click", () => {
-    addNodeAt("pert/milestone");
-  });
-
-  document.getElementById("btn-add-label").addEventListener("click", () => {
-    addNodeAt("pert/label");
-  });
-
-  // Un Risque nait couvrant TOUT le projet : debut a T0, fin sur le LF le plus tardif
-  // du planning (T0 si le planning est vide). C'est l'hypothese la plus large — donc
-  // la moins fausse — tant qu'on n'a pas dit sur quelles taches il pese ; la couvrir
-  // ensuite ne fait que RESSERRER la periode, jamais l'inverse.
-  document.getElementById("btn-add-risk").addEventListener("click", () => {
-    const n = addNodeAt("pert/risk");
-    if (window.pertRiskSyncGeometry) pertRiskSyncGeometry(n);
-    lgCanvas.selectNode(n);
-    showProperties(n);
+  // ── « Insérer ▾ » : les quatre créations derriere un seul bouton ─────────────
+  //
+  // Quatre boutons cote a cote, c'est un quart de la toolbar consomme par une famille
+  // d'actions qu'on ne declenche qu'en construisant le planning ; le reste (zoom,
+  // filtre, exports, synthese) sert en permanence et se faisait rogner — la toolbar
+  // passe deja a la ligne (flex-wrap). Un sous-menu rend la place au travail courant
+  // sans rien retirer : meme mecanique que « Réorganiser ▾ » et « Synthèse ▾ »
+  // (LiteGraph.ContextMenu).
+  //
+  // Le menu contextuel du FOND de canvas garde ses entrees d'ajout, inchangees : il
+  // reste le chemin le plus direct quand on sait deja OU poser le nœud (il le pose
+  // sous le curseur), la ou le bouton le centre dans la vue.
+  document.getElementById("btn-insert").addEventListener("click", (e) => {
+    new LiteGraph.ContextMenu(pertInsertMenuOptions(), { event: e });
   });
 
   // Deux modes de reorganisation (demande utilisateur) : le bouton ouvre un petit
@@ -28106,6 +28138,39 @@ function buildTextarea(parent, labelText, value, onChange) {
 // rien si l'utilisateur l'a redimensionnee manuellement (manual_size).
 // Options du menu de reorganisation (partagees par le bouton toolbar et le
 // sous-menu du menu contextuel de fond). Deux modes, cf. pertRunReorg.
+// Entrees du menu « Insérer ▾ ». Meme ordre que les types du modele de donnees :
+// Activite, Jalon, Label, Risque.
+function pertInsertMenuOptions() {
+  return [
+    { content: "▭ Activité", callback: () => pertInsertNode("pert/activity") },
+    { content: "◈ Jalon",    callback: () => pertInsertNode("pert/milestone") },
+    { content: "❏ Label",    callback: () => pertInsertNode("pert/label") },
+    { content: "⚠ Risque",   callback: () => pertInsertNode("pert/risk") }
+  ];
+}
+window.pertInsertMenuOptions = pertInsertMenuOptions;
+
+// Insere un nœud au CENTRE de l'espace de travail visible (via addNodeAt, qui porte
+// aussi les defauts de couleur/groupe des nouvelles taches).
+//
+// Un RISQUE nait couvrant TOUT le projet : debut a T0, fin sur le LF le plus tardif du
+// planning (T0 si le planning est vide). C'est l'hypothese la plus large — donc la
+// moins fausse — tant qu'on n'a pas dit sur quelles taches il pese ; les couvrir
+// ensuite ne fait que RESSERRER la periode, jamais l'inverse. On le selectionne dans
+// la foulee : il ne sert a rien tant qu'on ne lui a pas designe ses taches, et c'est
+// le panneau qui porte le bouton permettant de le faire.
+function pertInsertNode(type) {
+  const n = window.pertAddNodeAt ? pertAddNodeAt(type) : null;
+  if (!n) return null;
+  if (type === "pert/risk") {
+    if (window.pertRiskSyncGeometry) pertRiskSyncGeometry(n);
+    if (window.pertCanvas) pertCanvas.selectNode(n);
+    showProperties(n);
+  }
+  return n;
+}
+window.pertInsertNode = pertInsertNode;
+
 function pertReorgMenuOptions() {
   return [
     { content: "⤓ Chronologique (complète)", callback: () => pertRunReorg("full") },

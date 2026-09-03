@@ -121,6 +121,10 @@ Vérifier aussi les branches `else if (node.type === "pert/label")` : plusieurs 
 onglet Synthèse, export planning directeur) énumèrent les types, et un type neuf y tombe
 silencieusement dans la mauvaise branche ou dans aucune.
 
+Enfin, l'ajouter au menu **« Insérer ▾ »** (`pertInsertMenuOptions`, `ui.js`) et à
+`pertAutoLayout` s'il doit être rangé par la réorganisation — un type que la réorganisation
+ignore reste posé au milieu du planning qu'on vient de déplacer sous lui.
+
 ---
 
 ## 5. Outillage de validation (`tools/`)

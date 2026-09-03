@@ -49,6 +49,16 @@ précisément ce qu'un PERT sait dire.
   (à combien de risques chaque tâche est exposée — la lecture qui fait ressortir celle qui en
   concentre plusieurs). Imprimable en PDF, un chapitre par onglet.
 
+- **La réorganisation range aussi les risques.** En mode *chronologique complet*, ils sont
+  regroupés en une **bande au-dessus du planning**, sur autant de lignes que nécessaire — deux
+  risques dont les périodes ne se recouvrent pas partagent la même ligne. En mode *axe du temps
+  seul*, leur hauteur est conservée comme celle des autres nœuds.
+- **La barre d'outils est allégée** : les boutons *Activité*, *Jalon*, *Label* et *Risque* sont
+  regroupés derrière un seul bouton **➕ Insérer ▾**, sur le modèle de *Réorganiser ▾* et de
+  *Synthèse ▾*. Quatre boutons pour une famille d'actions qu'on ne déclenche qu'en construisant
+  le planning rognaient la place des outils utilisés en permanence. Le **clic droit sur le fond**
+  reste le chemin le plus direct quand on sait déjà où poser le nœud : il le pose sous le curseur.
+
 > **Votre PERT n'est pas touché.** Un risque **n'entre dans aucun calcul** : dates au plus tôt et
 > au plus tard, marges, chemin critique et coûts sont rendus au chiffre près comme avant. Vous
 > pouvez en ajouter autant que vous voulez. Les plannings existants s'ouvrent sans changement et

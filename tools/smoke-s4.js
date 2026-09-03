@@ -23,8 +23,32 @@ const lib = require('./lib');
   if (!bgMenu.some(c => c && c.includes('Activité')) || bgMenu.some(c => c === 'Add Node'))
     throw new Error('Menu de fond non francisé');
 
+  // 2 bis) Le sous-menu « Insérer ▾ » de la toolbar (04/09/2026 : les quatre boutons
+  //   de création y ont été regroupés, la toolbar passait à la ligne). On vérifie que
+  //   chaque entrée crée bien SON type — une inversion de deux callbacks dans une
+  //   liste de quatre ne se voit pas à la relecture, et se paierait à chaque usage.
+  const insMenu = await page.evaluate(() =>
+    window.pertInsertMenuOptions().map(o => o.content));
+  console.log('Menu Insérer:', insMenu);
+  if (insMenu.length !== 4)
+    throw new Error('4 entrées attendues dans « Insérer ▾ », vu ' + insMenu.length);
+  for (const [quoi, type] of [['activite', 'pert/activity'], ['jalon', 'pert/milestone'],
+                              ['label', 'pert/label'], ['risque', 'pert/risk']]) {
+    await lib.insererNoeud(page, quoi);
+    const vu = await page.evaluate(() => {
+      const g = window.pertGraph;
+      const n = g._nodes[g._nodes.length - 1];
+      const t = n.type;
+      g.remove(n);
+      return t;
+    });
+    if (vu !== type)
+      throw new Error('« Insérer ▾ » : l\'entrée ' + quoi + ' a créé ' + vu
+        + ' au lieu de ' + type);
+  }
+
   // 3) Menu nœud : Dupliquer + Supprimer ; la duplication crée bien un nœud
-  await page.click('#btn-add-activity');
+  await lib.insererNoeud(page, 'activite');
   await page.waitForTimeout(100);
   const dupResult = await page.evaluate(() => {
     const node = window.pertGraph._nodes[0];

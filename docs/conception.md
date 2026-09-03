@@ -307,6 +307,10 @@ Trois décisions de cadrage portent le reste :
   (`pertRiskSyncGeometry`) et non placées à la main ; seule l'ordonnée appartient à l'utilisateur.
   Un glisser horizontal est repris au lâcher. Écrire les deux dates dans une boîte libre aurait
   laissé la géométrie mentir sur la période, alors qu'un risque se juge d'abord à son empan.
+  La **réorganisation** ne lui attribue donc qu'une ordonnée : bande en tête du layout, packée en
+  couloirs par `pertPackLanes` comme les tâches. En tête, parce qu'un risque se lit comme un
+  en-tête au-dessus de la période couverte et que ses traits de rattachement **descendent** vers
+  les tâches — le poser en bas les ferait tous remonter en traversant le planning.
 
 Le reste réutilise l'existant sans rien dupliquer : la fenêtre de rattachement reprend le patron
 et le vocabulaire visuel de « Relier à… » (désigner par une recherche, fenêtre qui reste ouverte),

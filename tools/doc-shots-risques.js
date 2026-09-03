@@ -71,6 +71,9 @@ function projet() {
   risque('Rupture d\'approvisionnement', '#c0392b', [u(consult), u(appro)], 0);
   risque('Indisponibilité du banc', '#8e44ad', [u(appro), u(banc)], 1);
   pertRecalc();
+  // Une seconde réorganisation, maintenant que les risques existent : c'est elle qui
+  // les range en bande au-dessus du planning, et c'est cet état que le manuel montre.
+  pertAutoLayout();
 }
 
 // Cadre de capture calé sur le CONTENU (nœuds visibles), et non sur une zone fixe :
