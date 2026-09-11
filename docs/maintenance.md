@@ -134,7 +134,7 @@ lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :
 
 ```bash
 cd tools && npm install && npx playwright install chromium   # une fois
-npm test                                                     # 35 tests, ~95 s
+npm test                                                     # 37 tests, ~100 s
 ```
 
 - **Suite smoke** : chaque test pilote l'application dans un vrai Chromium ouvert en `file://` —
@@ -193,7 +193,7 @@ et un **PDF**. Ces sorties `docs/*.html` et `docs/*.pdf` sont **versionnées** (
    L'ordre a changé le 01/09/2026 : deux contrôles portent désormais sur le **bundle** et non sur
    les sources (`smoke-securite.js`, `audit-securite.js`) — les lancer avant de le régénérer
    reviendrait à valider le fichier de la version précédente.
-2. **Faire passer la suite** : `cd tools && npm test` (attendu : 35/35).
+2. **Faire passer la suite** : `cd tools && npm test` (attendu : 37/37).
 3. **Mettre à jour la documentation** touchée — les `.md` de `docs/`, les **captures** qu'une
    évolution d'IHM a périmées (`node tools/doc-shots-*.js`), les versions HTML/PDF
    (`node tools/build-docs.js`) et **les notes de version** — **avant** le push.
@@ -272,6 +272,17 @@ bundle) → pousser → merger sur `main` → taguer → pousser le tag → **ar
   responsable, notes ; puis l'intertitre **« Suivi et coût »** et, derrière lui, l'avancement et la
   charge. **Toute nouveauté hors planification se range sous l'intertitre**, jamais au milieu du
   haut de panneau. Un test vérifie l'ordre complet : sans lui, la décision se déferait en silence.
+- **Un type de nœud neuf porte un `uid`**, préfixé par famille (`a-`/`j-`/`l-`/`r-`), tiré par son
+  constructeur **et** ajouté à `pertEnsureUids` (`nodes.js`) : c'est la clé qui reconnaît un nœud
+  d'un fichier à l'autre (v0.26.1). Sans l'entrée dans `pertEnsureUids`, un copier-coller
+  produirait deux nœuds au même `uid`, sans rien casser à l'écran.
+- **La révision d'un planning n'avance qu'au geste de sauvegarde** (`pertSaveProject` →
+  `pertRecordRevision`, `src/revisions.js`). Ne jamais l'incrémenter dans `pertSerializeProject`,
+  que l'autosave appelle en boucle : `smoke-revisions.js` le vérifie.
+- **Raccourcis clavier : LiteGraph en traite certains lui-même** quand le canvas a le focus
+  (`processKey` : copier, coller, tout sélectionner, supprimer). Un raccourci ajouté dans `ui.js`
+  qui refait la même action la fait **deux fois** — c'est ainsi que `Ctrl+V` a longtemps collé deux
+  copies superposées, donc invisibles. Tester le **nombre** de nœuds, pas seulement leur présence.
 
 ---
 
@@ -291,6 +302,7 @@ bundle) → pousser → merger sur `main` → taguer → pousser le tag → **ar
 | Les imports (CPERT `.xlsm`, `.pert`) | `src/import.js`, `import_excel.js`, `import_pert.js` |
 | Les exports | `src/export*.js` |
 | La sérialisation / l'undo / l'autosave | `src/storage.js`, `history.js`, `autosave.js` |
+| La révision, l'historique des sauvegardes, la fenêtre de sauvegarde | `src/revisions.js` |
 | Les fenêtres de rapport (synthèse, suivi, risques) | `src/synthesis.js`, `src/suivi.js`, `src/risks.js` |
 | Les risques (bandeau, rattachement, filtre, rapport) | `src/risks.js` (+ `RiskNode` dans `src/nodes.js`) |
 | La fabrication du bundle et de l'archive de livraison | `scripts/build-bundle.js`, `scripts/make-release.js` |

@@ -23,7 +23,10 @@ const BUNDLE = 'file:///home/laguiche/workspace/pertflow/dist/pertflow.html';
       installTrame: typeof pertInstallTimeGrid === 'function',
       aimant: typeof pertSnapLabelToNeighbors === 'function',
       synth: typeof pertBuildSynthesisModel === 'function',
+      // v0.26.1 : identite de revision (src/revisions.js) et sa fenetre de sauvegarde
+      revision: typeof pertRecordRevision === 'function',
     };
+    out.fenetreSauvegarde = !!document.getElementById('save-dialog');
     out.caseParametres = !!document.getElementById('settings-timegrid');
     // Onglets + curseur d'intensite (v0.18) : presents ET fonctionnels dans le bundle.
     out.onglets = document.querySelectorAll('#settings-tabs .settings-tab').length;
@@ -130,7 +133,9 @@ const BUNDLE = 'file:///home/laguiche/workspace/pertflow/dist/pertflow.html';
   const pb = [];
   Object.entries(res.aFonctions).forEach(([k, v]) => { if (!v) pb.push('fonction absente du bundle : ' + k); });
   if (!res.caseParametres) pb.push('case « Trame temporelle » absente du bundle');
-  if (res.onglets !== 3) pb.push('3 onglets attendus dans le bundle, vu ' + res.onglets);
+  // 4 onglets depuis la v0.26.1 (Projet / Affichage / Couts / Historique)
+  if (res.onglets !== 4) pb.push('4 onglets attendus dans le bundle, vu ' + res.onglets);
+  if (!res.fenetreSauvegarde) pb.push('fenetre de sauvegarde absente du bundle');
   if (!res.curseur) pb.push('curseur d\'intensite absent du bundle');
   const pan = res.panneau || {};
   if (pan.onglets !== 2) pb.push('2 onglets de panneau attendus, vu ' + pan.onglets);

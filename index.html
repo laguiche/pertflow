@@ -23,6 +23,8 @@
                 role="tab" aria-selected="false">Affichage</button>
         <button type="button" class="settings-tab" data-tab="couts"
                 role="tab" aria-selected="false">Coûts</button>
+        <button type="button" class="settings-tab" data-tab="historique"
+                role="tab" aria-selected="false">Historique</button>
       </div>
 
       <div class="settings-panel active" data-panel="projet" role="tabpanel">
@@ -117,6 +119,19 @@
           en ETP (durée convertie en heures × ETP). Les jalons et les labels n'ont pas de coût.</p>
       </div>
 
+      <!-- v0.26.1 : identite de revision du planning (src/revisions.js). La liste est
+           reconstruite a chaque ouverture ; seul le nom de l'auteur est saisi ici. -->
+      <div class="settings-panel" data-panel="historique" role="tabpanel">
+        <div id="settings-history-id"></div>
+        <label>Votre nom (auteur de vos sauvegardes)
+          <input type="text" id="settings-author" autocomplete="off" spellcheck="false"
+                 maxlength="60" placeholder="Ex. : Alice Martin">
+        </label>
+        <p class="settings-hint">Retenu sur ce poste, pas dans le fichier. Il est inscrit dans
+          l'historique à chacune de vos sauvegardes.</p>
+        <div id="settings-history-list"></div>
+      </div>
+
       <div class="dialog-buttons">
         <button id="settings-cancel">Annuler</button>
         <button id="settings-ok" class="primary">Valider</button>
@@ -168,6 +183,28 @@
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
     <div class="tb-sep"></div>
     <button id="btn-info" title="À propos de PertFlow (auteur, licence, version)">ℹ À propos</button>
+  </div>
+
+  <!-- ── Dialogue « Sauvegarder le planning » — v0.26.1 (src/revisions.js) ─── -->
+  <div id="save-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog save-dialog-box">
+      <h3>Sauvegarder le planning</h3>
+      <p id="save-rev-info" class="dialog-note"></p>
+      <label class="dialog-field">Votre nom
+        <input type="text" id="save-author" autocomplete="off" spellcheck="false"
+               maxlength="60" placeholder="Ex. : Alice Martin">
+      </label>
+      <label class="dialog-field"><span>Commentaire <span class="dialog-optional">(facultatif)</span></span>
+        <input type="text" id="save-comment" autocomplete="off" maxlength="200"
+               placeholder="Ce qui a changé : essais recalés, ajout du WP3…">
+      </label>
+      <p class="dialog-note">Nom et commentaire sont inscrits dans l'historique du fichier
+        (⚙ Paramètres → Historique). Votre nom est retenu sur ce poste.</p>
+      <div class="dialog-buttons">
+        <button id="save-cancel">Annuler</button>
+        <button id="save-ok" class="primary">Sauvegarder</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Dialogue À propos ────────────────────────────────────────────────── -->
@@ -399,6 +436,7 @@
   <script src="src/history.js"></script>
   <script src="src/autosave.js"></script>
   <script src="src/storage.js"></script>
+  <script src="src/revisions.js"></script>
   <script src="src/export.js"></script>
   <script src="src/export_csv.js"></script>
   <script src="src/export_xlsx.js"></script>

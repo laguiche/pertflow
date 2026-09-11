@@ -37,7 +37,7 @@ cd tools && npm install && npx playwright install chromium && npm test
 
 ```bash
 cd tools
-npm test                        # toute la suite (35 tests, ~95 s)
+npm test                        # toute la suite (37 tests, ~100 s)
 node run-smokes.js -v           # idem, en affichant la sortie de chaque test
 node run-smokes.js import s9    # seulement les tests dont le nom contient "import" ou "s9"
 node smoke-suivi.js             # un test isolé (c'est ainsi qu'on débogue)
@@ -47,7 +47,7 @@ Le lanceur rend `0` si tout passe, `1` sinon, et rejoue en fin de compte rendu l
 tests en échec. Chaque `smoke*.js` reste un **programme autonome** : le contrat entre lui et le
 lanceur se limite au code de sortie, il n'y a aucun framework de test à apprendre.
 
-**Attendu sur `main` : 31/31.** Un test rouge sur un dépôt fraîchement cloné est un bug, pas une
+**Attendu sur `main` : 37/37.** Un test rouge sur un dépôt fraîchement cloné est un bug, pas une
 fatalité — signalez-le.
 
 ---
@@ -56,8 +56,10 @@ fatalité — signalez-le.
 
 `test_cases/` rassemble les plannings d'exemple : un classeur au format CPERT (voir plus bas),
 des projets `.pert` de complexité croissante, et les exports de référence (CSV, Gantt chargé,
-micro-jalonnement) du projet `pert_a_exporter`. La suite en consomme deux, le classeur CPERT et
-`pert_a_exporter.pert` ; les autres servent aux essais manuels. Ils sont
+micro-jalonnement) du projet `pert_a_exporter`. La suite en consomme trois : le classeur CPERT,
+`pert_a_exporter.pert`, et `test_6.pert` — enregistré avant la v0.26.1, donc **sans** identité de
+révision ni `uid` de jalon, ce qui en fait le témoin de rétro-compatibilité de
+`smoke-revisions.js` : **ne pas le réenregistrer**. Les autres servent aux essais manuels. Ils sont
 **intégralement synthétiques** (« Activité 1 », « toto ») et versionnés : la suite doit tourner sur
 un clone nu, sans rien préparer.
 

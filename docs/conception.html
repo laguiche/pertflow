@@ -126,6 +126,8 @@ refuse la suite si cela arrive.</p>
 │   │                     #   estimation charge/coût
 │   ├── ui.js             # Toolbar, panneau, dialogues, menus, filtre, barre de statut, câblage
 │   ├── storage.js        # Sérialisation/chargement .pert
+│   ├── revisions.js      # Identité de révision : numéro, historique, empreinte, identifiant
+│   │                     #   du planning, fenêtre de sauvegarde, onglet « Historique »
 │   ├── history.js        # Undo/Redo par snapshots
 │   ├── autosave.js       # Filet anti-crash (snapshot localStorage)
 │   ├── align.js          # Boîte d'alignement / distribution des nœuds sélectionnés
@@ -166,7 +168,8 @@ câblage).</p>
 <h3 id="le-fichier-pert">Le fichier <code>.pert</code></h3>
 <pre><code class="language-json">{
   &quot;version&quot;: &quot;1.0&quot;,
-  &quot;meta&quot;: { &quot;title&quot;, &quot;t0&quot;, &quot;unit&quot;, &quot;layout_gap&quot;, &quot;link_mode&quot;, &quot;prop_width&quot;,
+  &quot;meta&quot;: { &quot;lot_id&quot;, &quot;revision&quot;, &quot;history&quot;,
+            &quot;title&quot;, &quot;t0&quot;, &quot;unit&quot;, &quot;layout_gap&quot;, &quot;link_mode&quot;, &quot;prop_width&quot;,
             &quot;hours_per_month&quot;, &quot;hours_per_day&quot;, &quot;hourly_rate&quot;, &quot;groups&quot;, &quot;autosave&quot; },
   &quot;graph&quot;: { /* sérialisation LiteGraph native (graph.serialize()) */ }
 }
@@ -179,7 +182,37 @@ câblage).</p>
   fichier. Les propriétés <strong>saisies</strong> vivent dans <code>node.properties</code> (sérialisées nativement par
   LiteGraph).</li>
 </ul>
+<h3 id="identite-de-revision-v0261-revisionsjs">Identité de révision (v0.26.1, <code>revisions.js</code>)</h3>
+<p>Un planning partagé passe de main en main, et chaque sauvegarde est un <strong>téléchargement</strong> recopié
+ensuite à la main : il fallait savoir qui a enregistré quoi, et reconnaître deux fichiers comme
+deux états du même planning. C'est le socle de la comparaison de deux <code>.pert</code> et du travail à
+plusieurs.</p>
+<ul>
+<li><code>meta.lot_id</code> — <strong>identité du planning</strong> (<code>p-…</code>), tirée à la première sauvegarde suivie, jamais
+  modifiée ensuite (ni au renommage du fichier, ni au changement de titre, ni par l'import d'un
+  autre <code>.pert</code>, qui ne touche pas à <code>meta</code>).</li>
+<li><code>meta.revision</code> — numéro de la dernière sauvegarde ; <code>0</code> = jamais sauvegardé avec suivi.</li>
+<li><code>meta.history</code> — les 50 dernières sauvegardes : <code>{ rev, saved_at, saved_by, comment,
+  fingerprint }</code>. <code>saved_at</code> est une heure <strong>locale</strong> (<code>AAAA-MM-JJTHH:MM</code>, jamais
+  <code>toISOString()</code> qui passe en UTC). <code>fingerprint</code> = empreinte <strong>cyrb53</strong> du graphe sérialisé,
+  calculée en JS pur : elle dit « même contenu / contenu différent », sans prétention
+  cryptographique, et sans dépendre d'une API propre à un navigateur.</li>
+<li><strong>La révision n'avance qu'au geste de sauvegarde</strong> (<code>pertSaveProject</code>). L'autosave sérialise sans
+  y passer, et l'undo ne restaure que des champs nommés de <code>meta</code> — ni l'un ni l'autre ne peut
+  donc la faire bouger. Un téléchargement annulé fait sauter un numéro : la numérotation garantit
+  l'ordre, pas la continuité.</li>
+<li>Le <strong>nom de l'auteur</strong> est une préférence <strong>du poste</strong> (<code>localStorage</code>, clé <code>pertflow.auteur</code>),
+  pas du fichier.</li>
+<li>Ces champs viennent d'un fichier, donc potentiellement d'un tiers : ils sont <strong>filtrés</strong> au
+  chargement (<code>pertSanitize*</code>) et <strong>jamais injectés en HTML</strong> (<code>textContent</code> seulement).</li>
+</ul>
 <h3 id="les-nuds">Les nœuds</h3>
+<p>Les <strong>quatre</strong> types portent un <strong><code>uid</code></strong> stable, préfixé par famille (<code>a-</code> Activité, <code>j-</code> Jalon,
+<code>l-</code> Label, <code>r-</code> Risque — Jalons et Labels depuis la v0.26.1). Tiré par le constructeur, garanti
+unique par <code>pertEnsureUids</code> (après chargement, collage, duplication), il reconnaît un nœud d'un
+fichier à l'autre — ce que l'id LiteGraph, renuméroté à chaque import, ne permet pas. Un fichier
+antérieur reçoit les uid de ses Jalons et Labels à l'ouverture ; ils deviennent définitifs à sa
+sauvegarde suivante.</p>
 <ul>
 <li><strong>Activité</strong> (<code>pert/activity</code>) : <code>uid, label, duration, etp, charge_mode, charge_hours,
   responsible, notes, group, color</code>.</li>
@@ -194,8 +227,8 @@ câblage).</p>
 <li>Un <code>.pert</code> antérieur ne porte ni <code>charge_mode</code> ni <code>charge_hours</code> : les défauts du constructeur
     subsistent (LiteGraph <strong>fusionne</strong> les propriétés sérialisées sur celles du nœud neuf) →
     <strong>aucune migration</strong>.</li>
-<li><strong>Jalon</strong> (<code>pert/milestone</code>) : <code>label, due_date, tag</code> (<code>"" | DOTD | COTD | ING</code>).</li>
-<li><strong>Label</strong> (<code>pert/label</code>) : <code>text</code> (aucun lien, hors calcul).</li>
+<li><strong>Jalon</strong> (<code>pert/milestone</code>) : <code>uid, label, due_date, tag</code> (<code>"" | DOTD | COTD | ING</code>).</li>
+<li><strong>Label</strong> (<code>pert/label</code>) : <code>uid, text</code> (aucun lien, hors calcul).</li>
 </ul>
 <hr />
 <h2 id="4-le-moteur-pert-pert_enginejs">4. Le moteur PERT (<code>pert_engine.js</code>)</h2>
@@ -271,6 +304,13 @@ sur des couloirs voisins, jalons terminaux en bande haute. <strong>Déclenché m
 <li><strong>Sauvegarde automatique</strong> : en <code>file://</code>, impossible d'écrire un fichier silencieusement → un
   <strong>snapshot de récupération dans <code>localStorage</code></strong>, écrit périodiquement tant qu'il reste du
   travail non sauvegardé, proposé à la restauration au démarrage. Activée par défaut.</li>
+<li><strong>Sauvegarde</strong> (v0.26.1) : le bouton et <code>Ctrl+S</code> ouvrent une fenêtre (nom, commentaire) avant le
+  téléchargement — chaque sauvegarde étant déjà un acte délibéré, on en profite pour la décrire.
+  <code>pertSaveProject()</code> reste la sauvegarde directe (tests, intégrations). Entrée / <code>Ctrl+S</code> / Échap
+  sont traités sur les champs de la fenêtre : les raccourcis globaux ignorent la frappe en saisie.</li>
+<li><strong>Collage</strong> : LiteGraph traite lui-même <code>Ctrl+V</code> quand le canvas a le focus (<code>processKey</code>) ;
+  <code>ui.js</code> ne recolle donc que si la frappe vient d'ailleurs — sinon deux copies superposées
+  (défaut corrigé en v0.26.1).</li>
 <li><strong>Gestion d'erreurs</strong> : <code>showToast</code> / <code>showError</code> / <code>guardUI</code> + filet global — indispensable en
   <code>file://</code> où l'utilisateur n'a pas la console.</li>
 </ul>
@@ -579,6 +619,18 @@ pour vérifié ce qui ne l'est plus).</p>
 <tr>
 <td>CSP injectée <strong>au build</strong>, pas dans les sources</td>
 <td>Le bundle est ce qui circule ; en <code>file://</code> la même règle casserait le mode développement</td>
+</tr>
+<tr>
+<td>Révision et historique <strong>dans le fichier</strong>, avancés au seul geste de sauvegarde</td>
+<td>Le fichier circule seul ; l'autosave et l'undo ne sont pas des versions</td>
+</tr>
+<tr>
+<td>Un <code>uid</code> sur <strong>tous</strong> les nœuds</td>
+<td>Reconnaître un nœud d'un fichier à l'autre ; l'id LiteGraph est renuméroté à l'import</td>
+</tr>
+<tr>
+<td>Empreinte en <strong>JS pur</strong> (cyrb53), aucune API propre à un navigateur</td>
+<td>Parc hétérogène : une fonctionnalité ne doit pas dépendre d'un navigateur particulier</td>
 </tr>
 </tbody>
 </table></body></html>

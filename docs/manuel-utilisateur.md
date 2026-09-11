@@ -93,10 +93,12 @@ placement chronologique automatique, puis **🔍 Tout afficher** pour cadrer l'e
 
 ![Étape 8 — le planning réorganisé et cadré à l'écran](images/manuel/qs-8-reorganiser.png)
 
-**Étape 9 — Sauvegardez.** Cliquez sur **💾 Sauvegarder** pour télécharger votre projet au format
-`.pert` (rechargeable plus tard via **📂 Ouvrir**). Une confirmation s'affiche en bas.
+**Étape 9 — Sauvegardez.** Cliquez sur **💾 Sauvegarder** (ou `Ctrl+S`) : une petite fenêtre
+demande votre nom — une seule fois, il est ensuite retenu — et un **commentaire facultatif** sur ce
+qui a changé. **Entrée** valide : le projet est téléchargé au format `.pert` (rechargeable plus
+tard via **📂 Ouvrir**), et la sauvegarde est inscrite dans son historique (§10).
 
-![Étape 9 — la confirmation de sauvegarde du fichier .pert](images/manuel/qs-9-sauvegarde.png)
+![Étape 9 — la fenêtre de sauvegarde, nom et commentaire remplis](images/manuel/qs-9-sauvegarde.png)
 
 Vous savez désormais construire un PERT. Les sections suivantes détaillent chaque fonctionnalité.
 
@@ -127,7 +129,7 @@ L'écran se compose de quatre zones :
 | **⚙ Paramètres** | Ouvre les réglages du projet (T0, unité, styles, coûts…). |
 | **📥 Importer Excel** | Importe un planning Excel existant (voir §9). |
 | **📂 Ouvrir** | Charge un fichier `.pert`. |
-| **💾 Sauvegarder** | Télécharge le projet au format `.pert`. |
+| **💾 Sauvegarder** | Télécharge le projet au format `.pert`, après une fenêtre qui demande votre nom et un commentaire facultatif (§10). |
 | **⬇ Exporter** | Ouvre la fenêtre d'export (image, PDF, Excel, MS Project…). |
 | **↶ Annuler / ↷ Rétablir** | Annule / rétablit la dernière action (Ctrl+Z / Ctrl+Y). |
 | **📊 Synthèse ▾** | Ouvre la **synthèse de planification** (§12), le **suivi d'avancement** (§13) ou les **risques** (§14). |
@@ -773,13 +775,49 @@ Le bouton **📥 Importer Excel** lit un planning issu de l'ancien outil Excel (
 
 ### Fichier `.pert`
 
-- **💾 Sauvegarder** télécharge votre projet dans un fichier **`.pert`** (format JSON).
+- **💾 Sauvegarder** (ou `Ctrl+S`) télécharge votre projet dans un fichier **`.pert`** (format
+  JSON), après une courte fenêtre décrite ci-dessous.
 - **📂 Ouvrir** recharge un `.pert`. Les dates et le chemin critique sont **recalculés** au
   chargement (cohérence garantie).
 
 > ⚠️ En mode `file://`, c'est le **navigateur** qui gère le dossier de téléchargement : le fichier
 > arrive dans votre dossier **Téléchargements**. Il n'est pas possible de choisir le dossier
 > depuis l'application.
+
+### Chaque sauvegarde est tracée : révision, auteur, commentaire
+
+Un planning partagé passe de main en main — et comme chaque sauvegarde est un **téléchargement**
+que l'on recopie ensuite, rien ne disait jusqu'ici **qui** avait enregistré **quoi**, ni **quand**.
+Depuis la v0.26.1, chaque sauvegarde du fichier est **numérotée** et **inscrite dans le fichier
+lui-même**.
+
+![La fenêtre « Sauvegarder le planning »](images/manuel/sauvegarde-fenetre.png)
+
+- **La fenêtre de sauvegarde** rappelle le numéro de la révision que vous allez produire et la
+  précédente (date, auteur). Elle demande :
+  - **votre nom** — demandé la première fois, puis **retenu sur ce poste** : les fois suivantes, le
+    curseur va directement au commentaire ;
+  - **un commentaire**, facultatif : ce qui a changé (« essais recalés », « ajout du WP3 »…).
+    L'historique vaut par ce qu'il dit.
+
+  **Entrée** sauvegarde, **Échap** annule (rien n'est alors numéroté). La sauvegarde reste donc à
+  deux touches : `Ctrl+S`, puis `Entrée`.
+- **L'historique** se consulte dans **⚙ Paramètres → Historique** : la révision courante,
+  l'**identifiant du planning**, et les 50 dernières sauvegardes, la plus récente en tête.
+
+![L'onglet « Historique » des Paramètres](images/manuel/parametres-historique.png)
+
+- **L'identifiant du planning** est tiré à sa première sauvegarde et ne change plus : ni quand
+  vous renommez le fichier, ni quand vous changez le titre, ni quand vous y importez un autre
+  planning. Il permet de reconnaître deux fichiers comme **deux états du même planning**.
+- **Un fichier créé avant la v0.26.1** s'ouvre normalement, en « révision 0 » : son historique
+  commence à sa prochaine sauvegarde.
+- **Seules les sauvegardes du fichier comptent.** La sauvegarde automatique (ci-dessous) et
+  l'annulation (`Ctrl+Z`) ne font jamais avancer la numérotation.
+
+> 💡 Si vous annulez le téléchargement proposé par le navigateur, la révision a tout de même été
+> comptée : la numérotation sautera un numéro. Elle garantit l'**ordre** des sauvegardes, pas
+> leur continuité.
 
 ### Sauvegarde automatique (filet anti-plantage)
 
@@ -1292,14 +1330,16 @@ par page.
 
 ![Le dialogue Paramètres](images/manuel/parametres.png)
 
-Le bouton **⚙ Paramètres** regroupe les réglages, tous **enregistrés** dans le `.pert`. Ils sont
-répartis en **trois onglets** :
+Le bouton **⚙ Paramètres** regroupe les réglages du projet, **enregistrés** dans le `.pert` (seul
+votre nom, dans l'onglet Historique, est propre à votre poste). Ils sont répartis en **quatre
+onglets** :
 
 | Onglet | Ce qu'on y règle |
 |---|---|
 | **Projet** | Titre, **date de début (T0)**, **unité de durée** (jours / semaines / mois), **couleur des nouvelles tâches**, sauvegarde automatique. |
 | **Affichage** | Espacement horizontal entre tâches (utilisé par « Réorganiser »), style des liens (§6), largeur des tâches proportionnelle à la durée, **trame temporelle** et son intensité. |
-| **Coûts** | Heures par mois, heures par jour, taux horaire moyen (§10). |
+| **Coûts** | Heures par mois, heures par jour, taux horaire moyen (§8). |
+| **Historique** | Révision courante, identifiant du planning, liste des sauvegardes ; **votre nom**, inscrit comme auteur de vos sauvegardes (§10). |
 
 > Changer d'onglet **ne perd rien** : vous pouvez modifier un réglage dans « Affichage » et un autre
 > dans « Coûts », un seul **Valider** enregistre l'ensemble. PertFlow rouvre le dialogue sur le
@@ -1366,6 +1406,7 @@ subdivisions disparaissent avant que la trame ne vire au gris uni.
 | `Ctrl+Y` (ou `Ctrl+Maj+Z`) | Rétablir |
 | `Ctrl+A` | Tout sélectionner |
 | `Ctrl+C` / `Ctrl+V` | Copier / coller la sélection |
+| `Ctrl+S` | Sauvegarder (ouvre la fenêtre de sauvegarde ; `Entrée` valide) |
 | `Ctrl+molette` | Zoom |
 
 ---

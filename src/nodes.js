@@ -556,6 +556,11 @@ function MilestoneNode() {
   this.addOutput("", "pert_flow");
 
   this.properties = {
+    // Identifiant stable du Jalon (v0.26.1, prefixe « j- »), comme l'uid d'Activite :
+    // genere a la creation, invisible, serialise nativement. Il sert a reconnaitre le
+    // MEME jalon d'un fichier a l'autre (comparaison de deux .pert, jalons partages
+    // entre plannings) — ce que l'id LiteGraph, renumerote a chaque import, ne permet pas.
+    uid: pertGenMilestoneUid(),
     label: "Jalon",
     // Date-cible « a tenir ». Deux modes de saisie exclusifs (evolution 24/07/2026) :
     //   due_mode = "date"   → due_date  (date calendaire "YYYY-MM-DD", mode historique)
@@ -760,6 +765,9 @@ MilestoneNode.prototype.onDrawForeground = function(ctx) {
 
 function LabelNode() {
   this.properties = {
+    // Identifiant stable du Label (v0.26.1, prefixe « l- ») : meme role que celui des
+    // Jalons — reconnaitre une note d'un fichier a l'autre. Invisible, non editable.
+    uid: pertGenLabelUid(),
     text: "Note libre...",
     // Taille de police d'affichage (nice-to-have) — pilotee par les boutons +/- du
     // panneau. Le rendu ET l'auto-dimensionnement s'y adaptent.
@@ -1043,6 +1051,16 @@ function pertGenRiskUid() {
   return "r-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
 }
 
+// Identifiants des Jalons (« j- ») et des Labels (« l- ») — v0.26.1. Meme format que
+// ceux des Activites et des Risques ; le prefixe dit a l'œil, dans un .pert, a quelle
+// famille appartient un identifiant.
+function pertGenMilestoneUid() {
+  return "j-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+function pertGenLabelUid() {
+  return "l-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
 // ─── Slots d'entrée dynamiques ────────────────────────────────────────────────
 //
 // Règle : le dernier slot est toujours vide (disponible pour une nouvelle
@@ -1080,6 +1098,8 @@ LiteGraph.registerNodeType("pert/risk", RiskNode);
 // Genere automatiquement a la creation d'une Activite, invisible et non editable.
 // Format court de type uuid (timestamp base36 + aleatoire) : la collision est
 // negligeable pour un usage mono-poste. Sert de cle stable aux futurs exports.
+// Depuis la v0.26.1, les QUATRE types de nœuds portent un uid (a-/j-/l-/r-) : c'est
+// la cle qui permet de reconnaitre un nœud d'un fichier a l'autre.
 
 function pertGenUid() {
   return "a-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
@@ -1117,6 +1137,23 @@ function pertEnsureUids() {
       n.properties.uid = id;
     }
     vus.add(id);
+  });
+  // Jalons et Labels (v0.26.1) : meme garantie, pour que l'uid designe un seul nœud
+  // quand on compare deux fichiers. Un fichier anterieur n'en porte pas : LiteGraph
+  // FUSIONNE les proprietes serialisees sur celles du nœud neuf, qui garde donc l'uid
+  // tire par son constructeur — nouveau a chaque ouverture tant que le fichier n'a pas
+  // ete reenregistre, stable ensuite.
+  [["pert/milestone", pertGenMilestoneUid], ["pert/label", pertGenLabelUid]].forEach(([type, gen]) => {
+    const deja = new Set();
+    graph._nodes.forEach(n => {
+      if (n.type !== type || !n.properties) return;
+      let id = n.properties.uid;
+      if (!id || deja.has(id)) {
+        id = gen();
+        n.properties.uid = id;
+      }
+      deja.add(id);
+    });
   });
 }
 

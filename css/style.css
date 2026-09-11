@@ -715,6 +715,39 @@ body {
   font-family: inherit;
 }
 .dialog-field input[type="text"]:focus { outline: none; border-color: #5a8fd8; }
+.dialog-optional { color: #6f7a94; }
+
+/* ─── Sauvegarde et historique des révisions (v0.26.1) ─────────────────────────── */
+/* Fenêtre de sauvegarde un peu plus large que les autres : la phrase « Précédente :
+   révision 14, le … par … » doit tenir sans se hacher. */
+.save-dialog-box { width: 380px; }
+#save-rev-info { margin: 0; color: #aab4c8; font-size: 12px; }
+
+/* Onglet Historique des Paramètres : identité en tête, puis la liste des sauvegardes,
+   la plus récente d'abord, dans une zone qui défile (50 entrées au plus). */
+#settings-history-id { display: flex; flex-direction: column; gap: 3px; }
+#settings-history-id .history-rev { font-size: 13px; color: #dde3ec; font-weight: 600; }
+#settings-history-id .history-lotid {
+  font-size: 11px; color: #8a93b5; font-family: Consolas, "Courier New", monospace;
+}
+#settings-history-list {
+  max-height: 210px;
+  overflow-y: auto;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+}
+#settings-history-list .history-item { padding: 7px 10px; border-top: 1px solid #222c55; }
+#settings-history-list .history-item:first-child { border-top: 0; }
+#settings-history-list .history-head {
+  display: flex; gap: 8px; font-size: 11px; color: #8a93b5;
+  font-variant-numeric: tabular-nums;
+}
+#settings-history-list .history-num { color: #7eb8f7; font-weight: 600; flex: 0 0 auto; }
+#settings-history-list .history-comment {
+  font-size: 12px; color: #dde3ec; margin-top: 2px; overflow-wrap: anywhere;
+}
+#settings-history-list .history-comment.none { color: #6f7a94; font-style: italic; }
+#settings-history-list .history-empty { margin: 0; padding: 10px; font-size: 11px; color: #8a93b5; }
 .dialog-note {
   margin: -4px 0 0;
   font-size: 11px;

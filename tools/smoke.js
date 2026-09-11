@@ -28,10 +28,13 @@ fs.mkdirSync(DL, { recursive: true });
   console.log('Noeuds importes:', nbNodes);
   if (nbNodes < 2) throw new Error('Import insuffisant');
 
-  // 2) Sauvegarde .pert
+  // 2) Sauvegarde .pert — depuis la v0.26.1, le bouton ouvre la fenetre de sauvegarde
+  // (auteur + commentaire) : le telechargement part a sa validation.
+  await page.click('#btn-save');
+  await page.waitForSelector('#save-dialog[style*="flex"]');
   const [dlPert] = await Promise.all([
     page.waitForEvent('download'),
-    page.click('#btn-save'),
+    page.click('#save-ok'),
   ]);
   const pertPath = path.join(DL, dlPert.suggestedFilename());
   await dlPert.saveAs(pertPath);
