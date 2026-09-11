@@ -1421,6 +1421,39 @@ body {
   font-family: inherit;
 }
 .dialog-field input[type="text"]:focus { outline: none; border-color: #5a8fd8; }
+.dialog-optional { color: #6f7a94; }
+
+/* ─── Sauvegarde et historique des révisions (v0.26.1) ─────────────────────────── */
+/* Fenêtre de sauvegarde un peu plus large que les autres : la phrase « Précédente :
+   révision 14, le … par … » doit tenir sans se hacher. */
+.save-dialog-box { width: 380px; }
+#save-rev-info { margin: 0; color: #aab4c8; font-size: 12px; }
+
+/* Onglet Historique des Paramètres : identité en tête, puis la liste des sauvegardes,
+   la plus récente d'abord, dans une zone qui défile (50 entrées au plus). */
+#settings-history-id { display: flex; flex-direction: column; gap: 3px; }
+#settings-history-id .history-rev { font-size: 13px; color: #dde3ec; font-weight: 600; }
+#settings-history-id .history-lotid {
+  font-size: 11px; color: #8a93b5; font-family: Consolas, "Courier New", monospace;
+}
+#settings-history-list {
+  max-height: 210px;
+  overflow-y: auto;
+  border: 1px solid #2a3a6a;
+  border-radius: 4px;
+}
+#settings-history-list .history-item { padding: 7px 10px; border-top: 1px solid #222c55; }
+#settings-history-list .history-item:first-child { border-top: 0; }
+#settings-history-list .history-head {
+  display: flex; gap: 8px; font-size: 11px; color: #8a93b5;
+  font-variant-numeric: tabular-nums;
+}
+#settings-history-list .history-num { color: #7eb8f7; font-weight: 600; flex: 0 0 auto; }
+#settings-history-list .history-comment {
+  font-size: 12px; color: #dde3ec; margin-top: 2px; overflow-wrap: anywhere;
+}
+#settings-history-list .history-comment.none { color: #6f7a94; font-style: italic; }
+#settings-history-list .history-empty { margin: 0; padding: 10px; font-size: 11px; color: #8a93b5; }
 .dialog-note {
   margin: -4px 0 0;
   font-size: 11px;
@@ -2147,7 +2180,7 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
 </style>
 </head>
 <body>
-  <script>window.PERTFLOW_BUILD = {"date":"04/09/2026","tag":"v0.26"};</script>
+  <script>window.PERTFLOW_BUILD = {"date":"11/09/2026","tag":"v0.26.1"};</script>
 
   <!-- ── Dialogue Paramètres ──────────────────────────────────────────────── -->
   <div id="settings-dialog">
@@ -2163,6 +2196,8 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
                 role="tab" aria-selected="false">Affichage</button>
         <button type="button" class="settings-tab" data-tab="couts"
                 role="tab" aria-selected="false">Coûts</button>
+        <button type="button" class="settings-tab" data-tab="historique"
+                role="tab" aria-selected="false">Historique</button>
       </div>
 
       <div class="settings-panel active" data-panel="projet" role="tabpanel">
@@ -2257,6 +2292,19 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
           en ETP (durée convertie en heures × ETP). Les jalons et les labels n'ont pas de coût.</p>
       </div>
 
+      <!-- v0.26.1 : identite de revision du planning (src/revisions.js). La liste est
+           reconstruite a chaque ouverture ; seul le nom de l'auteur est saisi ici. -->
+      <div class="settings-panel" data-panel="historique" role="tabpanel">
+        <div id="settings-history-id"></div>
+        <label>Votre nom (auteur de vos sauvegardes)
+          <input type="text" id="settings-author" autocomplete="off" spellcheck="false"
+                 maxlength="60" placeholder="Ex. : Alice Martin">
+        </label>
+        <p class="settings-hint">Retenu sur ce poste, pas dans le fichier. Il est inscrit dans
+          l'historique à chacune de vos sauvegardes.</p>
+        <div id="settings-history-list"></div>
+      </div>
+
       <div class="dialog-buttons">
         <button id="settings-cancel">Annuler</button>
         <button id="settings-ok" class="primary">Valider</button>
@@ -2308,6 +2356,28 @@ body.synthesis-printing .suivi-amont-wip { color: #8a5b00 !important; }
     <button id="btn-redo" title="Rétablir (Ctrl+Y)" disabled>↷ Rétablir</button>
     <div class="tb-sep"></div>
     <button id="btn-info" title="À propos de PertFlow (auteur, licence, version)">ℹ À propos</button>
+  </div>
+
+  <!-- ── Dialogue « Sauvegarder le planning » — v0.26.1 (src/revisions.js) ─── -->
+  <div id="save-dialog" class="dialog-overlay" style="display:none">
+    <div class="dialog save-dialog-box">
+      <h3>Sauvegarder le planning</h3>
+      <p id="save-rev-info" class="dialog-note"></p>
+      <label class="dialog-field">Votre nom
+        <input type="text" id="save-author" autocomplete="off" spellcheck="false"
+               maxlength="60" placeholder="Ex. : Alice Martin">
+      </label>
+      <label class="dialog-field"><span>Commentaire <span class="dialog-optional">(facultatif)</span></span>
+        <input type="text" id="save-comment" autocomplete="off" maxlength="200"
+               placeholder="Ce qui a changé : essais recalés, ajout du WP3…">
+      </label>
+      <p class="dialog-note">Nom et commentaire sont inscrits dans l'historique du fichier
+        (⚙ Paramètres → Historique). Votre nom est retenu sur ce poste.</p>
+      <div class="dialog-buttons">
+        <button id="save-cancel">Annuler</button>
+        <button id="save-ok" class="primary">Sauvegarder</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Dialogue À propos ────────────────────────────────────────────────── -->
@@ -17900,6 +17970,11 @@ function MilestoneNode() {
   this.addOutput("", "pert_flow");
 
   this.properties = {
+    // Identifiant stable du Jalon (v0.26.1, prefixe « j- »), comme l'uid d'Activite :
+    // genere a la creation, invisible, serialise nativement. Il sert a reconnaitre le
+    // MEME jalon d'un fichier a l'autre (comparaison de deux .pert, jalons partages
+    // entre plannings) — ce que l'id LiteGraph, renumerote a chaque import, ne permet pas.
+    uid: pertGenMilestoneUid(),
     label: "Jalon",
     // Date-cible « a tenir ». Deux modes de saisie exclusifs (evolution 24/07/2026) :
     //   due_mode = "date"   → due_date  (date calendaire "YYYY-MM-DD", mode historique)
@@ -18104,6 +18179,9 @@ MilestoneNode.prototype.onDrawForeground = function(ctx) {
 
 function LabelNode() {
   this.properties = {
+    // Identifiant stable du Label (v0.26.1, prefixe « l- ») : meme role que celui des
+    // Jalons — reconnaitre une note d'un fichier a l'autre. Invisible, non editable.
+    uid: pertGenLabelUid(),
     text: "Note libre...",
     // Taille de police d'affichage (nice-to-have) — pilotee par les boutons +/- du
     // panneau. Le rendu ET l'auto-dimensionnement s'y adaptent.
@@ -18387,6 +18465,16 @@ function pertGenRiskUid() {
   return "r-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
 }
 
+// Identifiants des Jalons (« j- ») et des Labels (« l- ») — v0.26.1. Meme format que
+// ceux des Activites et des Risques ; le prefixe dit a l'œil, dans un .pert, a quelle
+// famille appartient un identifiant.
+function pertGenMilestoneUid() {
+  return "j-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+function pertGenLabelUid() {
+  return "l-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
 // ─── Slots d'entrée dynamiques ────────────────────────────────────────────────
 //
 // Règle : le dernier slot est toujours vide (disponible pour une nouvelle
@@ -18424,6 +18512,8 @@ LiteGraph.registerNodeType("pert/risk", RiskNode);
 // Genere automatiquement a la creation d'une Activite, invisible et non editable.
 // Format court de type uuid (timestamp base36 + aleatoire) : la collision est
 // negligeable pour un usage mono-poste. Sert de cle stable aux futurs exports.
+// Depuis la v0.26.1, les QUATRE types de nœuds portent un uid (a-/j-/l-/r-) : c'est
+// la cle qui permet de reconnaitre un nœud d'un fichier a l'autre.
 
 function pertGenUid() {
   return "a-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
@@ -18461,6 +18551,23 @@ function pertEnsureUids() {
       n.properties.uid = id;
     }
     vus.add(id);
+  });
+  // Jalons et Labels (v0.26.1) : meme garantie, pour que l'uid designe un seul nœud
+  // quand on compare deux fichiers. Un fichier anterieur n'en porte pas : LiteGraph
+  // FUSIONNE les proprietes serialisees sur celles du nœud neuf, qui garde donc l'uid
+  // tire par son constructeur — nouveau a chaque ouverture tant que le fichier n'a pas
+  // ete reenregistre, stable ensuite.
+  [["pert/milestone", pertGenMilestoneUid], ["pert/label", pertGenLabelUid]].forEach(([type, gen]) => {
+    const deja = new Set();
+    graph._nodes.forEach(n => {
+      if (n.type !== type || !n.properties) return;
+      let id = n.properties.uid;
+      if (!id || deja.has(id)) {
+        id = gen();
+        n.properties.uid = id;
+      }
+      deja.add(id);
+    });
   });
 }
 
@@ -21010,12 +21117,19 @@ window.applyPertImport = applyPertImport;
 const PERT_FILE_VERSION = "1.0";
 
 // Construit l'objet projet serialisable a partir de l'etat courant.
-function pertSerializeProject() {
+// graphData (facultatif) : graphe deja serialise par l'appelant — pertSaveProject en a
+// besoin AVANT, pour calculer l'empreinte de la revision qu'il inscrit.
+function pertSerializeProject(graphData) {
   const graph = window.pertGraph;
   const meta = window.pertMeta || {};
   return {
     version: PERT_FILE_VERSION,
     meta: {
+      // Identite de revision (v0.26.1, cf. src/revisions.js). Vides pour un projet
+      // jamais sauvegarde : l'identite n'est tiree qu'a la premiere sauvegarde suivie.
+      lot_id: meta.lot_id || "",
+      revision: meta.revision || 0,
+      history: Array.isArray(meta.history) ? meta.history : [],
       title: meta.title || "",
       t0: meta.t0 || "",
       unit: meta.unit || "j",
@@ -21040,7 +21154,7 @@ function pertSerializeProject() {
       autosave: meta.autosave !== false
     },
     // graph.serialize() renvoie un objet JS (noeuds + liens + positions/tailles)
-    graph: graph ? graph.serialize() : null
+    graph: graphData || (graph ? graph.serialize() : null)
   };
 }
 
@@ -21054,8 +21168,19 @@ function pertProjectFilename() {
 }
 
 // Telecharge le projet courant au format .pert (JSON indente).
-function pertSaveProject() {
-  const data = pertSerializeProject();
+// opts (facultatif, v0.26.1) : { author, comment } inscrits dans l'historique. Appelee
+// sans argument (tests, sauvegarde directe), l'auteur est le nom retenu sur ce poste.
+// Le bouton et Ctrl+S passent par la fenetre pertOpenSaveDialog (src/revisions.js).
+function pertSaveProject(opts) {
+  const graph = window.pertGraph;
+  if (!graph) { showToast("Rien a sauvegarder"); return; }
+  // La revision avance a CHAQUE sauvegarde du fichier, et seulement la : la sauvegarde
+  // automatique serialise sans passer par ici. Si l'utilisateur annule ensuite le
+  // telechargement, la numerotation sautera un cran — sans consequence, elle ne
+  // promet que l'ordre, pas la continuite.
+  const graphData = graph.serialize();
+  if (window.pertRecordRevision) pertRecordRevision(window.pertMeta, graphData, opts);
+  const data = pertSerializeProject(graphData);
   if (!data.graph) { showToast("Rien a sauvegarder"); return; }
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: "application/json" });
@@ -21070,7 +21195,8 @@ function pertSaveProject() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   // Le fichier .pert capture l'etat : plus rien de « non sauvegarde » a recuperer.
   if (window.pertAutosaveMarkSaved) window.pertAutosaveMarkSaved();
-  showToast("Projet sauvegarde : " + a.download);
+  showToast("Projet sauvegarde : " + a.download
+    + (data.meta.revision ? " (révision " + data.meta.revision + ")" : ""));
 }
 
 // Lit un fichier .pert choisi par l'utilisateur et l'applique au graphe.
@@ -21101,6 +21227,14 @@ function pertApplyProject(data) {
 
   // Metadonnees projet (avec valeurs par defaut robustes aux anciens fichiers)
   const meta = data.meta || {};
+  // Identite de revision (v0.26.1) : un fichier anterieur n'en a pas → revision 0,
+  // historique vide, identite tiree a sa premiere sauvegarde. Champs venus d'un
+  // fichier, donc filtres (cf. src/revisions.js).
+  const history = window.pertSanitizeHistory ? pertSanitizeHistory(meta.history) : [];
+  window.pertMeta.history = history;
+  window.pertMeta.revision = window.pertSanitizeRevision
+    ? pertSanitizeRevision(meta.revision, history) : 0;
+  window.pertMeta.lot_id = window.pertSanitizeLotId ? pertSanitizeLotId(meta.lot_id) : "";
   window.pertMeta.title = meta.title || "Nouveau projet";
   window.pertMeta.t0 = meta.t0 || "";
   window.pertMeta.unit = meta.unit || "j";
@@ -21161,6 +21295,319 @@ function pertApplyProject(data) {
 window.pertSaveProject = pertSaveProject;
 window.pertLoadProject = pertLoadProject;
 window.pertSerializeProject = pertSerializeProject;
+
+</script>
+  <script>
+/* src/revisions.js */
+// ─── Identité de révision d'un planning (v0.26.1) ────────────────────────────────
+//
+// Pourquoi : un planning partagé dans un répertoire commun passe de main en main, et
+// PertFlow enregistre par TELECHARGEMENT — le fichier est ensuite recopié à la main
+// sur le partage. Rien ne disait jusqu'ici qui avait sauvegardé quoi, ni quand, ni si
+// deux fichiers étaient deux états du MÊME planning. Chaque sauvegarde est désormais
+// identifiable, et le planning a une identité qui survit au renommage de son fichier.
+// C'est le socle de la comparaison de deux .pert et du travail à plusieurs (cf.
+// docs/conception.md, « Identité de révision »).
+//
+// Ce que porte meta (tout est serialise par storage.js) :
+//   lot_id   : identité du planning, tirée UNE fois (première sauvegarde suivie) ;
+//              ne change ni au renommage du fichier ni à l'import d'un autre .pert.
+//   revision : numéro de la dernière sauvegarde (0 = jamais sauvegardé avec suivi).
+//   history  : les PERT_HISTORY_MAX dernières sauvegardes, la plus récente en fin :
+//              { rev, saved_at, saved_by, comment, fingerprint }.
+//
+// Règles :
+//   - la révision n'avance QU'À la sauvegarde du fichier (pertSaveProject) ; la
+//     sauvegarde automatique et sa restauration ne la touchent jamais ;
+//   - l'empreinte est calculée en JS pur (cyrb53) : aucune API propre à un navigateur
+//     (décision du 11/09/2026 — le parc est hétérogène, une API peut disparaître) ;
+//   - nom et commentaire viennent d'un fichier, donc d'un tiers : ils ne sont JAMAIS
+//     injectés en HTML, seulement posés en textContent (un .pert est une donnée) ;
+//   - le nom de l'auteur est une préférence DU POSTE (localStorage), pas du fichier.
+
+const PERT_HISTORY_MAX = 50;              // entrées conservées dans le fichier
+const PERT_AUTHOR_KEY = "pertflow.auteur"; // clé localStorage du nom de l'auteur
+const PERT_COMMENT_MAX = 200;             // longueur maximale d'un commentaire
+const PERT_AUTHOR_MAX = 60;               // longueur maximale d'un nom
+
+// Identité d'un planning (« p- », sur le modèle des uid de nœuds a-/j-/l-/r-).
+function pertGenLotId() {
+  return "p-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
+// Empreinte d'une chaîne : cyrb53 (domaine public), 53 bits rendus en hexadécimal.
+// Pas une signature cryptographique : elle dit seulement « même contenu / contenu
+// différent », ce qui suffit à reconnaître deux fichiers issus d'une même sauvegarde.
+function pertHash(str) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const n = 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  return n.toString(16).padStart(14, "0");
+}
+
+// Empreinte du CONTENU du planning (le graphe serialise), indépendante de meta : deux
+// fichiers au graphe identique ont la même empreinte, quel que soit leur historique.
+function pertGraphFingerprint(graphData) {
+  return pertHash(JSON.stringify(graphData || null));
+}
+
+// Horodatage local « AAAA-MM-JJTHH:MM ». Surtout PAS toISOString() : il convertit en
+// UTC et décalerait l'heure (voire la date) à l'est de Greenwich — piège déjà rencontré
+// deux fois dans ce projet (cf. pertIsoLocal).
+function pertLocalStamp(d) {
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate())
+       + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+// « 11/09/2026 à 10:42 » ; une valeur illisible est rendue telle quelle plutôt que
+// masquée (elle vient d'un fichier : mieux vaut la montrer que la perdre).
+function pertFormatStamp(stamp) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(stamp || "");
+  if (!m) return stamp || "date inconnue";
+  return m[3] + "/" + m[2] + "/" + m[1] + " à " + m[4] + ":" + m[5];
+}
+
+// ─── Nom de l'auteur (préférence du poste) ──────────────────────────────────────
+// localStorage peut être indisponible (navigateur verrouillé, navigation privée) :
+// on retombe alors sur un nom vide, jamais sur une erreur.
+
+function pertAuthorGet() {
+  try { return (localStorage.getItem(PERT_AUTHOR_KEY) || "").slice(0, PERT_AUTHOR_MAX); }
+  catch (e) { return ""; }
+}
+
+function pertAuthorSet(name) {
+  const v = String(name || "").trim().slice(0, PERT_AUTHOR_MAX);
+  try {
+    if (v) localStorage.setItem(PERT_AUTHOR_KEY, v);
+    else localStorage.removeItem(PERT_AUTHOR_KEY);
+  } catch (e) { /* stockage indisponible : le nom vaudra pour cette sauvegarde seule */ }
+  return v;
+}
+
+// ─── Lecture robuste des champs de meta ─────────────────────────────────────────
+// Un .pert peut venir d'une version antérieure (champs absents) ou d'un tiers
+// (champs mal formés) : on ne garde que ce qui a la forme attendue.
+
+function pertSanitizeLotId(v) {
+  return (typeof v === "string" && /^[A-Za-z0-9._-]{1,64}$/.test(v)) ? v : "";
+}
+
+function pertSanitizeHistory(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  list.forEach(e => {
+    if (!e || typeof e !== "object") return;
+    const rev = parseInt(e.rev, 10);
+    if (!isFinite(rev) || rev < 1) return;
+    out.push({
+      rev: rev,
+      saved_at: typeof e.saved_at === "string" ? e.saved_at.slice(0, 32) : "",
+      saved_by: typeof e.saved_by === "string" ? e.saved_by.slice(0, PERT_AUTHOR_MAX) : "",
+      comment: typeof e.comment === "string" ? e.comment.slice(0, PERT_COMMENT_MAX) : "",
+      fingerprint: typeof e.fingerprint === "string" ? e.fingerprint.slice(0, 32) : ""
+    });
+  });
+  return out.slice(-PERT_HISTORY_MAX);
+}
+
+// Numéro de révision : entier >= 0, jamais inférieur à la dernière entrée d'historique
+// (un fichier retouché à la main ne doit pas faire reculer la numérotation).
+function pertSanitizeRevision(v, history) {
+  let rev = parseInt(v, 10);
+  if (!isFinite(rev) || rev < 0) rev = 0;
+  (history || []).forEach(e => { if (e.rev > rev) rev = e.rev; });
+  return rev;
+}
+
+// ─── Enregistrement d'une révision ──────────────────────────────────────────────
+
+// Inscrit une nouvelle révision dans meta, juste avant l'écriture du fichier. Tire
+// l'identité du planning si elle n'existe pas encore (fichier antérieur, projet neuf).
+// opts : { author, comment } — author par défaut = le nom retenu sur ce poste.
+function pertRecordRevision(meta, graphData, opts) {
+  opts = opts || {};
+  if (!pertSanitizeLotId(meta.lot_id)) meta.lot_id = pertGenLotId();
+  meta.history = pertSanitizeHistory(meta.history);
+  meta.revision = pertSanitizeRevision(meta.revision, meta.history) + 1;
+  const author = opts.author != null ? String(opts.author) : pertAuthorGet();
+  const entry = {
+    rev: meta.revision,
+    saved_at: pertLocalStamp(new Date()),
+    saved_by: author.trim().slice(0, PERT_AUTHOR_MAX),
+    comment: String(opts.comment || "").trim().slice(0, PERT_COMMENT_MAX),
+    fingerprint: pertGraphFingerprint(graphData)
+  };
+  meta.history.push(entry);
+  meta.history = meta.history.slice(-PERT_HISTORY_MAX);
+  return entry;
+}
+
+// Dernière entrée d'historique (null si le fichier n'en a pas).
+function pertLastRevision(meta) {
+  const h = (meta && Array.isArray(meta.history)) ? meta.history : [];
+  return h.length ? h[h.length - 1] : null;
+}
+
+// Phrase décrivant une entrée : « révision 14, le 11/09/2026 à 10:42 par Alice ».
+function pertDescribeRevision(e) {
+  let s = "révision " + e.rev + ", le " + pertFormatStamp(e.saved_at);
+  if (e.saved_by) s += " par " + e.saved_by;
+  return s;
+}
+
+// ─── Fenêtre « Sauvegarder le planning » ────────────────────────────────────────
+// Chaque sauvegarde produit un fichier téléchargé : c'est déjà un acte délibéré. La
+// fenêtre en profite pour demander un commentaire (facultatif) — l'historique vaut par
+// ce qu'il dit — et le nom de l'auteur, prérempli dès la deuxième fois. Entrée valide,
+// Échap annule : la sauvegarde reste à deux touches.
+
+function pertSaveDialogOpen() {
+  const dlg = document.getElementById("save-dialog");
+  return !!dlg && dlg.style.display !== "none";
+}
+
+function pertOpenSaveDialog() {
+  const dlg = document.getElementById("save-dialog");
+  // Montage HTML sans la fenêtre (page de test, intégration) : sauvegarde directe.
+  if (!dlg) { pertSaveProject(); return; }
+  if (!window.pertGraph || !window.pertGraph._nodes.length) {
+    showToast("Rien à sauvegarder");
+    return;
+  }
+  const meta = window.pertMeta || {};
+  const info = document.getElementById("save-rev-info");
+  const next = pertSanitizeRevision(meta.revision, pertSanitizeHistory(meta.history)) + 1;
+  const last = pertLastRevision(meta);
+  if (info) {
+    info.textContent = last
+      ? "Cette sauvegarde sera la révision " + next + ". Précédente : " + pertDescribeRevision(last) + "."
+      : "Première sauvegarde suivie de ce planning : révision " + next + ".";
+  }
+  const author = document.getElementById("save-author");
+  const comment = document.getElementById("save-comment");
+  author.value = pertAuthorGet();
+  comment.value = "";
+  dlg.style.display = "flex";
+  // Le nom est connu dès la deuxième fois : on va droit au commentaire.
+  (author.value ? comment : author).focus();
+}
+
+function pertCloseSaveDialog() {
+  const dlg = document.getElementById("save-dialog");
+  if (dlg) dlg.style.display = "none";
+}
+
+function pertConfirmSaveDialog() {
+  const author = pertAuthorSet(document.getElementById("save-author").value);
+  const comment = document.getElementById("save-comment").value;
+  pertCloseSaveDialog();
+  pertSaveProject({ author: author, comment: comment });
+}
+
+// Branchement des boutons et du clavier (appelé une fois, au démarrage, par ui.js).
+function pertInstallSaveDialog() {
+  const dlg = document.getElementById("save-dialog");
+  if (!dlg) return;
+  document.getElementById("save-ok").addEventListener("click", () => {
+    guardUI("Sauvegarde impossible", pertConfirmSaveDialog);
+  });
+  document.getElementById("save-cancel").addEventListener("click", pertCloseSaveDialog);
+  ["save-author", "save-comment"].forEach(id => {
+    document.getElementById(id).addEventListener("keydown", e => {
+      // Les raccourcis globaux ignorent la frappe dans un champ (ui.js) : on traite
+      // donc ici Entrée, Échap et Ctrl+S — sans quoi Ctrl+S ouvrirait le dialogue
+      // « Enregistrer la page » du navigateur.
+      if (e.key === "Enter" || (e.ctrlKey && (e.key === "s" || e.key === "S"))) {
+        e.preventDefault();
+        guardUI("Sauvegarde impossible", pertConfirmSaveDialog);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        pertCloseSaveDialog();
+      }
+    });
+  });
+}
+
+// ─── Onglet « Historique » des Paramètres ───────────────────────────────────────
+
+// Remplit l'onglet à l'ouverture des Paramètres : identité, nom de l'auteur, liste des
+// sauvegardes (la plus récente en tête). Tout passe par textContent (cf. en-tête).
+function pertFillHistoryPanel() {
+  const meta = window.pertMeta || {};
+  const idBox = document.getElementById("settings-history-id");
+  const list = document.getElementById("settings-history-list");
+  const author = document.getElementById("settings-author");
+  if (author) author.value = pertAuthorGet();
+  const history = pertSanitizeHistory(meta.history);
+  const rev = pertSanitizeRevision(meta.revision, history);
+  const lotId = pertSanitizeLotId(meta.lot_id);
+
+  if (idBox) {
+    idBox.textContent = "";
+    const line = document.createElement("div");
+    line.className = "history-rev";
+    line.textContent = rev ? "Révision " + rev : "Jamais sauvegardé avec suivi de révision";
+    idBox.appendChild(line);
+    if (lotId) {
+      const idLine = document.createElement("div");
+      idLine.className = "history-lotid";
+      idLine.textContent = "Identifiant du planning : " + lotId;
+      idLine.title = "Reconnaît ce planning quel que soit le nom de son fichier";
+      idBox.appendChild(idLine);
+    }
+  }
+
+  if (!list) return;
+  list.textContent = "";
+  if (!history.length) {
+    const empty = document.createElement("p");
+    empty.className = "history-empty";
+    empty.textContent = "Aucune sauvegarde n'est encore inscrite dans ce fichier. "
+      + "La prochaine ouvrira l'historique.";
+    list.appendChild(empty);
+    return;
+  }
+  history.slice().reverse().forEach(e => {
+    const item = document.createElement("div");
+    item.className = "history-item";
+    const head = document.createElement("div");
+    head.className = "history-head";
+    const num = document.createElement("span");
+    num.className = "history-num";
+    num.textContent = "Rév. " + e.rev;
+    const when = document.createElement("span");
+    when.textContent = pertFormatStamp(e.saved_at) + (e.saved_by ? " · " + e.saved_by : "");
+    head.appendChild(num);
+    head.appendChild(when);
+    const body = document.createElement("div");
+    body.className = "history-comment" + (e.comment ? "" : " none");
+    body.textContent = e.comment || "sans commentaire";
+    item.appendChild(head);
+    item.appendChild(body);
+    list.appendChild(item);
+  });
+}
+
+// Validation des Paramètres : seul le nom de l'auteur relève de cet onglet.
+function pertSaveHistoryPanel() {
+  const author = document.getElementById("settings-author");
+  if (author) pertAuthorSet(author.value);
+}
+
+// Exposition globale (storage.js, ui.js, tests)
+window.pertRecordRevision = pertRecordRevision;
+window.pertGraphFingerprint = pertGraphFingerprint;
+window.pertOpenSaveDialog = pertOpenSaveDialog;
+window.pertFillHistoryPanel = pertFillHistoryPanel;
+window.pertSaveHistoryPanel = pertSaveHistoryPanel;
 
 </script>
   <script>
@@ -26516,7 +26963,10 @@ window.pertMeta = {
   // les plannings existants ; c'est une aide de lecture qu'on demande, cf. time_grid.js).
   time_grid: false,
   // Intensite de la trame (facteur, 1 = reference) — reglage de gout, cf. time_grid.js
-  time_grid_intensity: 1
+  time_grid_intensity: 1,
+  // Identite de revision (v0.26.1, cf. src/revisions.js) : un projet neuf n'en a pas
+  // encore — elle est tiree a sa premiere sauvegarde.
+  lot_id: "", revision: 0, history: []
 };
 window.pertGraph = null;
 window.pertCanvas = null;
@@ -26980,9 +27430,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (timegrid) timegrid.addEventListener("change", pertRefreshTimeGridPreview);
 
   // ── Persistance JSON (.pert) — Session 3 ────────────────────────────────────
+  // v0.26.1 : le bouton ouvre la fenetre de sauvegarde (auteur + commentaire inscrits
+  // dans l'historique du fichier) ; pertSaveProject() reste la sauvegarde directe.
   document.getElementById("btn-save").addEventListener("click", () => {
-    guardUI("Sauvegarde impossible", () => pertSaveProject());
+    guardUI("Sauvegarde impossible", () => pertOpenSaveDialog());
   });
+  pertInstallSaveDialog();
   document.getElementById("btn-open").addEventListener("click", () => {
     document.getElementById("file-input").value = ""; // re-selection du meme fichier OK
     document.getElementById("file-input").click();
@@ -27053,10 +27506,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Ctrl+S → sauvegarder le projet (on bloque le dialogue natif du navigateur)
+    // Ctrl+S → sauvegarder le projet (on bloque le dialogue natif du navigateur).
+    // Meme chemin que le bouton : la fenetre de sauvegarde, validee par Entree.
     if (e.ctrlKey && (e.key === "s" || e.key === "S")) {
       e.preventDefault();
-      pertSaveProject();
+      pertOpenSaveDialog();
       return;
     }
 
@@ -27082,7 +27536,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     if (e.ctrlKey && (e.key === "v" || e.key === "V")) {
-      lgCanvas.pasteFromClipboard();
+      // LiteGraph colle DEJA lui-meme quand la frappe vient du canvas (son ecouteur
+      // keydown, cf. processKey) : recoller ici posait deux copies exactement
+      // superposees, donc invisibles (defaut releve le 11/09/2026). On ne colle que
+      // si le canvas n'avait pas le focus.
+      if (e.target !== lgCanvas.canvas) lgCanvas.pasteFromClipboard();
       pertEnsureUids();   // #34 les noeuds colles recopient l'uid → on les regenere
       pertRecalc();
       return;
@@ -29058,6 +29516,8 @@ function openSettings() {
     window.pertMeta.hours_per_day != null ? window.pertMeta.hours_per_day : 8;
   document.getElementById("settings-rate").value =
     window.pertMeta.hourly_rate != null ? window.pertMeta.hourly_rate : 136;
+  // v0.26.1 onglet Historique : identite du planning, nom de l'auteur, sauvegardes
+  if (window.pertFillHistoryPanel) pertFillHistoryPanel();
   document.getElementById("settings-dialog").style.display = "flex";
 }
 
@@ -29094,6 +29554,8 @@ function saveSettings() {
   window.pertMeta.hours_per_month = isNaN(hpm) ? 135 : Math.max(0, hpm);
   window.pertMeta.hours_per_day   = isNaN(hpd) ? 8   : Math.max(0, hpd);
   window.pertMeta.hourly_rate     = isNaN(rate) ? 136 : Math.max(0, rate);
+  // v0.26.1 nom de l'auteur des sauvegardes : preference du POSTE, pas du fichier
+  if (window.pertSaveHistoryPanel) pertSaveHistoryPanel();
   document.getElementById("settings-dialog").style.display = "none";
   document.getElementById("project-title").textContent = window.pertMeta.title || "PertFlow";
   // Recalculer les tailles (l'unité affectée dans les nœuds Activité)

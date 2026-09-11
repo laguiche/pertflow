@@ -184,7 +184,7 @@ ignore reste posé au milieu du planning qu'on vient de déplacer sous lui.</p>
 <p><strong>Le mode d'emploi complet est dans <a href="../tools/README.md"><code>tools/README.md</code></a></strong> — prérequis,
 lancement, jeux d'essai, conventions d'écriture d'un test. En résumé :</p>
 <pre><code class="language-bash">cd tools &amp;&amp; npm install &amp;&amp; npx playwright install chromium   # une fois
-npm test                                                     # 35 tests, ~95 s
+npm test                                                     # 37 tests, ~100 s
 </code></pre>
 <ul>
 <li><strong>Suite smoke</strong> : chaque test pilote l'application dans un vrai Chromium ouvert en <code>file://</code> —
@@ -242,7 +242,7 @@ et un <strong>PDF</strong>. Ces sorties <code>docs/*.html</code> et <code>docs/*
    L'ordre a changé le 01/09/2026 : deux contrôles portent désormais sur le <strong>bundle</strong> et non sur
    les sources (<code>smoke-securite.js</code>, <code>audit-securite.js</code>) — les lancer avant de le régénérer
    reviendrait à valider le fichier de la version précédente.</li>
-<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 35/35).</li>
+<li><strong>Faire passer la suite</strong> : <code>cd tools &amp;&amp; npm test</code> (attendu : 37/37).</li>
 <li><strong>Mettre à jour la documentation</strong> touchée — les <code>.md</code> de <code>docs/</code>, les <strong>captures</strong> qu'une
    évolution d'IHM a périmées (<code>node tools/doc-shots-*.js</code>), les versions HTML/PDF
    (<code>node tools/build-docs.js</code>) et <strong>les notes de version</strong> — <strong>avant</strong> le push.</li>
@@ -317,6 +317,17 @@ bundle) → pousser → merger sur <code>main</code> → taguer → pousser le t
   responsable, notes ; puis l'intertitre <strong>« Suivi et coût »</strong> et, derrière lui, l'avancement et la
   charge. <strong>Toute nouveauté hors planification se range sous l'intertitre</strong>, jamais au milieu du
   haut de panneau. Un test vérifie l'ordre complet : sans lui, la décision se déferait en silence.</li>
+<li><strong>Un type de nœud neuf porte un <code>uid</code></strong>, préfixé par famille (<code>a-</code>/<code>j-</code>/<code>l-</code>/<code>r-</code>), tiré par son
+  constructeur <strong>et</strong> ajouté à <code>pertEnsureUids</code> (<code>nodes.js</code>) : c'est la clé qui reconnaît un nœud
+  d'un fichier à l'autre (v0.26.1). Sans l'entrée dans <code>pertEnsureUids</code>, un copier-coller
+  produirait deux nœuds au même <code>uid</code>, sans rien casser à l'écran.</li>
+<li><strong>La révision d'un planning n'avance qu'au geste de sauvegarde</strong> (<code>pertSaveProject</code> →
+  <code>pertRecordRevision</code>, <code>src/revisions.js</code>). Ne jamais l'incrémenter dans <code>pertSerializeProject</code>,
+  que l'autosave appelle en boucle : <code>smoke-revisions.js</code> le vérifie.</li>
+<li><strong>Raccourcis clavier : LiteGraph en traite certains lui-même</strong> quand le canvas a le focus
+  (<code>processKey</code> : copier, coller, tout sélectionner, supprimer). Un raccourci ajouté dans <code>ui.js</code>
+  qui refait la même action la fait <strong>deux fois</strong> — c'est ainsi que <code>Ctrl+V</code> a longtemps collé deux
+  copies superposées, donc invisibles. Tester le <strong>nombre</strong> de nœuds, pas seulement leur présence.</li>
 </ul>
 <hr />
 <h2 id="8-ou-trouver-quoi">8. Où trouver quoi</h2>
@@ -375,6 +386,10 @@ bundle) → pousser → merger sur <code>main</code> → taguer → pousser le t
 <tr>
 <td>La sérialisation / l'undo / l'autosave</td>
 <td><code>src/storage.js</code>, <code>history.js</code>, <code>autosave.js</code></td>
+</tr>
+<tr>
+<td>La révision, l'historique des sauvegardes, la fenêtre de sauvegarde</td>
+<td><code>src/revisions.js</code></td>
 </tr>
 <tr>
 <td>Les fenêtres de rapport (synthèse, suivi, risques)</td>

@@ -61,6 +61,8 @@ pertflow/
 │   │                     #   estimation charge/coût
 │   ├── ui.js             # Toolbar, panneau, dialogues, menus, filtre, barre de statut, câblage
 │   ├── storage.js        # Sérialisation/chargement .pert
+│   ├── revisions.js      # Identité de révision : numéro, historique, empreinte, identifiant
+│   │                     #   du planning, fenêtre de sauvegarde, onglet « Historique »
 │   ├── history.js        # Undo/Redo par snapshots
 │   ├── autosave.js       # Filet anti-crash (snapshot localStorage)
 │   ├── align.js          # Boîte d'alignement / distribution des nœuds sélectionnés
@@ -107,7 +109,8 @@ câblage).
 ```json
 {
   "version": "1.0",
-  "meta": { "title", "t0", "unit", "layout_gap", "link_mode", "prop_width",
+  "meta": { "lot_id", "revision", "history",
+            "title", "t0", "unit", "layout_gap", "link_mode", "prop_width",
             "hours_per_month", "hours_per_day", "hourly_rate", "groups", "autosave" },
   "graph": { /* sérialisation LiteGraph native (graph.serialize()) */ }
 }
@@ -120,7 +123,39 @@ câblage).
   fichier. Les propriétés **saisies** vivent dans `node.properties` (sérialisées nativement par
   LiteGraph).
 
+### Identité de révision (v0.26.1, `revisions.js`)
+
+Un planning partagé passe de main en main, et chaque sauvegarde est un **téléchargement** recopié
+ensuite à la main : il fallait savoir qui a enregistré quoi, et reconnaître deux fichiers comme
+deux états du même planning. C'est le socle de la comparaison de deux `.pert` et du travail à
+plusieurs.
+
+- `meta.lot_id` — **identité du planning** (`p-…`), tirée à la première sauvegarde suivie, jamais
+  modifiée ensuite (ni au renommage du fichier, ni au changement de titre, ni par l'import d'un
+  autre `.pert`, qui ne touche pas à `meta`).
+- `meta.revision` — numéro de la dernière sauvegarde ; `0` = jamais sauvegardé avec suivi.
+- `meta.history` — les 50 dernières sauvegardes : `{ rev, saved_at, saved_by, comment,
+  fingerprint }`. `saved_at` est une heure **locale** (`AAAA-MM-JJTHH:MM`, jamais
+  `toISOString()` qui passe en UTC). `fingerprint` = empreinte **cyrb53** du graphe sérialisé,
+  calculée en JS pur : elle dit « même contenu / contenu différent », sans prétention
+  cryptographique, et sans dépendre d'une API propre à un navigateur.
+- **La révision n'avance qu'au geste de sauvegarde** (`pertSaveProject`). L'autosave sérialise sans
+  y passer, et l'undo ne restaure que des champs nommés de `meta` — ni l'un ni l'autre ne peut
+  donc la faire bouger. Un téléchargement annulé fait sauter un numéro : la numérotation garantit
+  l'ordre, pas la continuité.
+- Le **nom de l'auteur** est une préférence **du poste** (`localStorage`, clé `pertflow.auteur`),
+  pas du fichier.
+- Ces champs viennent d'un fichier, donc potentiellement d'un tiers : ils sont **filtrés** au
+  chargement (`pertSanitize*`) et **jamais injectés en HTML** (`textContent` seulement).
+
 ### Les nœuds
+
+Les **quatre** types portent un **`uid`** stable, préfixé par famille (`a-` Activité, `j-` Jalon,
+`l-` Label, `r-` Risque — Jalons et Labels depuis la v0.26.1). Tiré par le constructeur, garanti
+unique par `pertEnsureUids` (après chargement, collage, duplication), il reconnaît un nœud d'un
+fichier à l'autre — ce que l'id LiteGraph, renuméroté à chaque import, ne permet pas. Un fichier
+antérieur reçoit les uid de ses Jalons et Labels à l'ouverture ; ils deviennent définitifs à sa
+sauvegarde suivante.
 
 - **Activité** (`pert/activity`) : `uid, label, duration, etp, charge_mode, charge_hours,
   responsible, notes, group, color`.
@@ -135,8 +170,8 @@ câblage).
   - Un `.pert` antérieur ne porte ni `charge_mode` ni `charge_hours` : les défauts du constructeur
     subsistent (LiteGraph **fusionne** les propriétés sérialisées sur celles du nœud neuf) →
     **aucune migration**.
-- **Jalon** (`pert/milestone`) : `label, due_date, tag` (`"" | DOTD | COTD | ING`).
-- **Label** (`pert/label`) : `text` (aucun lien, hors calcul).
+- **Jalon** (`pert/milestone`) : `uid, label, due_date, tag` (`"" | DOTD | COTD | ING`).
+- **Label** (`pert/label`) : `uid, text` (aucun lien, hors calcul).
 
 ---
 
@@ -222,6 +257,13 @@ LiteGraph fournit le canvas, le pan/zoom, la sélection, la sérialisation et le
 - **Sauvegarde automatique** : en `file://`, impossible d'écrire un fichier silencieusement → un
   **snapshot de récupération dans `localStorage`**, écrit périodiquement tant qu'il reste du
   travail non sauvegardé, proposé à la restauration au démarrage. Activée par défaut.
+- **Sauvegarde** (v0.26.1) : le bouton et `Ctrl+S` ouvrent une fenêtre (nom, commentaire) avant le
+  téléchargement — chaque sauvegarde étant déjà un acte délibéré, on en profite pour la décrire.
+  `pertSaveProject()` reste la sauvegarde directe (tests, intégrations). Entrée / `Ctrl+S` / Échap
+  sont traités sur les champs de la fenêtre : les raccourcis globaux ignorent la frappe en saisie.
+- **Collage** : LiteGraph traite lui-même `Ctrl+V` quand le canvas a le focus (`processKey`) ;
+  `ui.js` ne recolle donc que si la frappe vient d'ailleurs — sinon deux copies superposées
+  (défaut corrigé en v0.26.1).
 - **Gestion d'erreurs** : `showToast` / `showError` / `guardUI` + filet global — indispensable en
   `file://` où l'utilisateur n'a pas la console.
 
@@ -485,3 +527,6 @@ pour vérifié ce qui ne l'est plus).
 | Cycle refusé **avant** la création du lien | Un cycle empêche tout calcul : le planning entier deviendrait muet sur un clic |
 | LiteGraph en build **« core »** | Un `.pert` ne doit pouvoir instancier que les 3 types de PertFlow |
 | CSP injectée **au build**, pas dans les sources | Le bundle est ce qui circule ; en `file://` la même règle casserait le mode développement |
+| Révision et historique **dans le fichier**, avancés au seul geste de sauvegarde | Le fichier circule seul ; l'autosave et l'undo ne sont pas des versions |
+| Un `uid` sur **tous** les nœuds | Reconnaître un nœud d'un fichier à l'autre ; l'id LiteGraph est renuméroté à l'import |
+| Empreinte en **JS pur** (cyrb53), aucune API propre à un navigateur | Parc hétérogène : une fonctionnalité ne doit pas dépendre d'un navigateur particulier |

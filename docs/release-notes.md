@@ -11,6 +11,35 @@ dans l'historique git, et l'architecture dans [`conception.md`](conception.md)).
 
 ---
 
+## v0.26.1 — 11/09/2026 · Chaque sauvegarde est tracée
+Un planning partagé dans un répertoire commun passe de main en main. Or chaque sauvegarde est un
+**téléchargement**, que l'on recopie ensuite à la main : rien ne disait **qui** avait enregistré
+**quoi**, ni **quand**, ni si deux fichiers étaient deux états du **même** planning. C'est la
+première brique du travail à plusieurs sur un même PERT.
+
+- **Nouveau — la fenêtre de sauvegarde.** **💾 Sauvegarder** (ou `Ctrl+S`) ouvre une courte
+  fenêtre : **votre nom**, demandé une seule fois puis retenu sur votre poste, et un
+  **commentaire facultatif** sur ce qui a changé. Elle rappelle le numéro de la révision que vous
+  allez produire, et la précédente. **Entrée** sauvegarde, **Échap** annule : la sauvegarde reste
+  à deux touches.
+- **Nouveau — l'historique des sauvegardes**, inscrit **dans le fichier** : numéro de révision,
+  date, auteur, commentaire. Il se consulte dans **⚙ Paramètres → Historique** (nouvel onglet),
+  la plus récente en tête — les 50 dernières sont conservées.
+- **Nouveau — l'identifiant du planning.** Tiré à la première sauvegarde, il ne change plus :
+  ni au renommage du fichier, ni au changement de titre, ni à l'import d'un autre planning. Il
+  permet de reconnaître deux fichiers comme deux états du même planning.
+- **Seules les sauvegardes du fichier sont numérotées** : la sauvegarde automatique et
+  l'annulation (`Ctrl+Z`) n'y touchent pas.
+- **Tous les nœuds ont désormais un identifiant stable** — jalons et labels compris, comme
+  les tâches et les risques avant eux. Invisible, il permettra de reconnaître un même nœud d'un
+  fichier à l'autre (comparaison de deux versions d'un planning, travail à plusieurs).
+- **Vos anciens fichiers s'ouvrent sans changement**, en « révision 0 » : leur historique commence
+  à leur prochaine sauvegarde. Les identifiants de leurs jalons et labels sont attribués à
+  l'ouverture et deviennent définitifs à cette même sauvegarde.
+- **Corrigé — `Ctrl+V` collait deux copies superposées** de la sélection quand la zone de dessin
+  avait le focus (le cas habituel). Les deux copies se recouvrant exactement, le doublon passait
+  inaperçu. Un collage produit désormais une seule copie.
+
 ## v0.26 — 03/09/2026 · La gestion des risques
 Un planning ne dit que ce qui est **prévu**. Ce qui peut le mettre en défaut — un composant à
 fournisseur unique, une qualification qui traîne, un moyen d'essai partagé — vivait dans un

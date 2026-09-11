@@ -209,11 +209,16 @@ async function renderSvg(page, svg, name, w, h) {
   await fit();
   await shot('qs-8-reorganiser.png');
 
-  // Etape 9 — Sauvegarder (toast de confirmation)
-  await page.evaluate(() => { window.__keepToast = true; pertSaveProject(); });
-  await page.waitForTimeout(300);
+  // Etape 9 — Sauvegarder : depuis la v0.26.1 le bouton ouvre la fenetre de sauvegarde
+  // (nom + commentaire inscrits dans l'historique du fichier). On la photographie
+  // remplie, puis on la referme sans telecharger : la capture montre le geste.
+  await page.evaluate(() => { try { localStorage.setItem('pertflow.auteur', 'Alice Martin'); } catch (e) {} });
+  await page.click('#btn-save');
+  await page.waitForSelector('#save-dialog[style*="flex"]');
+  await page.fill('#save-comment', 'Premier jet du planning');
+  await page.waitForTimeout(150);
   await shot('qs-9-sauvegarde.png');
-  await page.evaluate(() => { window.__keepToast = false; const t = document.getElementById('toast'); if (t) t.remove(); });
+  await page.click('#save-cancel');
 
   // ════════════════════════════════════════════════════════════════════════════
   // CHAPITRE 4 — captures reelles

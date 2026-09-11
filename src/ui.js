@@ -21,7 +21,10 @@ window.pertMeta = {
   // les plannings existants ; c'est une aide de lecture qu'on demande, cf. time_grid.js).
   time_grid: false,
   // Intensite de la trame (facteur, 1 = reference) — reglage de gout, cf. time_grid.js
-  time_grid_intensity: 1
+  time_grid_intensity: 1,
+  // Identite de revision (v0.26.1, cf. src/revisions.js) : un projet neuf n'en a pas
+  // encore — elle est tiree a sa premiere sauvegarde.
+  lot_id: "", revision: 0, history: []
 };
 window.pertGraph = null;
 window.pertCanvas = null;
@@ -485,9 +488,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (timegrid) timegrid.addEventListener("change", pertRefreshTimeGridPreview);
 
   // ── Persistance JSON (.pert) — Session 3 ────────────────────────────────────
+  // v0.26.1 : le bouton ouvre la fenetre de sauvegarde (auteur + commentaire inscrits
+  // dans l'historique du fichier) ; pertSaveProject() reste la sauvegarde directe.
   document.getElementById("btn-save").addEventListener("click", () => {
-    guardUI("Sauvegarde impossible", () => pertSaveProject());
+    guardUI("Sauvegarde impossible", () => pertOpenSaveDialog());
   });
+  pertInstallSaveDialog();
   document.getElementById("btn-open").addEventListener("click", () => {
     document.getElementById("file-input").value = ""; // re-selection du meme fichier OK
     document.getElementById("file-input").click();
@@ -558,10 +564,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Ctrl+S → sauvegarder le projet (on bloque le dialogue natif du navigateur)
+    // Ctrl+S → sauvegarder le projet (on bloque le dialogue natif du navigateur).
+    // Meme chemin que le bouton : la fenetre de sauvegarde, validee par Entree.
     if (e.ctrlKey && (e.key === "s" || e.key === "S")) {
       e.preventDefault();
-      pertSaveProject();
+      pertOpenSaveDialog();
       return;
     }
 
@@ -587,7 +594,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     if (e.ctrlKey && (e.key === "v" || e.key === "V")) {
-      lgCanvas.pasteFromClipboard();
+      // LiteGraph colle DEJA lui-meme quand la frappe vient du canvas (son ecouteur
+      // keydown, cf. processKey) : recoller ici posait deux copies exactement
+      // superposees, donc invisibles (defaut releve le 11/09/2026). On ne colle que
+      // si le canvas n'avait pas le focus.
+      if (e.target !== lgCanvas.canvas) lgCanvas.pasteFromClipboard();
       pertEnsureUids();   // #34 les noeuds colles recopient l'uid → on les regenere
       pertRecalc();
       return;
@@ -2563,6 +2574,8 @@ function openSettings() {
     window.pertMeta.hours_per_day != null ? window.pertMeta.hours_per_day : 8;
   document.getElementById("settings-rate").value =
     window.pertMeta.hourly_rate != null ? window.pertMeta.hourly_rate : 136;
+  // v0.26.1 onglet Historique : identite du planning, nom de l'auteur, sauvegardes
+  if (window.pertFillHistoryPanel) pertFillHistoryPanel();
   document.getElementById("settings-dialog").style.display = "flex";
 }
 
@@ -2599,6 +2612,8 @@ function saveSettings() {
   window.pertMeta.hours_per_month = isNaN(hpm) ? 135 : Math.max(0, hpm);
   window.pertMeta.hours_per_day   = isNaN(hpd) ? 8   : Math.max(0, hpd);
   window.pertMeta.hourly_rate     = isNaN(rate) ? 136 : Math.max(0, rate);
+  // v0.26.1 nom de l'auteur des sauvegardes : preference du POSTE, pas du fichier
+  if (window.pertSaveHistoryPanel) pertSaveHistoryPanel();
   document.getElementById("settings-dialog").style.display = "none";
   document.getElementById("project-title").textContent = window.pertMeta.title || "PertFlow";
   // Recalculer les tailles (l'unité affectée dans les nœuds Activité)

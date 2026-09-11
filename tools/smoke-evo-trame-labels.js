@@ -153,8 +153,11 @@ const lib = require('./lib');
     return out;
   });
   console.log('onglets:', onglets);
-  if (onglets.noms.join(',') !== 'projet,affichage,couts')
-    throw new Error('onglets attendus projet/affichage/couts, obtenu ' + onglets.noms.join(','));
+  // Les trois onglets d'origine, dans leur ordre, EN TETE : un onglet ajoute ensuite
+  // (« Historique », v0.26.1) ne doit pas faire echouer ce test, qui protege le
+  // decoupage des reglages et non la liste complete (meme regle que les colonnes CSV).
+  if (onglets.noms.slice(0, 3).join(',') !== 'projet,affichage,couts')
+    throw new Error('onglets attendus en tete projet/affichage/couts, obtenu ' + onglets.noms.join(','));
   if (onglets.unSeulPanneau !== 1) throw new Error('un seul panneau doit etre visible a la fois');
   if (onglets.panneauActif !== 'affichage') throw new Error('le clic d\'onglet ne bascule pas le panneau');
   if (!onglets.champCoutMasque) throw new Error('les champs des autres onglets doivent etre masques');

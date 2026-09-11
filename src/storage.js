@@ -12,12 +12,19 @@
 const PERT_FILE_VERSION = "1.0";
 
 // Construit l'objet projet serialisable a partir de l'etat courant.
-function pertSerializeProject() {
+// graphData (facultatif) : graphe deja serialise par l'appelant — pertSaveProject en a
+// besoin AVANT, pour calculer l'empreinte de la revision qu'il inscrit.
+function pertSerializeProject(graphData) {
   const graph = window.pertGraph;
   const meta = window.pertMeta || {};
   return {
     version: PERT_FILE_VERSION,
     meta: {
+      // Identite de revision (v0.26.1, cf. src/revisions.js). Vides pour un projet
+      // jamais sauvegarde : l'identite n'est tiree qu'a la premiere sauvegarde suivie.
+      lot_id: meta.lot_id || "",
+      revision: meta.revision || 0,
+      history: Array.isArray(meta.history) ? meta.history : [],
       title: meta.title || "",
       t0: meta.t0 || "",
       unit: meta.unit || "j",
@@ -42,7 +49,7 @@ function pertSerializeProject() {
       autosave: meta.autosave !== false
     },
     // graph.serialize() renvoie un objet JS (noeuds + liens + positions/tailles)
-    graph: graph ? graph.serialize() : null
+    graph: graphData || (graph ? graph.serialize() : null)
   };
 }
 
@@ -56,8 +63,19 @@ function pertProjectFilename() {
 }
 
 // Telecharge le projet courant au format .pert (JSON indente).
-function pertSaveProject() {
-  const data = pertSerializeProject();
+// opts (facultatif, v0.26.1) : { author, comment } inscrits dans l'historique. Appelee
+// sans argument (tests, sauvegarde directe), l'auteur est le nom retenu sur ce poste.
+// Le bouton et Ctrl+S passent par la fenetre pertOpenSaveDialog (src/revisions.js).
+function pertSaveProject(opts) {
+  const graph = window.pertGraph;
+  if (!graph) { showToast("Rien a sauvegarder"); return; }
+  // La revision avance a CHAQUE sauvegarde du fichier, et seulement la : la sauvegarde
+  // automatique serialise sans passer par ici. Si l'utilisateur annule ensuite le
+  // telechargement, la numerotation sautera un cran — sans consequence, elle ne
+  // promet que l'ordre, pas la continuite.
+  const graphData = graph.serialize();
+  if (window.pertRecordRevision) pertRecordRevision(window.pertMeta, graphData, opts);
+  const data = pertSerializeProject(graphData);
   if (!data.graph) { showToast("Rien a sauvegarder"); return; }
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: "application/json" });
@@ -72,7 +90,8 @@ function pertSaveProject() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   // Le fichier .pert capture l'etat : plus rien de « non sauvegarde » a recuperer.
   if (window.pertAutosaveMarkSaved) window.pertAutosaveMarkSaved();
-  showToast("Projet sauvegarde : " + a.download);
+  showToast("Projet sauvegarde : " + a.download
+    + (data.meta.revision ? " (révision " + data.meta.revision + ")" : ""));
 }
 
 // Lit un fichier .pert choisi par l'utilisateur et l'applique au graphe.
@@ -103,6 +122,14 @@ function pertApplyProject(data) {
 
   // Metadonnees projet (avec valeurs par defaut robustes aux anciens fichiers)
   const meta = data.meta || {};
+  // Identite de revision (v0.26.1) : un fichier anterieur n'en a pas → revision 0,
+  // historique vide, identite tiree a sa premiere sauvegarde. Champs venus d'un
+  // fichier, donc filtres (cf. src/revisions.js).
+  const history = window.pertSanitizeHistory ? pertSanitizeHistory(meta.history) : [];
+  window.pertMeta.history = history;
+  window.pertMeta.revision = window.pertSanitizeRevision
+    ? pertSanitizeRevision(meta.revision, history) : 0;
+  window.pertMeta.lot_id = window.pertSanitizeLotId ? pertSanitizeLotId(meta.lot_id) : "";
   window.pertMeta.title = meta.title || "Nouveau projet";
   window.pertMeta.t0 = meta.t0 || "";
   window.pertMeta.unit = meta.unit || "j";
