@@ -237,6 +237,27 @@ et un **PDF**. Ces sorties `docs/*.html` et `docs/*.pdf` sont **versionnées** (
    - Le **corps de la release reprend les notes de version** : une seule rédaction, orientée
      utilisateur, à un seul endroit — `docs/release-notes.md`, qui voyage aussi dans l'archive.
 
+   **Corriger une note déjà publiée** (fait le 12/09/2026 pour une phrase de la v0.26) : la même
+   phrase vit à **trois** endroits, tous à reprendre — `docs/release-notes.md` (commit sur
+   `main`), le **corps de la release** de la version concernée, et le `NOTES-DE-VERSION.txt` de
+   **chaque archive publiée depuis** (il contient tout l'historique, pas seulement la version
+   livrée). Pour une archive d'une version antérieure, la reconstruire **depuis son tag** — sinon
+   elle embarquerait le bundle et le manuel d'aujourd'hui :
+
+   ```bash
+   git worktree add --detach /tmp/wt vX.Y        # l'état exact de la version publiée
+   # corriger docs/release-notes.md DANS /tmp/wt, puis :
+   (cd /tmp/wt && node scripts/make-release.js --tag vX.Y)
+   gh release upload vX.Y /tmp/wt/dist/release/pertflow_vX_Y.zip --clobber
+   git worktree remove --force /tmp/wt
+   ```
+
+   Avant de remplacer, **comparer l'ancienne et la nouvelle archive fichier par fichier** : seul
+   `NOTES-DE-VERSION.txt` doit différer. Selon la version de `gh`, `gh release edit` peut manquer ;
+   le corps d'une release se modifie alors par l'API :
+   `gh api -X PATCH repos/<dépôt>/releases/<id> -F body=@notes.md` (l'`id` s'obtient par
+   `gh api repos/<dépôt>/releases/tags/vX.Y -q .id`).
+
 Ordre : finaliser code/doc → suite verte → régénérer bundle (`--tag`) → committer (source +
 bundle) → pousser → merger sur `main` → taguer → pousser le tag → **archive + release GitHub**.
 

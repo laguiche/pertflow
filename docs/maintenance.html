@@ -284,6 +284,23 @@ et un <strong>PDF</strong>. Ces sorties <code>docs/*.html</code> et <code>docs/*
 <li>Le <strong>corps de la release reprend les notes de version</strong> : une seule rédaction, orientée
      utilisateur, à un seul endroit — <code>docs/release-notes.md</code>, qui voyage aussi dans l'archive.</li>
 </ul>
+<p><strong>Corriger une note déjà publiée</strong> (fait le 12/09/2026 pour une phrase de la v0.26) : la même
+   phrase vit à <strong>trois</strong> endroits, tous à reprendre — <code>docs/release-notes.md</code> (commit sur
+   <code>main</code>), le <strong>corps de la release</strong> de la version concernée, et le <code>NOTES-DE-VERSION.txt</code> de
+   <strong>chaque archive publiée depuis</strong> (il contient tout l'historique, pas seulement la version
+   livrée). Pour une archive d'une version antérieure, la reconstruire <strong>depuis son tag</strong> — sinon
+   elle embarquerait le bundle et le manuel d'aujourd'hui :</p>
+<p><code>bash
+   git worktree add --detach /tmp/wt vX.Y        # l'état exact de la version publiée
+   # corriger docs/release-notes.md DANS /tmp/wt, puis :
+   (cd /tmp/wt &amp;&amp; node scripts/make-release.js --tag vX.Y)
+   gh release upload vX.Y /tmp/wt/dist/release/pertflow_vX_Y.zip --clobber
+   git worktree remove --force /tmp/wt</code></p>
+<p>Avant de remplacer, <strong>comparer l'ancienne et la nouvelle archive fichier par fichier</strong> : seul
+   <code>NOTES-DE-VERSION.txt</code> doit différer. Selon la version de <code>gh</code>, <code>gh release edit</code> peut manquer ;
+   le corps d'une release se modifie alors par l'API :
+   <code>gh api -X PATCH repos/&lt;dépôt&gt;/releases/&lt;id&gt; -F body=@notes.md</code> (l'<code>id</code> s'obtient par
+   <code>gh api repos/&lt;dépôt&gt;/releases/tags/vX.Y -q .id</code>).</p>
 <p>Ordre : finaliser code/doc → suite verte → régénérer bundle (<code>--tag</code>) → committer (source +
 bundle) → pousser → merger sur <code>main</code> → taguer → pousser le tag → <strong>archive + release GitHub</strong>.</p>
 <hr />
