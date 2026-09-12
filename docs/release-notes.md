@@ -48,7 +48,7 @@ tableau à part, sans lien avec les dates. Or un risque n'a d'intérêt que rapp
 précisément ce qu'un PERT sait dire.
 
 - **Nouveau — le Risque, quatrième type d'objet du planning**, à côté de la tâche, du jalon et
-  du label. Bouton **⚠ Risque** de la barre d'outils. Il apparaît sous forme de **bandeau** posé
+  du label. Il se crée par **➕ Insérer ▾ → ⚠ Risque**. Il apparaît sous forme de **bandeau** posé
   au-dessus du planning : **sa position et sa largeur sont sa période**, lisibles sur le même axe
   des temps que les tâches.
 - **Trois attributs, dont un seul se calcule tout seul.** Le **libellé** et la **date de début**
